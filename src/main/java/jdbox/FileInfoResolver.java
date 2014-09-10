@@ -50,13 +50,8 @@ public class FileInfoResolver {
     }
 
     public void put(String path, File file) {
-
         SettableFuture<File> future = SettableFuture.create();
-        SettableFuture<File> existing = cache.putIfAbsent(path, future);
-
-        if (existing != null)
-            existing.set(file);
-        else
-            future.set(file);
+        cache.put(path, future);
+        future.set(file);
     }
 }
