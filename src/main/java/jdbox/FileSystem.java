@@ -6,6 +6,8 @@ import net.fusejna.ErrorCodes;
 import net.fusejna.StructStat;
 import net.fusejna.types.TypeMode;
 import net.fusejna.util.FuseFilesystemAdapterFull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.locks.Lock;
@@ -15,19 +17,21 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 public class FileSystem extends FuseFilesystemAdapterFull {
 
     private static final int CACHE_TTL = 5000;
-    private static Set<String> nonExistentFiles = new HashSet<String>() {{
+    private static final Set<String> nonExistentFiles = new HashSet<String>() {{
         add("/.Trash");
         add("/.Trash-1000");
         add("/.xdg-volume-info");
         add("/autorun.inf");
     }};
 
+    private static final Logger logger = LoggerFactory.getLogger(FileSystem.class);
+
     private final DriveAdapter drive;
     private final FileInfoResolver fileInfoResolver;
 
-    private Map<String, CacheEntry> cache = new HashMap<>();
-    private Lock cacheWriteLock;
-    private Lock cacheReadLock;
+    private final Map<String, CacheEntry> cache = new HashMap<>();
+    private final Lock cacheWriteLock;
+    private final Lock cacheReadLock;
 
     public FileSystem(Drive drive) {
 
@@ -39,13 +43,10 @@ public class FileSystem extends FuseFilesystemAdapterFull {
         this.cacheReadLock = cacheLock.readLock();
     }
 
-    private boolean cacheIsValid(String path) {
-        CacheEntry entry = cache.get(path);
-        return entry != null && new Date().getTime() - entry.requestDate.getTime() < CACHE_TTL;
-    }
-
     @Override
     public int getattr(final String path, final StructStat.StatWrapper stat) {
+
+        logger.debug("getting attrs of {}", path);
 
         if (nonExistentFiles.contains(path))
             return -ErrorCodes.ENOENT();
@@ -71,8 +72,15 @@ public class FileSystem extends FuseFilesystemAdapterFull {
         return 0;
     }
 
+    private boolean cacheIsValid(String path) {
+        CacheEntry entry = cache.get(path);
+        return entry != null && new Date().getTime() - entry.requestDate.getTime() < CACHE_TTL;
+    }
+
     @Override
     public int readdir(final String path, final DirectoryFiller filler) {
+
+        logger.debug("reading directory {}", path);
 
         cacheReadLock.lock();
 

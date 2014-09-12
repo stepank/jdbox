@@ -1,6 +1,8 @@
 package jdbox;
 
 import com.google.common.util.concurrent.SettableFuture;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
@@ -9,8 +11,10 @@ import java.util.concurrent.ExecutionException;
 
 public class FileInfoResolver {
 
+    private static final Logger logger = LoggerFactory.getLogger(FileInfoResolver.class);
+
     private final DriveAdapter drive;
-    ConcurrentMap<String, SettableFuture<File>> cache = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, SettableFuture<File>> cache = new ConcurrentHashMap<>();
 
     public FileInfoResolver(DriveAdapter drive) {
         this.drive = drive;
@@ -18,6 +22,8 @@ public class FileInfoResolver {
 
     public File get(String path) throws
             ExecutionException, InterruptedException, DriveAdapter.Exception, IllegalAccessException {
+
+        logger.debug("resolving info of {}", path);
 
         if (path.equals(java.io.File.separator)) {
             return new Root();

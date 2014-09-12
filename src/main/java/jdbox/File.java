@@ -2,7 +2,7 @@ package jdbox;
 
 public class File {
 
-    private com.google.api.services.drive.model.File file;
+    private final com.google.api.services.drive.model.File file;
 
     public File(com.google.api.services.drive.model.File file) {
         this.file = file;

@@ -4,12 +4,16 @@ import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.model.FileList;
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.List;
 
 public class DriveAdapter {
+
+    private static final Logger logger = LoggerFactory.getLogger(DriveAdapter.class);
 
     private final Drive drive;
 
@@ -22,6 +26,8 @@ public class DriveAdapter {
     }
 
     public List<File> getChildren(String id, String where) throws Exception {
+
+        logger.debug("get children of {}, constrained by {}", id, where);
 
         try {
 
