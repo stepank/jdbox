@@ -70,7 +70,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
             stat.size(file.getSize());
 
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("an error occured while getting attrs", e);
         }
 
         return 0;
@@ -111,7 +111,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
                 cacheReadLock.lock();
 
             } catch (Exception e) {
-                e.printStackTrace();
+                logger.error("an error occured while reading directory to cache", e);
             } finally {
                 cacheWriteLock.unlock();
             }
@@ -125,7 +125,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("an error occured while reading directory from cache", e);
         } finally {
             cacheReadLock.unlock();
         }
@@ -149,7 +149,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
             return bytes.length;
 
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("an error occured while reading file", e);
             return 0;
         }
     }
