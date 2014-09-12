@@ -1,14 +1,18 @@
 package jdbox;
 
 import com.google.api.services.drive.Drive;
+import com.google.common.io.ByteStreams;
 import net.fusejna.DirectoryFiller;
 import net.fusejna.ErrorCodes;
+import net.fusejna.StructFuseFileInfo;
 import net.fusejna.StructStat;
 import net.fusejna.types.TypeMode;
 import net.fusejna.util.FuseFilesystemAdapterFull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -127,6 +131,27 @@ public class FileSystem extends FuseFilesystemAdapterFull {
         }
 
         return 0;
+    }
+
+    @Override
+    public int read(String path, ByteBuffer buffer, long count, long offset, StructFuseFileInfo.FileInfoWrapper info) {
+
+        logger.debug("reading file {}, offset {}, count {}", path, offset, count);
+
+        try {
+
+            File file = fileInfoResolver.get(path);
+
+            InputStream stream = drive.downloadFile(file, offset, count);
+            byte[] bytes = ByteStreams.toByteArray(stream);
+            buffer.put(bytes);
+
+            return bytes.length;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return 0;
+        }
     }
 
     private class CacheEntry {

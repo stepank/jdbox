@@ -24,6 +24,14 @@ public class File {
         Long size = file.getFileSize();
         return size == null ? 0 : size;
     }
+
+    public String getDownloadUrl() {
+        return file.getDownloadUrl();
+    }
+
+    public String toString() {
+        return String.format("<file %s id=%s>", getName(), getId());
+    }
 }
 
 class Root extends File {

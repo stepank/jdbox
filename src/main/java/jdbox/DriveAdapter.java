@@ -1,7 +1,10 @@
 package jdbox;
 
+import com.google.api.client.http.GenericUrl;
+import com.google.api.client.http.HttpRequest;
+import com.google.api.client.http.HttpRequestFactory;
+import com.google.api.client.http.HttpResponse;
 import com.google.api.services.drive.Drive;
-import com.google.api.services.drive.model.FileList;
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
 import org.slf4j.Logger;
@@ -9,6 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 
 public class DriveAdapter {
@@ -47,6 +51,23 @@ public class DriveAdapter {
 
         } catch (IOException e) {
             throw new Exception("count not retrieve a list of files", e);
+        }
+    }
+
+    public InputStream downloadFile(File file, long offset, long count) throws Exception {
+
+        logger.debug("downloading file {}, offset is {}, count is {}", file, offset, count);
+
+        if (file.getDownloadUrl() == null || file.getDownloadUrl().length() == 0)
+            return null;
+
+        try {
+            HttpRequest request = drive.getRequestFactory().buildGetRequest(new GenericUrl(file.getDownloadUrl()));
+            request.getHeaders().setRange(String.format("bytes=%s-%s", offset, offset + count - 1));
+            HttpResponse resp = request.execute();
+            return resp.getContent();
+        } catch (IOException e) {
+            throw new Exception("count not download file", e);
         }
     }
 
