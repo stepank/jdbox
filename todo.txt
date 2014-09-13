@@ -1,2 +1,0 @@
-1. make it possible to mount Google Drive account to a path passed as the only parameter of the application.
-listing the directory should only show top level files.
