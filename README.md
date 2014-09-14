@@ -29,7 +29,7 @@ $ INSTALL_DIR/jdbox.sh
 To update runtime:
 
 ```
-make update
+make clean update
 ```
 
 To uninstall:
