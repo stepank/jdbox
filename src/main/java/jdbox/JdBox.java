@@ -11,8 +11,10 @@ import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.client.util.store.FileDataStoreFactory;
 import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.DriveScopes;
+import org.ini4j.Ini;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.InputStreamReader;
 import java.util.Arrays;
 
@@ -20,15 +22,16 @@ public class JdBox {
 
     public static void main(String[] args) throws Exception {
 
-        if (args.length != 1) {
-            System.err.println("Usage: jdbox <mountpoint>");
-            System.exit(1);
-        }
+        File homeDir = new File(System.getProperty("user.home") + "/.jdbox");
+        Ini config = new Ini(new File(homeDir.getAbsolutePath() + "/config"));
+
+        String mountPoint = args.length > 0 ? args[0] : config.get("Main", "mount_point");
 
         HttpTransport httpTransport = GoogleNetHttpTransport.newTrustedTransport();
         JsonFactory jsonFactory = JacksonFactory.getDefaultInstance();
 
-        FileDataStoreFactory dataStoreFactory = new FileDataStoreFactory(new java.io.File(".credentials"));
+        FileDataStoreFactory dataStoreFactory = new FileDataStoreFactory(
+                new File(homeDir.getAbsolutePath() + "/.credentials"));
 
         GoogleClientSecrets clientSecrets = GoogleClientSecrets.load(jsonFactory,
                 new InputStreamReader(JdBox.class.getResourceAsStream("/client_secrets.json")));
@@ -57,6 +60,6 @@ public class JdBox {
 
         Drive drive = new Drive.Builder(httpTransport, jsonFactory, credential).setApplicationName("JDBox").build();
 
-        new FileSystem(drive).mount(args[0]);
+        new FileSystem(drive).mount(mountPoint);
     }
 }

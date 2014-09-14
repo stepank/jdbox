@@ -1,0 +1,7 @@
+[Desktop Entry]
+Version=1.0
+Name=JdBox
+Exec=$INSTALL_DIR/jdbox.sh
+Terminal=false
+Type=Application
+
