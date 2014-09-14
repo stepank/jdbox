@@ -1,7 +1,6 @@
 package jdbox;
 
 import com.google.api.services.drive.Drive;
-import com.google.common.io.ByteStreams;
 import net.fusejna.DirectoryFiller;
 import net.fusejna.ErrorCodes;
 import net.fusejna.StructFuseFileInfo;
@@ -11,7 +10,6 @@ import net.fusejna.util.FuseFilesystemAdapterFull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
@@ -139,15 +137,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
         logger.debug("reading file {}, offset {}, count {}", path, offset, count);
 
         try {
-
-            File file = fileInfoResolver.get(path);
-
-            InputStream stream = drive.downloadFile(file, offset, count);
-            byte[] bytes = ByteStreams.toByteArray(stream);
-            buffer.put(bytes);
-
-            return bytes.length;
-
+            return drive.downloadFileRange(fileInfoResolver.get(path), buffer, offset, count);
         } catch (Exception e) {
             logger.error("an error occured while reading file", e);
             return 0;

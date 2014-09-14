@@ -1,5 +1,7 @@
 package jdbox;
 
+import java.util.Map;
+
 public class File {
 
     private final com.google.api.services.drive.model.File file;
@@ -20,13 +22,23 @@ public class File {
         return file.getMimeType().equals("application/vnd.google-apps.folder");
     }
 
+    public boolean isDownloadable() { return file.getDownloadUrl() != null && file.getDownloadUrl().length() != 0; }
+
     public long getSize() {
+        if (isDirectory())
+            return 0;
+        if (!isDownloadable())
+            return 4096;
         Long size = file.getFileSize();
         return size == null ? 0 : size;
     }
 
     public String getDownloadUrl() {
         return file.getDownloadUrl();
+    }
+
+    public Map<String, String> getExportLinks() {
+        return file.getExportLinks();
     }
 
     public String toString() {
@@ -52,6 +64,16 @@ class Root extends File {
 
     public boolean isDirectory() {
         return true;
+    }
+
+    public boolean isDownloadable() { return false; }
+
+    public String getDownloadUrl() {
+        return null;
+    }
+
+    public Map<String, String> getExportLinks() {
+        return null;
     }
 
     public long getSize() {
