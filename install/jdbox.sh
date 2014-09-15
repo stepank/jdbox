@@ -1,5 +1,5 @@
 #!/bin/bash
 
-LIB=$(dirname "${BASH_SOURCE[0]}")/lib
+LIB=$(cat ~/.jdbox/install_dir)/lib
 
 java -cp "$LIB/*" jdbox.JdBox $1
