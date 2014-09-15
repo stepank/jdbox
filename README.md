@@ -1,7 +1,7 @@
 # jdbox
 
 _jdbox_ is a simple Google Drive client for Linux. It is written in Java and uses `fuse-jna` to provide
-a FUSE file system that can access files in Google Drive. It uses some caching to optimizes latency of some operations.
+a FUSE file system that can access files in Google Drive. It uses some caching to optimize latency of some operations.
 
 ## Install, run, update
 
