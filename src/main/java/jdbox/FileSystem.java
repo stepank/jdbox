@@ -1,6 +1,9 @@
 package jdbox;
 
 import com.google.api.services.drive.Drive;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import net.fusejna.DirectoryFiller;
 import net.fusejna.ErrorCodes;
 import net.fusejna.StructFuseFileInfo;
@@ -11,14 +14,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
-import java.util.*;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.HashSet;
+import java.util.NavigableMap;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
 
 public class FileSystem extends FuseFilesystemAdapterFull {
 
-    private static final int CACHE_TTL = 5000;
     private static final Set<String> nonExistentFiles = new HashSet<String>() {{
         add("/.Trash");
         add("/.Trash-1000");
@@ -31,18 +34,33 @@ public class FileSystem extends FuseFilesystemAdapterFull {
     private final DriveAdapter drive;
     private final FileInfoResolver fileInfoResolver;
 
-    private final Map<String, CacheEntry> cache = new HashMap<>();
-    private final Lock cacheWriteLock;
-    private final Lock cacheReadLock;
+    private final LoadingCache<String, NavigableMap<String, File>> fileListCache;
 
     public FileSystem(Drive drive) {
 
         this.drive = new DriveAdapter(drive);
         fileInfoResolver = new FileInfoResolver(this.drive);
 
-        ReadWriteLock cacheLock = new ReentrantReadWriteLock();
-        this.cacheWriteLock = cacheLock.writeLock();
-        this.cacheReadLock = cacheLock.readLock();
+        fileListCache = CacheBuilder.newBuilder()
+                .expireAfterWrite(5, TimeUnit.SECONDS)
+                .build(
+                        new CacheLoader<String, NavigableMap<String, File>>() {
+                            @Override
+                            public NavigableMap<String, File> load(String path) throws Exception {
+                                File dir = fileInfoResolver.get(path);
+                                NavigableMap<String, File> files = new TreeMap<>();
+                                for (File file : FileSystem.this.drive.getChildren(dir.getId())) {
+                                    String name = file.getName();
+                                    files.put(name, file);
+                                    fileInfoResolver.put(
+                                            path.equals(java.io.File.separator) ?
+                                                    path + name : path + java.io.File.separator + name,
+                                            file);
+                                }
+                                return files;
+                            }
+                        }
+                );
     }
 
     @Override
@@ -74,58 +92,17 @@ public class FileSystem extends FuseFilesystemAdapterFull {
         return 0;
     }
 
-    private boolean cacheIsValid(String path) {
-        CacheEntry entry = cache.get(path);
-        return entry != null && new Date().getTime() - entry.requestDate.getTime() < CACHE_TTL;
-    }
-
     @Override
     public int readdir(final String path, final DirectoryFiller filler) {
 
         logger.debug("reading directory {}", path);
 
-        cacheReadLock.lock();
-
-        if (!cacheIsValid(path)) {
-
-            cacheReadLock.unlock();
-            cacheWriteLock.lock();
-
-            try {
-
-                if (!cacheIsValid(path)) {
-                    NavigableMap<String, File> files = new TreeMap<>();
-                    cache.put(path, new CacheEntry(files));
-                    for (File file : drive.getChildren(fileInfoResolver.get(path).getId())) {
-                        String name = file.getName();
-                        files.put(name, file);
-                        fileInfoResolver.put(
-                                path.equals(java.io.File.separator) ?
-                                        path + name : path + java.io.File.separator + name,
-                                file);
-                    }
-                }
-
-                cacheReadLock.lock();
-
-            } catch (Exception e) {
-                logger.error("an error occurred while reading directory to cache", e);
-            } finally {
-                cacheWriteLock.unlock();
-            }
-        }
-
         try {
-            CacheEntry entry = cache.get(path);
-            if (entry != null) {
-                for (File file : cache.get(path).files.values()) {
-                    filler.add(file.getName());
-                }
+            for (File file : fileListCache.get(path).values()) {
+                filler.add(file.getName());
             }
         } catch (Exception e) {
-            logger.error("an error occurred while reading directory from cache", e);
-        } finally {
-            cacheReadLock.unlock();
+            logger.error("an error occured while reading directory from cache", e);
         }
 
         return 0;
@@ -141,21 +118,6 @@ public class FileSystem extends FuseFilesystemAdapterFull {
         } catch (Exception e) {
             logger.error("an error occurred while reading file", e);
             return 0;
-        }
-    }
-
-    private class CacheEntry {
-
-        public final Date requestDate;
-        public final NavigableMap<String, File> files;
-
-        public CacheEntry(NavigableMap<String, File> files) {
-            this(new Date(), files);
-        }
-
-        public CacheEntry(Date requestDate, NavigableMap<String, File> files) {
-            this.requestDate = requestDate;
-            this.files = files;
         }
     }
 }
