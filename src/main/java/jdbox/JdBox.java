@@ -31,7 +31,7 @@ public class JdBox {
         JsonFactory jsonFactory = JacksonFactory.getDefaultInstance();
 
         FileDataStoreFactory dataStoreFactory = new FileDataStoreFactory(
-                new File(homeDir.getAbsolutePath() + "/.credentials"));
+                new File(homeDir.getAbsolutePath() + "/credentials"));
 
         GoogleClientSecrets clientSecrets = GoogleClientSecrets.load(jsonFactory,
                 new InputStreamReader(JdBox.class.getResourceAsStream("/client_secrets.json")));
