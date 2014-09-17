@@ -43,7 +43,7 @@ public class DriveAdapter {
                 q += " and " + where;
 
             return Lists.transform(
-                    drive.files().list().setQ(q).execute().getItems(),
+                    drive.files().list().setQ(q).setFields(File.fields).execute().getItems(),
                     new Function<com.google.api.services.drive.model.File, File>() {
                         @Nullable
                         @Override

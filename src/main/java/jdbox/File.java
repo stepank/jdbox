@@ -4,6 +4,8 @@ import java.util.Map;
 
 public class File {
 
+    public static String fields = "items(id,title,mimeType,downloadUrl,fileSize,exportLinks)";
+
     private final com.google.api.services.drive.model.File file;
 
     public File(com.google.api.services.drive.model.File file) {
@@ -22,7 +24,9 @@ public class File {
         return file.getMimeType().equals("application/vnd.google-apps.folder");
     }
 
-    public boolean isDownloadable() { return file.getDownloadUrl() != null && file.getDownloadUrl().length() != 0; }
+    public boolean isDownloadable() {
+        return file.getDownloadUrl() != null && file.getDownloadUrl().length() != 0;
+    }
 
     public long getSize() {
         if (isDirectory())
@@ -66,7 +70,9 @@ class Root extends File {
         return true;
     }
 
-    public boolean isDownloadable() { return false; }
+    public boolean isDownloadable() {
+        return false;
+    }
 
     public String getDownloadUrl() {
         return null;
