@@ -8,8 +8,12 @@ a FUSE file system that can access files in Google Drive. It uses some caching t
 ```
 git clone https://github.com/stepank/jdbox.git
 cd jdbox
+git submodule init
+git submodule update
 make clean install
 ```
+
+*NOTE:* make sure that JDK7 is installed.
 
 It will install _jdbox_ into `~/opt/jdbox`. It will also create mount point directory `~/mnt/jdbox` and
 directory `~/.jdbox` for configs and credentials.
