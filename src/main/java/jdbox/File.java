@@ -45,8 +45,25 @@ public class File {
         return file.getExportLinks();
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        File file1 = (File) o;
+
+        if (file != null ? !file.equals(file1.file) : file1.file != null) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        return file != null ? file.getId().hashCode() : 0;
+    }
+
     public String toString() {
-        return String.format("<file %s id=%s>", getName(), getId());
+        return String.format("file %s", getName());
     }
 }
 

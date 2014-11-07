@@ -27,6 +27,13 @@ public class JdBox {
 
         String mountPoint = args.length > 0 ? args[0] : config.get("Main", "mount_point");
 
+        Drive drive = getDriveService(homeDir);
+
+        new FileSystem(drive).mount(mountPoint);
+    }
+
+    public static Drive getDriveService(File homeDir) throws Exception {
+
         HttpTransport httpTransport = GoogleNetHttpTransport.newTrustedTransport();
         JsonFactory jsonFactory = JacksonFactory.getDefaultInstance();
 
@@ -58,8 +65,6 @@ public class JdBox {
             credential = flow.createAndStoreCredential(response, "my");
         }
 
-        Drive drive = new Drive.Builder(httpTransport, jsonFactory, credential).setApplicationName("JDBox").build();
-
-        new FileSystem(drive).mount(mountPoint);
+        return new Drive.Builder(httpTransport, jsonFactory, credential).setApplicationName("JDBox").build();
     }
 }

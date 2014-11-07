@@ -34,7 +34,7 @@ public class DriveAdapter {
 
     public List<File> getChildren(String id, String where) throws Exception {
 
-        logger.debug("get children of {}, constrained by {}", id, where);
+        logger.debug("getting children of {}, constrained by {}", id, where);
 
         try {
 
@@ -59,7 +59,7 @@ public class DriveAdapter {
 
     public InputStream downloadFileRange(File file, long offset, long count) throws Exception {
 
-        logger.debug("downloading file {}, offset is {}, count is {}", file, offset, count);
+        logger.debug("downloading {}, offset {}, count {}", file, offset, count);
 
         try {
             HttpRequest request = drive.getRequestFactory().buildGetRequest(new GenericUrl(file.getDownloadUrl()));
