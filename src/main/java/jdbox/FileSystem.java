@@ -30,15 +30,6 @@ public class FileSystem extends FuseFilesystemAdapterFull {
         add("/autorun.inf");
     }};
 
-    private static final Map<String, String> fileFormatNames = new HashMap<String, String>() {{
-        put("application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docx");
-        put("application/vnd.oasis.opendocument.text", "odt");
-        put("application/rtf", "rtf");
-        put("text/html", "html");
-        put("text/plain", "txt");
-        put("application/pdf", "pdf");
-    }};
-
     private static final int MAX_FILE_READERS = 10;
     private static final int FILE_READERS_EXPIRY_IN_SECS = 20;
     private static final int EXECUTOR_THREADS = 8;
@@ -156,7 +147,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
             File file = fileInfoResolver.get(path);
 
             if (!file.isDownloadable()) {
-                String exportInfo = getExportInfo(file);
+                String exportInfo = file.getExportInfo();
                 buffer.put(Arrays.copyOfRange(exportInfo.getBytes(), (int) offset, (int) (offset + count)));
                 return (int) Math.min(count, exportInfo.length() - offset);
             }
@@ -171,25 +162,6 @@ public class FileSystem extends FuseFilesystemAdapterFull {
             logger.error("an error occured while reading file {}", path, e);
             return 0;
         }
-    }
-
-    private static String getExportInfo(File file) {
-
-        Map<String, String> links = file.getExportLinks();
-        if (links == null)
-            return "";
-
-        StringBuilder builder = new StringBuilder();
-        builder.append(
-                "This file cannot be downloaded directly. You can use one of the following links to export it:\n");
-        for (Map.Entry<String, String> link : links.entrySet()) {
-            String formatName = fileFormatNames.get(link.getKey());
-            if (formatName == null)
-                formatName = link.getKey();
-            builder.append(formatName).append(" - ").append(link.getValue()).append("\n");
-        }
-
-        return builder.toString();
     }
 }
 

@@ -4,7 +4,10 @@ import java.util.Map;
 
 public class File {
 
-    public static String fields = "items(id,title,mimeType,downloadUrl,fileSize,exportLinks)";
+    public static String fields = "items(id,title,mimeType,downloadUrl,fileSize,alternateLink)";
+
+    private static String alternateLinkText =
+            "This file cannot be donloaded directly, you can open it in browser using the following link:\n  ";
 
     private final com.google.api.services.drive.model.File file;
 
@@ -32,7 +35,7 @@ public class File {
         if (isDirectory())
             return 0;
         if (!isDownloadable())
-            return 4096;
+            return getExportInfo().length();
         Long size = file.getFileSize();
         return size == null ? 0 : size;
     }
@@ -41,8 +44,8 @@ public class File {
         return file.getDownloadUrl();
     }
 
-    public Map<String, String> getExportLinks() {
-        return file.getExportLinks();
+    public String getExportInfo() {
+        return alternateLinkText + file.getAlternateLink() + "\n";
     }
 
     @Override
