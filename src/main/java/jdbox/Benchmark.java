@@ -37,8 +37,7 @@ public class Benchmark {
         String path = args[0];
         String suffix = args[1];
 
-        Drive drive = JdBox.getDriveService(
-                new java.io.File(System.getProperty("user.home") + "/.jdbox"));
+        Drive drive = JdBox.getDriveService(new java.io.File(System.getProperty("user.home") + "/.jdbox"));
 
         FileSystem fileSystem = new FileSystem(drive);
 

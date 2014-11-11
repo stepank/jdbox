@@ -2,8 +2,6 @@ package jdbox;
 
 import com.google.api.services.drive.Drive;
 import com.google.common.cache.*;
-import com.google.common.io.ByteStreams;
-import com.google.common.util.concurrent.SettableFuture;
 import jdbox.filereaders.FileReader;
 import jdbox.filereaders.FileReaderFactory;
 import net.fusejna.DirectoryFiller;
@@ -15,11 +13,8 @@ import net.fusejna.util.FuseFilesystemAdapterFull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 

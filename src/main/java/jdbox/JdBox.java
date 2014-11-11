@@ -11,6 +11,7 @@ import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.client.util.store.FileDataStoreFactory;
 import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.DriveScopes;
+import com.google.common.io.ByteStreams;
 import org.ini4j.Ini;
 
 import java.io.BufferedReader;
@@ -33,6 +34,10 @@ public class JdBox {
     }
 
     public static Drive getDriveService(File homeDir) throws Exception {
+        return getDriveService(homeDir, "my");
+    }
+
+    public static Drive getDriveService(File homeDir, String alias) throws Exception {
 
         HttpTransport httpTransport = GoogleNetHttpTransport.newTrustedTransport();
         JsonFactory jsonFactory = JacksonFactory.getDefaultInstance();
@@ -49,7 +54,7 @@ public class JdBox {
                 .setAccessType("offline")
                 .build();
 
-        Credential credential = flow.loadCredential("my");
+        Credential credential = flow.loadCredential(alias);
 
         if (credential == null) {
 
@@ -62,7 +67,7 @@ public class JdBox {
             String code = br.readLine();
 
             GoogleTokenResponse response = flow.newTokenRequest(code).setRedirectUri(redirectUri).execute();
-            credential = flow.createAndStoreCredential(response, "my");
+            credential = flow.createAndStoreCredential(response, alias);
         }
 
         return new Drive.Builder(httpTransport, jsonFactory, credential).setApplicationName("JDBox").build();

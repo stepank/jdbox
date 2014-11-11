@@ -132,6 +132,10 @@ public class RollingFileReader implements FileReader {
         }, PAGE_EXPIRY_IN_SECS, TimeUnit.SECONDS);
     }
 
+    public String toString() {
+        return String.format("RollingFileReader{file = %s}", file.getName());
+    }
+
     private class Entry {
 
         public final RangeConstrainedFileReader reader;
