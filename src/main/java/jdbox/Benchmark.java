@@ -5,6 +5,7 @@ import com.google.api.client.http.HttpRequest;
 import com.google.api.client.http.HttpResponse;
 import com.google.api.client.util.ByteStreams;
 import com.google.api.services.drive.Drive;
+import com.google.inject.Injector;
 import net.fusejna.DirectoryFiller;
 
 import java.io.InputStream;
@@ -37,9 +38,9 @@ public class Benchmark {
         String path = args[0];
         String suffix = args[1];
 
-        Drive drive = JdBox.getDriveService(new java.io.File(System.getProperty("user.home") + "/.jdbox"));
+        Injector injector = JdBox.createInjector();
 
-        FileSystem fileSystem = new FileSystem(drive);
+        FileSystem fileSystem = injector.getInstance(FileSystem.class);
 
         final List<String> fileNames = new LinkedList<>();
         fileSystem.readdir(path, new DirectoryFiller() {
@@ -58,13 +59,15 @@ public class Benchmark {
             }
         });
 
-        final FileInfoResolver fileInfoResolver = fileSystem.getFileInfoResolver();
+        final FileInfoResolver fileInfoResolver = injector.getInstance(FileInfoResolver.class);
 
         List<File> files = new LinkedList<>();
         for (String fileName : fileNames) {
             if (fileName.toLowerCase().endsWith(suffix.toLowerCase()))
                 files.add(fileInfoResolver.get(path + java.io.File.separator + fileName));
         }
+
+        Drive drive = injector.getInstance(Drive.class);
 
         int[] offsets = new int[]{0, 4096};
         int[] fetchSizes = new int[]{128};

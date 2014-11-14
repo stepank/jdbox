@@ -11,65 +11,98 @@ import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.client.util.store.FileDataStoreFactory;
 import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.DriveScopes;
-import com.google.common.io.ByteStreams;
+import com.google.inject.*;
 import org.ini4j.Ini;
 
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
+import java.lang.reflect.Type;
 import java.util.Arrays;
 
 public class JdBox {
 
     public static void main(String[] args) throws Exception {
 
-        File homeDir = new File(System.getProperty("user.home") + "/.jdbox");
-        Ini config = new Ini(new File(homeDir.getAbsolutePath() + "/config"));
+        Ini config = new Ini(new File(getHomeDir(), "config"));
 
-        String mountPoint = args.length > 0 ? args[0] : config.get("Main", "mount_point");
-
-        Drive drive = getDriveService(homeDir);
-
-        new FileSystem(drive).mount(mountPoint);
+        createInjector()
+                .getInstance(FileSystem.class)
+                .mount(args.length > 0 ? args[0] : config.get("Main", "mount_point"));
     }
 
-    public static Drive getDriveService(File homeDir) throws Exception {
-        return getDriveService(homeDir, "my");
+    public static File getHomeDir() {
+        return new File(System.getProperty("user.home"), ".jdbox");
     }
 
-    public static Drive getDriveService(File homeDir, String alias) throws Exception {
+    public static Injector createInjector() {
+        return createInjector(new Environment(getHomeDir(), "my"));
+    }
 
-        HttpTransport httpTransport = GoogleNetHttpTransport.newTrustedTransport();
-        JsonFactory jsonFactory = JacksonFactory.getDefaultInstance();
+    public static Injector createInjector(Environment env) {
+        return Guice.createInjector(new MainModule(env));
+    }
 
-        FileDataStoreFactory dataStoreFactory = new FileDataStoreFactory(
-                new File(homeDir.getAbsolutePath() + "/credentials"));
+    public static class MainModule extends AbstractModule {
 
-        GoogleClientSecrets clientSecrets = GoogleClientSecrets.load(jsonFactory,
-                new InputStreamReader(JdBox.class.getResourceAsStream("/client_secrets.json")));
+        private final Environment env;
 
-        GoogleAuthorizationCodeFlow flow = new GoogleAuthorizationCodeFlow.Builder(
-                httpTransport, jsonFactory, clientSecrets, Arrays.asList(DriveScopes.DRIVE))
-                .setDataStoreFactory(dataStoreFactory)
-                .setAccessType("offline")
-                .build();
-
-        Credential credential = flow.loadCredential(alias);
-
-        if (credential == null) {
-
-            String redirectUri = "urn:ietf:wg:oauth:2.0:oob";
-
-            String url = flow.newAuthorizationUrl().setRedirectUri(redirectUri).build();
-            System.out.println("Please open the following URL in your browser then type the authorization code:");
-            System.out.println("  " + url);
-            BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-            String code = br.readLine();
-
-            GoogleTokenResponse response = flow.newTokenRequest(code).setRedirectUri(redirectUri).execute();
-            credential = flow.createAndStoreCredential(response, alias);
+        public MainModule(Environment env) {
+            this.env = env;
         }
 
-        return new Drive.Builder(httpTransport, jsonFactory, credential).setApplicationName("JDBox").build();
+        @Override
+        protected void configure() {
+            bind(Environment.class).toInstance(env);
+            bind(DriveAdapter.class).in(Singleton.class);
+            bind(FileInfoResolver.class).in(Singleton.class);
+        }
+
+        @Provides @Singleton
+        public Drive getDriveService(Environment env) throws Exception {
+
+            HttpTransport httpTransport = GoogleNetHttpTransport.newTrustedTransport();
+            JsonFactory jsonFactory = JacksonFactory.getDefaultInstance();
+
+            FileDataStoreFactory dataStoreFactory = new FileDataStoreFactory(new File(env.homeDir, "credentials"));
+
+            GoogleClientSecrets clientSecrets = GoogleClientSecrets.load(jsonFactory,
+                    new InputStreamReader(JdBox.class.getResourceAsStream("/client_secrets.json")));
+
+            GoogleAuthorizationCodeFlow flow = new GoogleAuthorizationCodeFlow.Builder(
+                    httpTransport, jsonFactory, clientSecrets, Arrays.asList(DriveScopes.DRIVE))
+                    .setDataStoreFactory(dataStoreFactory)
+                    .setAccessType("offline")
+                    .build();
+
+            Credential credential = flow.loadCredential(env.userAlias);
+
+            if (credential == null) {
+
+                String redirectUri = "urn:ietf:wg:oauth:2.0:oob";
+
+                String url = flow.newAuthorizationUrl().setRedirectUri(redirectUri).build();
+                System.out.println("Please open the following URL in your browser then type the authorization code:");
+                System.out.println("  " + url);
+                BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+                String code = br.readLine();
+
+                GoogleTokenResponse response = flow.newTokenRequest(code).setRedirectUri(redirectUri).execute();
+                credential = flow.createAndStoreCredential(response, env.userAlias);
+            }
+
+            return new Drive.Builder(httpTransport, jsonFactory, credential).setApplicationName("JDBox").build();
+        }
+    }
+
+    public static class Environment {
+
+        public final File homeDir;
+        public final String userAlias;
+
+        public Environment(File homeDir, String userAlias) {
+            this.homeDir = homeDir;
+            this.userAlias = userAlias;
+        }
     }
 }

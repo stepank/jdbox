@@ -1,6 +1,7 @@
 package jdbox;
 
 import com.google.common.util.concurrent.SettableFuture;
+import com.google.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,6 +17,7 @@ public class FileInfoResolver {
     private final DriveAdapter drive;
     private final ConcurrentMap<String, SettableFuture<File>> cache = new ConcurrentHashMap<>();
 
+    @Inject
     public FileInfoResolver(DriveAdapter drive) {
         this.drive = drive;
     }

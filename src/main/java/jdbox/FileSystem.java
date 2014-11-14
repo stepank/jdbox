@@ -2,6 +2,7 @@ package jdbox;
 
 import com.google.api.services.drive.Drive;
 import com.google.common.cache.*;
+import com.google.inject.Inject;
 import jdbox.filereaders.FileReader;
 import jdbox.filereaders.FileReaderFactory;
 import net.fusejna.DirectoryFiller;
@@ -41,22 +42,23 @@ public class FileSystem extends FuseFilesystemAdapterFull {
 
     private final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(EXECUTOR_THREADS);
 
-    public FileSystem(Drive drive) {
+    @Inject
+    public FileSystem(DriveAdapter drive, FileInfoResolver fileInfoResolver) {
 
-        this.drive = new DriveAdapter(drive);
-        fileInfoResolver = new FileInfoResolver(this.drive);
+        this.drive = drive;
+        this.fileInfoResolver = fileInfoResolver;
 
         fileListCache = CacheBuilder.newBuilder()
                 .expireAfterWrite(5, TimeUnit.SECONDS)
                 .build(new CacheLoader<String, NavigableMap<String, File>>() {
                     @Override
                     public NavigableMap<String, File> load(String path) throws Exception {
-                        File dir = fileInfoResolver.get(path);
+                        File dir = FileSystem.this.fileInfoResolver.get(path);
                         NavigableMap<String, File> files = new TreeMap<>();
                         for (File file : FileSystem.this.drive.getChildren(dir.getId())) {
                             String name = file.getName();
                             files.put(name, file);
-                            fileInfoResolver.put(
+                            FileSystem.this.fileInfoResolver.put(
                                     path.equals(java.io.File.separator) ?
                                             path + name : path + java.io.File.separator + name,
                                     file);
@@ -83,10 +85,6 @@ public class FileSystem extends FuseFilesystemAdapterFull {
                 });
 
         executor.setRemoveOnCancelPolicy(true);
-    }
-
-    public FileInfoResolver getFileInfoResolver() {
-        return fileInfoResolver;
     }
 
     @Override

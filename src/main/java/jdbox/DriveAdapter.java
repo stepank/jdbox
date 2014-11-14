@@ -6,6 +6,7 @@ import com.google.api.client.http.HttpResponse;
 import com.google.api.services.drive.Drive;
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
+import com.google.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,6 +25,7 @@ public class DriveAdapter {
 
     private final Drive drive;
 
+    @Inject
     public DriveAdapter(Drive drive) {
         this.drive = drive;
     }
