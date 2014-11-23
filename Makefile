@@ -5,38 +5,50 @@ clean:
 	rm -rf package
 
 run:
-	mvn exec:java -Dexec.mainClass="jdbox.JdBox" -Dexec.args="mnt"
+	mvn compile exec:java -Dexec.mainClass="jdbox.JdBox" -Dexec.args="mnt"
+
+DATA_DIR_SUFFIX ?= .jdbox
+DATA_DIR = $(HOME)/$(DATA_DIR_SUFFIX)
+MOUNT_POINT ?= $(HOME)/mnt/jdbox
+
+install_home:
+	mkdir -p $(DATA_DIR)/storage
+	cp install/config $(DATA_DIR)
+	sed -i 's#\$$MOUNT_POINT#$(MOUNT_POINT)#' $(DATA_DIR)/config
+	mkdir -p $(MOUNT_POINT)
+
+setup_tests:
+	DATA_DIR_SUFFIX=.jdbox-test MOUNT_POINT=$(HOME)/mnt/jdbox-test make install_home
+	mvn clean compile exec:java -Dexec.mainClass="jdbox.SetUpTests"
+
+test: setup_tests
+	mvn test
+
+INSTALL_DIR ?= $(HOME)/opt/jdbox
 
 package:
 	mvn clean package dependency:copy-dependencies
 	rm -rf package
 	mkdir -p package/lib
+	# copy libs
 	cp target/*.jar package/lib
+	# copy executable & shortcut
 	cp install/jdbox.sh package/
+	cp install/jdbox.desktop package/
+	# filter executable & shortcut
+	sed -i 's#\$$INSTALL_DIR#$(INSTALL_DIR)#' package/jdbox.sh package/jdbox.desktop
 
-INSTALL_DIR ?= $(HOME)/opt/jdbox
-
-install_runtime: package
+install: package install_home
+	echo $(INSTALL_DIR) > $(DATA_DIR)/install_dir
 	rm -rf $(INSTALL_DIR)
 	mkdir -p $(INSTALL_DIR)
 	cp -r package/* $(INSTALL_DIR)
-	cp install/jdbox.desktop $(INSTALL_DIR)
-	sed -i 's#\$$INSTALL_DIR#$(INSTALL_DIR)#' $(INSTALL_DIR)/jdbox.desktop
-
-MOUNT_POINT ?= $(HOME)/mnt/jdbox
-
-install: install_runtime
-	mkdir -p ~/.jdbox
-	echo $(INSTALL_DIR) > ~/.jdbox/install_dir
-	cp install/config $(HOME)/.jdbox
-	sed -i 's#\$$MOUNT_POINT#$(MOUNT_POINT)#' ~/.jdbox/config
-	mkdir -p $(MOUNT_POINT)
 
 update:
-	test -f ~/.jdbox/install_dir
-	INSTALL_DIR=$$(cat ~/.jdbox/install_dir) make install_runtime
+	test -f $(DATA_DIR)/install_dir
+	INSTALL_DIR=$$(cat $(DATA_DIR)/install_dir) make install
 
 uninstall:
-	test -f ~/.jdbox/install_dir
-	rm -rf $$(cat ~/.jdbox/install_dir)
-	rm -rf ~/.jdbox
+	test -f (DATA_DIR)/install_dir
+	rm -rf $$(cat $(DATA_DIR)/install_dir)
+	rm -rf $(DATA_DIR)

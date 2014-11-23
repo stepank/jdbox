@@ -3,7 +3,7 @@ package jdbox.filereaders;
 import com.google.common.io.ByteStreams;
 import com.google.common.util.concurrent.SettableFuture;
 import jdbox.DriveAdapter;
-import jdbox.File;
+import jdbox.filetree.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

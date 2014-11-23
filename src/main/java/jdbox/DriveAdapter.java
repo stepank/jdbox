@@ -3,21 +3,23 @@ package jdbox;
 import com.google.api.client.http.GenericUrl;
 import com.google.api.client.http.HttpRequest;
 import com.google.api.client.http.HttpResponse;
+import com.google.api.client.http.InputStreamContent;
 import com.google.api.services.drive.Drive;
+import com.google.api.services.drive.model.About;
+import com.google.api.services.drive.model.ChangeList;
+import com.google.api.services.drive.model.ParentReference;
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
 import com.google.inject.Inject;
+import jdbox.filetree.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 public class DriveAdapter {
 
@@ -30,22 +32,15 @@ public class DriveAdapter {
         this.drive = drive;
     }
 
-    public List<File> getChildren(String id) throws Exception {
-        return getChildren(id, null);
-    }
+    public List<File> getChildren(File file) throws DriveException {
 
-    public List<File> getChildren(String id, String where) throws Exception {
-
-        logger.debug("getting children of {}, constrained by {}", id, where);
+        logger.debug("getting children of {}", file);
 
         try {
-
-            String q = "'" + id + "' in parents and trashed = false";
-            if (where != null && !where.equals(""))
-                q += " and " + where;
-
             return Lists.transform(
-                    drive.files().list().setQ(q).setFields(File.fields).execute().getItems(),
+                    drive.files().list()
+                            .setQ("'" + file.getId() + "' in parents and trashed = false")
+                            .setFields(File.fields).execute().getItems(),
                     new Function<com.google.api.services.drive.model.File, File>() {
                         @Nullable
                         @Override
@@ -53,13 +48,34 @@ public class DriveAdapter {
                             return new File(file);
                         }
                     });
-
         } catch (IOException e) {
-            throw new Exception("could not retrieve a list of files", e);
+            throw new DriveException("could not retrieve a list of files", e);
         }
     }
 
-    public InputStream downloadFileRange(File file, long offset, long count) throws Exception {
+    public BasicInfo getBasicInfo() throws DriveException {
+
+        logger.debug("getting basic info");
+
+        try {
+            return new BasicInfo(drive.about().get().execute());
+        } catch (IOException e) {
+            throw new DriveException("could not retrieve a list of changes", e);
+        }
+    }
+
+    public Changes getChanges(long startChangeId) throws DriveException {
+
+        logger.debug("getting changes starting with {}", startChangeId);
+
+        try {
+            return new Changes(drive.changes().list().setStartChangeId(startChangeId).execute());
+        } catch (IOException e) {
+            throw new DriveException("could not retrieve a list of changes", e);
+        }
+    }
+
+    public InputStream downloadFileRange(File file, long offset, long count) throws DriveException {
 
         logger.debug("downloading {}, offset {}, count {}", file, offset, count);
 
@@ -69,12 +85,134 @@ public class DriveAdapter {
             HttpResponse response = request.execute();
             return response.getContent();
         } catch (IOException e) {
-            throw new Exception("could not download file", e);
+            throw new DriveException("could not download file", e);
         }
     }
 
-    class Exception extends java.lang.Exception {
-        Exception(String message, Throwable cause) {
+    public File createFile(String name, File parent, InputStream content) throws DriveException {
+
+        logger.debug("creating file {} in {}", name, parent);
+
+        com.google.api.services.drive.model.File file =
+                new com.google.api.services.drive.model.File()
+                        .setTitle(name)
+                        .setParents(Collections.singletonList(new ParentReference().setId(parent.getId())));
+
+        try {
+            return new File(drive.files().insert(file, new InputStreamContent("text/plain", content)).execute());
+        } catch (IOException e) {
+            throw new DriveException("could not create file", e);
+        }
+    }
+
+    public File createFolder(String name, File parent) throws DriveException {
+
+        logger.debug("creating folder {} in {}", name, parent);
+
+        com.google.api.services.drive.model.File file =
+                new com.google.api.services.drive.model.File()
+                        .setTitle(name)
+                        .setParents(Collections.singletonList(new ParentReference().setId(parent.getId())))
+                        .setMimeType("application/vnd.google-apps.folder");
+
+        try {
+            return new File(drive.files().insert(file).execute());
+        } catch (IOException e) {
+            throw new DriveException("could not create folder", e);
+        }
+    }
+
+    public void deleteFile(File file) throws DriveException {
+
+        logger.debug("deleting {}", file);
+
+        try {
+            drive.files().delete(file.getId()).execute();
+        } catch (IOException e) {
+            throw new DriveException("could not delete file", e);
+        }
+    }
+
+    public void trashFile(File file) throws DriveException {
+
+        logger.debug("trashing {}", file);
+
+        try {
+            drive.files().trash(file.getId()).execute();
+        } catch (IOException e) {
+            throw new DriveException("could not trash file", e);
+        }
+    }
+
+    public void renameFile(File file, String newName) throws DriveException {
+
+        logger.debug("renaming file {} to {}", file, newName);
+
+        com.google.api.services.drive.model.File newFile = new com.google.api.services.drive.model.File().setTitle(newName);
+
+        try {
+            drive.files().patch(file.getId(), newFile).setFields("title").execute();
+        } catch (IOException e) {
+            throw new DriveException("could not rename file", e);
+        }
+    }
+
+    public void moveFile(File file, File parent) throws DriveException {
+
+        logger.debug("moving file {} to {}", file, parent);
+
+        com.google.api.services.drive.model.File newFile = new com.google.api.services.drive.model.File()
+                .setParents(Collections.singletonList(new ParentReference().setId(parent.getId())));
+
+        try {
+            drive.files().patch(file.getId(), newFile).setFields("parents").execute();
+        } catch (IOException e) {
+            throw new DriveException("could not move file", e);
+        }
+    }
+
+    public class Changes {
+
+        public final long largestChangeId;
+        public final List<Change> items;
+
+        public Changes(ChangeList changes) {
+            largestChangeId = changes.getLargestChangeId();
+            items = Lists.transform(changes.getItems(), new Function<com.google.api.services.drive.model.Change, Change>() {
+                @Override
+                public Change apply(com.google.api.services.drive.model.Change change) {
+                    return new Change(change);
+                }
+            });
+        }
+    }
+
+    public class Change {
+
+        public final String fileId;
+        public final File file;
+        public final boolean isDeleted;
+
+        private Change(com.google.api.services.drive.model.Change change) {
+            fileId = change.getFileId();
+            file = change.getFile() != null ? new File(change.getFile()) : null;
+            isDeleted = change.getDeleted();
+        }
+    }
+
+    public class BasicInfo {
+
+        public final long largestChangeId;
+        public final String rootFolderId;
+
+        public BasicInfo(About about) {
+            largestChangeId = about.getLargestChangeId();
+            rootFolderId = about.getRootFolderId();
+        }
+    }
+
+    public class DriveException extends Exception {
+        private DriveException(String message, Throwable cause) {
             super(message, cause);
         }
     }

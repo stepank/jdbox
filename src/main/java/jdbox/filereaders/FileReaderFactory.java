@@ -1,7 +1,7 @@
 package jdbox.filereaders;
 
 import jdbox.DriveAdapter;
-import jdbox.File;
+import jdbox.filetree.File;
 
 import java.util.concurrent.ScheduledExecutorService;
 

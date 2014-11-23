@@ -1,10 +1,11 @@
 package jdbox;
 
-import com.google.api.services.drive.Drive;
 import com.google.common.cache.*;
 import com.google.inject.Inject;
 import jdbox.filereaders.FileReader;
 import jdbox.filereaders.FileReaderFactory;
+import jdbox.filetree.File;
+import jdbox.filetree.FileTree;
 import net.fusejna.DirectoryFiller;
 import net.fusejna.ErrorCodes;
 import net.fusejna.StructFuseFileInfo;
@@ -16,56 +17,26 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public class FileSystem extends FuseFilesystemAdapterFull {
 
-    private static final Set<String> nonExistentFiles = new HashSet<String>() {{
-        add("/.Trash");
-        add("/.Trash-1000");
-        add("/.xdg-volume-info");
-        add("/autorun.inf");
-    }};
-
     private static final int MAX_FILE_READERS = 10;
     private static final int FILE_READERS_EXPIRY_IN_SECS = 20;
-    private static final int EXECUTOR_THREADS = 8;
 
     private static final Logger logger = LoggerFactory.getLogger(FileSystem.class);
 
     private final DriveAdapter drive;
-    private final FileInfoResolver fileInfoResolver;
+    private final FileTree fileTree;
 
-    private final LoadingCache<String, NavigableMap<String, File>> fileListCache;
     private final LoadingCache<File, FileReader> fileReaders;
 
-    private final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(EXECUTOR_THREADS);
-
     @Inject
-    public FileSystem(DriveAdapter drive, FileInfoResolver fileInfoResolver) {
+    public FileSystem(DriveAdapter drive, FileTree fileTree, final ScheduledExecutorService executor) {
 
         this.drive = drive;
-        this.fileInfoResolver = fileInfoResolver;
-
-        fileListCache = CacheBuilder.newBuilder()
-                .expireAfterWrite(5, TimeUnit.SECONDS)
-                .build(new CacheLoader<String, NavigableMap<String, File>>() {
-                    @Override
-                    public NavigableMap<String, File> load(String path) throws Exception {
-                        File dir = FileSystem.this.fileInfoResolver.get(path);
-                        NavigableMap<String, File> files = new TreeMap<>();
-                        for (File file : FileSystem.this.drive.getChildren(dir.getId())) {
-                            String name = file.getName();
-                            files.put(name, file);
-                            FileSystem.this.fileInfoResolver.put(
-                                    path.equals(java.io.File.separator) ?
-                                            path + name : path + java.io.File.separator + name,
-                                    file);
-                        }
-                        return files;
-                    }
-                });
+        this.fileTree = fileTree;
 
         fileReaders = CacheBuilder.newBuilder()
                 .maximumSize(MAX_FILE_READERS)
@@ -83,63 +54,65 @@ public class FileSystem extends FuseFilesystemAdapterFull {
                         return FileReaderFactory.create(file, FileSystem.this.drive, executor);
                     }
                 });
-
-        executor.setRemoveOnCancelPolicy(true);
     }
 
     @Override
     public int getattr(final String path, final StructStat.StatWrapper stat) {
 
-        logger.debug("getting attrs of {}", path);
-
-        if (nonExistentFiles.contains(path))
-            return -ErrorCodes.ENOENT();
+        logger.debug("[{}] getting attrs", path);
 
         try {
 
-            File file = fileInfoResolver.get(path);
-
-            if (file == null)
-                return -ErrorCodes.ENOENT();
+            File file = fileTree.get(path);
 
             if (file.isDirectory())
                 stat.setMode(TypeMode.NodeType.DIRECTORY, true, true, true, true, true, true, true, false, true);
             else
-                stat.setMode(TypeMode.NodeType.FILE);
+                stat.setMode(TypeMode.NodeType.FILE).size(file.getSize());
 
             stat.size(file.getSize());
 
-        } catch (Exception e) {
-            logger.error("an error occured while getting attrs of {}", path, e);
-        }
+            return 0;
 
-        return 0;
+        } catch (FileTree.NoSuchFileException e) {
+            return -ErrorCodes.ENOENT();
+        } catch (Exception e) {
+            logger.error("[{}] an error occured while getting attrs", path, e);
+            return -ErrorCodes.EPIPE();
+        }
     }
 
     @Override
     public int readdir(final String path, final DirectoryFiller filler) {
 
-        logger.debug("reading directory {}", path);
+        logger.debug("[{}] reading directory", path);
 
         try {
-            for (File file : fileListCache.get(path).values()) {
+
+            for (File file : fileTree.getChildren(path).values()) {
                 filler.add(file.getName());
             }
-        } catch (Exception e) {
-            logger.error("an error occured while reading directory {}", path, e);
-        }
 
-        return 0;
+            return 0;
+
+        } catch (FileTree.NoSuchFileException e) {
+            return -ErrorCodes.ENOENT();
+        } catch (FileTree.NotDirectoryException e) {
+            return -ErrorCodes.ENOTDIR();
+        } catch (Exception e) {
+            logger.error("[{}] an error occured while reading directory", path, e);
+            return -ErrorCodes.EPIPE();
+        }
     }
 
     @Override
     public int read(String path, ByteBuffer buffer, long count, long offset, StructFuseFileInfo.FileInfoWrapper info) {
 
-        logger.debug("reading file {}, offset {}, count {}", path, offset, count);
+        logger.debug("[{}] reading file, offset {}, count {}", path, offset, count);
 
         try {
 
-            File file = fileInfoResolver.get(path);
+            File file = fileTree.get(path);
 
             if (!file.isDownloadable()) {
                 String exportInfo = file.getExportInfo();
@@ -153,9 +126,11 @@ public class FileSystem extends FuseFilesystemAdapterFull {
 
             return (int) toRead;
 
+        } catch (FileTree.NoSuchFileException e) {
+            return -ErrorCodes.ENOENT();
         } catch (Exception e) {
-            logger.error("an error occured while reading file {}", path, e);
-            return 0;
+            logger.error("[{}] an error occured while reading file", path, e);
+            return -ErrorCodes.EPIPE();
         }
     }
 }

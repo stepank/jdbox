@@ -6,6 +6,8 @@ import com.google.api.client.http.HttpResponse;
 import com.google.api.client.util.ByteStreams;
 import com.google.api.services.drive.Drive;
 import com.google.inject.Injector;
+import jdbox.filetree.File;
+import jdbox.filetree.FileTree;
 import net.fusejna.DirectoryFiller;
 
 import java.io.InputStream;
@@ -59,12 +61,12 @@ public class Benchmark {
             }
         });
 
-        final FileInfoResolver fileInfoResolver = injector.getInstance(FileInfoResolver.class);
+        final FileTree fileTree = injector.getInstance(FileTree.class);
 
         List<File> files = new LinkedList<>();
         for (String fileName : fileNames) {
             if (fileName.toLowerCase().endsWith(suffix.toLowerCase()))
-                files.add(fileInfoResolver.get(path + java.io.File.separator + fileName));
+                files.add(fileTree.get(path + java.io.File.separator + fileName));
         }
 
         Drive drive = injector.getInstance(Drive.class);
