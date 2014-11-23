@@ -16,7 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.Arrays;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -71,6 +71,12 @@ public class FileSystem extends FuseFilesystemAdapterFull {
                 stat.setMode(TypeMode.NodeType.FILE).size(file.getSize());
 
             stat.size(file.getSize());
+            if (file.getCreatedDate() != null)
+                stat.ctime(file.getCreatedDate().getTime() / 1000);
+            if (file.getModifiedDate() != null)
+                stat.mtime(file.getModifiedDate().getTime() / 1000);
+            if (file.getAccessedDate() != null)
+                stat.atime(file.getAccessedDate().getTime() / 1000);
 
             return 0;
 

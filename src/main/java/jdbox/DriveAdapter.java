@@ -4,6 +4,7 @@ import com.google.api.client.http.GenericUrl;
 import com.google.api.client.http.HttpRequest;
 import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.InputStreamContent;
+import com.google.api.client.util.DateTime;
 import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.model.About;
 import com.google.api.services.drive.model.ChangeList;
@@ -19,6 +20,7 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 
 public class DriveAdapter {
@@ -99,7 +101,9 @@ public class DriveAdapter {
                         .setParents(Collections.singletonList(new ParentReference().setId(parent.getId())));
 
         try {
-            return new File(drive.files().insert(file, new InputStreamContent("text/plain", content)).execute());
+            Drive.Files.Insert request = drive.files().insert(file, new InputStreamContent("text/plain", content));
+            request.getMediaHttpUploader().setDirectUploadEnabled(true);
+            return new File(request.execute());
         } catch (IOException e) {
             throw new DriveException("could not create file", e);
         }
@@ -146,7 +150,7 @@ public class DriveAdapter {
 
     public void renameFile(File file, String newName) throws DriveException {
 
-        logger.debug("renaming file {} to {}", file, newName);
+        logger.debug("renaming {} to {}", file, newName);
 
         com.google.api.services.drive.model.File newFile = new com.google.api.services.drive.model.File().setTitle(newName);
 
@@ -157,9 +161,37 @@ public class DriveAdapter {
         }
     }
 
+    public void touchFile(File file, Date date) throws DriveException {
+
+        logger.debug("touching {}", file);
+
+        com.google.api.services.drive.model.File newFile =
+                new com.google.api.services.drive.model.File().setLastViewedByMeDate(new DateTime(date));
+
+        try {
+            drive.files().patch(file.getId(), newFile).setFields("lastViewedByMeDate").execute();
+        } catch (IOException e) {
+            throw new DriveException("could not rename file", e);
+        }
+    }
+
+    public void updateFileContent(File file, InputStream content) throws DriveException {
+
+        logger.debug("touching {}", file);
+
+        try {
+            Drive.Files.Update request = drive.files().update(
+                    file.getId(), new com.google.api.services.drive.model.File(), new InputStreamContent("text/plain", content));
+            request.getMediaHttpUploader().setDirectUploadEnabled(true);
+            request.execute();
+        } catch (IOException e) {
+            throw new DriveException("could not rename file", e);
+        }
+    }
+
     public void moveFile(File file, File parent) throws DriveException {
 
-        logger.debug("moving file {} to {}", file, parent);
+        logger.debug("moving {} to {}", file, parent);
 
         com.google.api.services.drive.model.File newFile = new com.google.api.services.drive.model.File()
                 .setParents(Collections.singletonList(new ParentReference().setId(parent.getId())));
