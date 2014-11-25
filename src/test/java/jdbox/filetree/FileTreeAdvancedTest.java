@@ -1,6 +1,7 @@
 package jdbox.filetree;
 
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
@@ -14,6 +15,7 @@ import java.util.Map;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
+@Category(FileTree.class)
 @RunWith(Parameterized.class)
 public class FileTreeAdvancedTest extends BaseFileTreeTest {
 
@@ -48,10 +50,13 @@ public class FileTreeAdvancedTest extends BaseFileTreeTest {
 
         String fileName = rename ? "test_file_2" : testFileName;
         Map<String, File> children = fileTree.getChildren(testDirPath);
+        assertThat(children.size(), equalTo(1));
         assertThat(children.get(fileName).getName(), equalTo(fileName));
         assertThat(children.get(fileName).isDirectory(), equalTo(false));
         assertThat(children.get(fileName).getAccessedDate(), equalTo(newDate));
         assertThat(children.get(fileName).getSize(), equalTo((long) newContent.length()));
+
+        assertCounts(1, 1);
     }
 
     /**
@@ -62,10 +67,11 @@ public class FileTreeAdvancedTest extends BaseFileTreeTest {
         File testFile = createTestFileAndUpdate();
         if (rename)
             drive.renameFile(testFile, "test_file_2");
-        drive.trashFile(drive.getChildren(testDir).get(0));
+        drive.trashFile(testFile);
         assertTestDirContainsOnlyTestFile();
         fileTree.update();
         assertTestDirContainsNothing();
+        assertCounts(0, 1);
     }
 
     /**
@@ -76,10 +82,33 @@ public class FileTreeAdvancedTest extends BaseFileTreeTest {
         File testFile = createTestFileAndUpdate();
         if (rename)
             drive.renameFile(testFile, "test_file_2");
-        drive.deleteFile(drive.getChildren(testDir).get(0));
+        drive.deleteFile(testFile);
         assertTestDirContainsOnlyTestFile();
         fileTree.update();
         assertTestDirContainsNothing();
+        assertCounts(0, 1);
+    }
+
+    /**
+     * Delete a tracked directory, make sure it disappears.
+     */
+    @Test
+    public void deleteTrackedDir() throws Exception {
+        Path folderPath = testDirPath.resolve("folder");
+        File folder = drive.createFolder("folder", testDir);
+        createTestFileAndUpdate(folder, folderPath);
+        assertCounts(2, 2);
+        if (rename)
+            drive.renameFile(folder, "folder_2");
+        drive.deleteFile(folder);
+        Map<String, File> children = fileTree.getChildren(testDirPath);
+        assertThat(children.size(), equalTo(1));
+        String name = "folder";
+        assertThat(children.get(name).getName(), equalTo(name));
+        assertThat(children.get(name).isDirectory(), equalTo(true));
+        fileTree.update();
+        assertTestDirContainsNothing();
+        assertCounts(0, 1);
     }
 
     /**
@@ -107,5 +136,57 @@ public class FileTreeAdvancedTest extends BaseFileTreeTest {
         fileTree.update();
         assertTestDirContainsNothing(sourcePath);
         assertTestDirContainsOnlyTestFile(destinationPath, rename ? "test_file_2" : testFileName);
+
+        assertCounts(3, 3);
+    }
+
+    /**
+     * Move a file from one directory into another one that is not tracked, make sure the file disappears.
+     */
+    @Test
+    public void moveToNotTrackedDir() throws Exception {
+
+        Path sourcePath = testDirPath.resolve("source");
+        File source = drive.createFolder("source", testDir);
+        File testFile = createTestFile(source);
+
+        File destination = drive.createFolder("destination", testDir);
+
+        fileTree.getChildren(sourcePath);
+
+        if (rename)
+            drive.renameFile(testFile, "test_file_2");
+        drive.moveFile(testFile, destination);
+        assertTestDirContainsOnlyTestFile(sourcePath, testFileName);
+
+        fileTree.update();
+        assertTestDirContainsNothing(sourcePath);
+
+        assertCounts(2, 2);
+    }
+
+    /**
+     * Move a file from one directory that is not tracked into another one, make sure the file appears.
+     */
+    @Test
+    public void moveFromNotTrackedDir() throws Exception {
+
+        File source = drive.createFolder("source", testDir);
+        File testFile = createTestFile(source);
+
+        Path destinationPath = testDirPath.resolve("destination");
+        File destination = drive.createFolder("destination", testDir);
+
+        fileTree.getChildren(destinationPath);
+
+        if (rename)
+            drive.renameFile(testFile, "test_file_2");
+        drive.moveFile(testFile, destination);
+        assertTestDirContainsNothing(destinationPath);
+
+        fileTree.update();
+        assertTestDirContainsOnlyTestFile(destinationPath, rename ? "test_file_2" : testFileName);
+
+        assertCounts(3, 2);
     }
 }

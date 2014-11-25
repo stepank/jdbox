@@ -7,6 +7,7 @@ import jdbox.filetree.FileTree;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -38,8 +39,10 @@ public class BaseFileTreeTest extends BaseTest {
         fileTree = injector.getInstance(FileTree.class);
 
         String testDirName = UUID.randomUUID().toString();
-        testDirPath = Paths.get("/", testDirName);
+        testDirPath = Paths.get("/");
         testDir = drive.createFolder(testDirName, fileTree.getRoot());
+
+        fileTree.setRoot(testDir);
     }
 
     @After
@@ -94,6 +97,11 @@ public class BaseFileTreeTest extends BaseTest {
         Map<String, File> children = fileTree.getChildren(testDirPath);
         assertContainsTestFile(children, name);
         return children;
+    }
+
+    protected void assertCounts(int knownFilesCount, int trackedDirsCount) {
+        assertThat(fileTree.getKnownFilesCount(), equalTo(knownFilesCount));
+        assertThat(fileTree.getTrackedDirsCount(), equalTo(trackedDirsCount));
     }
 
     protected static void assertContainsTestFile(Map<String, File> children, String name) {

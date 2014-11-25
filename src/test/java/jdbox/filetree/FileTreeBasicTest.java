@@ -1,6 +1,7 @@
 package jdbox.filetree;
 
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import java.nio.file.Path;
 import java.util.Map;
@@ -8,6 +9,7 @@ import java.util.Map;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
+@Category(FileTree.class)
 public class FileTreeBasicTest extends BaseFileTreeTest {
 
     /**
@@ -27,6 +29,8 @@ public class FileTreeBasicTest extends BaseFileTreeTest {
         assertThat(children.get(testFolderName).isDirectory(), equalTo(true));
 
         assertTestDirContainsOnlyTestFile(testDirPath.resolve(testFolderName));
+
+        assertCounts(3, 2);
     }
 
     /**
@@ -39,6 +43,7 @@ public class FileTreeBasicTest extends BaseFileTreeTest {
         assertTestDirContainsNothing();
         fileTree.update();
         assertTestDirContainsOnlyTestFile();
+        assertCounts(1, 1);
     }
 
     /**
@@ -51,5 +56,6 @@ public class FileTreeBasicTest extends BaseFileTreeTest {
         assertTestDirContainsOnlyTestFile();
         fileTree.update();
         assertTestDirContainsOnlyTestFile("test_file_2");
+        assertCounts(1, 1);
     }
 }

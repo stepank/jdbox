@@ -9,10 +9,7 @@ import org.slf4j.LoggerFactory;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 public class FileTree {
 
@@ -22,10 +19,10 @@ public class FileTree {
     private final DriveAdapter drive;
     private final ScheduledExecutorService executor;
     private final ConcurrentMap<Path, SettableFuture<ConcurrentMap<String, File>>> fileLists = new ConcurrentHashMap<>();
-    private final Map<String, File> files = new HashMap<>();
+    private final KnownFiles knownFiles = new KnownFiles();
     private final Map<String, Path> trackedDirs = new HashMap<>();
     private final SettableFuture syncError = SettableFuture.create();
-    private final SettableFuture start = SettableFuture.create();
+    private final CountDownLatch start = new CountDownLatch(1);
     private final Object lock = new Object();
     private final boolean autoUpdate;
 
@@ -41,13 +38,15 @@ public class FileTree {
 
     public void start() throws Exception {
 
-        if (start.isDone())
+        if (start.getCount() == 0)
             return;
 
         DriveAdapter.BasicInfo info = drive.getBasicInfo();
 
         largestChangeId = info.largestChangeId;
         root = File.getRoot(info.rootFolderId);
+
+        start.countDown();
 
         if (autoUpdate)
             executor.scheduleAtFixedRate(new Runnable() {
@@ -56,13 +55,16 @@ public class FileTree {
                     FileTree.this.retrieveAndApplyChanges();
                 }
             }, 0, 5, TimeUnit.SECONDS);
-
-        start.set(null);
     }
 
-    public File getRoot() throws Exception {
-        start.get();
+    public File getRoot() throws InterruptedException {
+        start.await();
         return root;
+    }
+
+    public void setRoot(File file) throws InterruptedException {
+        start.await();
+        root = file;
     }
 
     public void update() {
@@ -71,6 +73,14 @@ public class FileTree {
             return;
 
         retrieveAndApplyChanges();
+    }
+
+    public int getKnownFilesCount() {
+        return knownFiles.count();
+    }
+
+    public int getTrackedDirsCount() {
+        return trackedDirs.size();
     }
 
     private void retrieveAndApplyChanges() {
@@ -98,7 +108,7 @@ public class FileTree {
 
         logger.debug("[{}] getting children", path);
 
-        start.get();
+        start.await();
 
         if (syncError.isDone())
             syncError.get();
@@ -134,7 +144,7 @@ public class FileTree {
                 ConcurrentMap<String, File> result = new ConcurrentHashMap<>();
                 for (File child : children) {
                     result.put(child.getName(), child);
-                    files.put(child.getId(), child);
+                    knownFiles.put(child, file.getId());
                 }
 
                 future.set(result);
@@ -171,6 +181,7 @@ public class FileTree {
             Path path = trackedDirs.get(parentId);
             if (path == null)
                 continue;
+            knownFiles.put(file, parentId);
             fileLists.get(path).get().put(file.getName(), file);
         }
     }
@@ -180,6 +191,7 @@ public class FileTree {
             Path path = trackedDirs.get(parentId);
             if (path == null)
                 continue;
+            knownFiles.remove(file, parentId);
             fileLists.get(path).get().remove(file.getName());
         }
     }
@@ -191,13 +203,11 @@ public class FileTree {
             String changedFileId = change.fileId;
             File changedFile = change.file;
 
-            File currentFile = files.get(changedFileId);
+            File currentFile = knownFiles.get(changedFileId);
 
             if (currentFile == null && changedFile != null) {
 
                 logger.debug("adding {} to tree", changedFile);
-
-                files.put(changedFileId, changedFile);
 
                 addToParents(changedFile, changedFile.getParentIds());
 
@@ -221,15 +231,16 @@ public class FileTree {
 
                     logger.debug("removing {} from tree", changedFile);
 
-                    files.remove(changedFileId);
-
                     removeFromParents(changedFile != null ? changedFile : currentFile, currentFile.getParentIds());
 
                     Path path = trackedDirs.get(changedFileId);
 
                     if (path != null) {
                         trackedDirs.remove(changedFileId);
-                        fileLists.remove(path);
+                        Map<String, File> files = fileLists.remove(path).get();
+                        for (File file : files.values()) {
+                            knownFiles.remove(file, changedFileId);
+                        }
                     }
 
                 } else {
@@ -255,9 +266,61 @@ public class FileTree {
                             continue;
                         fileLists.get(path).get().get(changedFile.getName()).update(changedFile);
                     }
-
-                    files.put(changedFileId, changedFile);
                 }
+            }
+        }
+    }
+
+    private class KnownFiles {
+
+        private final Map<String, KnownFile> files = new HashMap<>();
+
+        public File get(String id) {
+            KnownFile kf = files.get(id);
+            return kf != null ? kf.file : null;
+        }
+
+        public void put(File file, String parentId) {
+            KnownFile kf = files.get(file.getId());
+            if (kf == null)
+                files.put(file.getId(), new KnownFile(file, parentId));
+            else
+                files.get(file.getId()).addParent(parentId);
+        }
+
+        public void remove(File file, String parentId) {
+            KnownFile kf = files.get(file.getId());
+            if (kf == null)
+                throw new IllegalStateException("can't remove parent from unknown file");
+            if(kf.removeParent(parentId))
+                files.remove(file.getId());
+        }
+
+        public int count() {
+            return files.size();
+        }
+
+        private class KnownFile {
+
+            public final File file;
+            private final Set<String> parents = new HashSet<>();
+
+            public KnownFile(File file) {
+                this.file = file;
+            }
+
+            public KnownFile(File file, String parent) {
+                this(file);
+                this.parents.add(parent);
+            }
+
+            public void addParent(String parent) {
+                parents.add(parent);
+            }
+
+            public boolean removeParent(String parent) {
+                parents.remove(parent);
+                return parents.size() == 0;
             }
         }
     }
