@@ -3,7 +3,6 @@ package jdbox.filetree;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import java.nio.file.Path;
 import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;

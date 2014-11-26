@@ -1,5 +1,6 @@
 package jdbox.filetree;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.inject.Inject;
 import jdbox.DriveAdapter;
@@ -9,7 +10,11 @@ import org.slf4j.LoggerFactory;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class FileTree {
 
@@ -18,12 +23,12 @@ public class FileTree {
 
     private final DriveAdapter drive;
     private final ScheduledExecutorService executor;
-    private final ConcurrentMap<Path, SettableFuture<ConcurrentMap<String, File>>> fileLists = new ConcurrentHashMap<>();
+    private final Map<Path, Map<String, File>> fileLists = new HashMap<>();
     private final KnownFiles knownFiles = new KnownFiles();
     private final Map<String, Path> trackedDirs = new HashMap<>();
     private final SettableFuture syncError = SettableFuture.create();
     private final CountDownLatch start = new CountDownLatch(1);
-    private final Object lock = new Object();
+    private final ReadWriteLock lock = new ReentrantReadWriteLock();
     private final boolean autoUpdate;
 
     private volatile long largestChangeId;
@@ -83,82 +88,6 @@ public class FileTree {
         return trackedDirs.size();
     }
 
-    private void retrieveAndApplyChanges() {
-
-        try {
-
-            DriveAdapter.Changes changes = drive.getChanges(largestChangeId + 1);
-
-            largestChangeId = changes.largestChangeId;
-
-            for (DriveAdapter.Change change : changes.items) {
-                FileTree.this.applyChange(change);
-            }
-        } catch (Exception e) {
-            logger.error("an error occured retrieving a list of changes", e);
-            syncError.setException(e);
-        }
-    }
-
-    public Map<String, File> getChildren(String path) throws Exception {
-        return getChildren(Paths.get(path));
-    }
-
-    public Map<String, File> getChildren(Path path) throws Exception {
-
-        logger.debug("[{}] getting children", path);
-
-        start.await();
-
-        if (syncError.isDone())
-            syncError.get();
-
-        File file = get(path);
-
-        if (file == null)
-            throw new NoSuchFileException(path.toString());
-
-        if (!file.isDirectory())
-            throw new NotDirectoryException(path.toString());
-
-        // This is just a small optimization: as most of the time we will have the result ready,
-        // let's try to get and return it instead of creating a new future and trying to insert it.
-        SettableFuture<ConcurrentMap<String, File>> future = fileLists.get(path);
-        if (future != null)
-            return Collections.unmodifiableMap(future.get());
-
-        synchronized (lock) {
-
-            future = SettableFuture.create();
-            SettableFuture<ConcurrentMap<String, File>> existing = fileLists.putIfAbsent(path, future);
-
-            if (existing != null)
-                return Collections.unmodifiableMap(existing.get());
-
-            trackedDirs.put(file.getId(), path);
-
-            try {
-
-                List<File> children = drive.getChildren(file);
-
-                ConcurrentMap<String, File> result = new ConcurrentHashMap<>();
-                for (File child : children) {
-                    result.put(child.getName(), child);
-                    knownFiles.put(child, file.getId());
-                }
-
-                future.set(result);
-
-                return Collections.unmodifiableMap(result);
-
-            } catch (Exception e) {
-                trackedDirs.remove(file.getId());
-                fileLists.remove(path).setException(e);
-                throw e;
-            }
-        }
-    }
-
     public File get(String path) throws Exception {
         return get(Paths.get(path));
     }
@@ -176,29 +105,95 @@ public class FileTree {
         return file;
     }
 
-    private void addToParents(File file, Collection<String> parents) throws Exception {
-        for (String parentId : parents) {
-            Path path = trackedDirs.get(parentId);
-            if (path == null)
-                continue;
-            knownFiles.put(file, parentId);
-            fileLists.get(path).get().put(file.getName(), file);
+    public Map<String, File> getChildren(String path) throws Exception {
+        return getChildren(Paths.get(path));
+    }
+
+    public Map<String, File> getChildren(Path path) throws Exception {
+        return ImmutableMap.copyOf(getChildrenInternal(path));
+    }
+
+    private Map<String, File> getChildrenInternal(Path path) throws Exception {
+
+        logger.debug("[{}] getting children", path);
+
+        start.await();
+
+        if (syncError.isDone())
+            syncError.get();
+
+        File file = get(path);
+
+        if (file == null)
+            throw new NoSuchFileException(path.toString());
+
+        if (!file.isDirectory())
+            throw new NotDirectoryException(path.toString());
+
+        lock.readLock().lock();
+        Map<String, File> result = fileLists.get(path);
+        lock.readLock().unlock();
+
+        if (result != null)
+            return result;
+
+        lock.writeLock().lock();
+
+        try {
+
+            Map<String, File> existing = fileLists.get(path);
+
+            if (existing != null)
+                return existing;
+
+            trackedDirs.put(file.getId(), path);
+
+            try {
+
+                List<File> children = drive.getChildren(file);
+
+                result = new HashMap<>();
+                for (File child : children) {
+                    result.put(child.getName(), child);
+                    knownFiles.put(child, file.getId());
+                }
+
+                fileLists.put(path, result);
+
+                return result;
+
+            } catch (Exception e) {
+                trackedDirs.remove(file.getId());
+                throw e;
+            }
+
+        } finally {
+            lock.writeLock().unlock();
         }
     }
 
-    private void removeFromParents(File file, Collection<String> parents) throws Exception {
-        for (String parentId : parents) {
-            Path path = trackedDirs.get(parentId);
-            if (path == null)
-                continue;
-            knownFiles.remove(file, parentId);
-            fileLists.get(path).get().remove(file.getName());
+    private void retrieveAndApplyChanges() {
+
+        try {
+
+            DriveAdapter.Changes changes = drive.getChanges(largestChangeId + 1);
+
+            largestChangeId = changes.largestChangeId;
+
+            for (DriveAdapter.Change change : changes.items) {
+                FileTree.this.applyChange(change);
+            }
+        } catch (Exception e) {
+            logger.error("an error occured retrieving a list of changes", e);
+            syncError.setException(e);
         }
     }
 
     private void applyChange(DriveAdapter.Change change) throws Exception {
 
-        synchronized (lock) {
+        lock.writeLock().lock();
+
+        try {
 
             String changedFileId = change.fileId;
             File changedFile = change.file;
@@ -221,7 +216,7 @@ public class FileTree {
                         Path path = trackedDirs.get(parentId);
                         if (path == null)
                             continue;
-                        ConcurrentMap<String, File> fileList = fileLists.get(path).get();
+                        Map<String, File> fileList = fileLists.get(path);
                         fileList.remove(currentFile.getName());
                         fileList.put(changedFile.getName(), changedFile);
                     }
@@ -237,7 +232,7 @@ public class FileTree {
 
                     if (path != null) {
                         trackedDirs.remove(changedFileId);
-                        Map<String, File> files = fileLists.remove(path).get();
+                        Map<String, File> files = fileLists.remove(path);
                         for (File file : files.values()) {
                             knownFiles.remove(file, changedFileId);
                         }
@@ -264,10 +259,32 @@ public class FileTree {
                         Path path = trackedDirs.get(parentId);
                         if (path == null)
                             continue;
-                        fileLists.get(path).get().get(changedFile.getName()).update(changedFile);
+                        fileLists.get(path).get(changedFile.getName()).update(changedFile);
                     }
                 }
             }
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
+    private void addToParents(File file, Collection<String> parents) throws Exception {
+        for (String parentId : parents) {
+            Path path = trackedDirs.get(parentId);
+            if (path == null)
+                continue;
+            knownFiles.put(file, parentId);
+            fileLists.get(path).put(file.getName(), file);
+        }
+    }
+
+    private void removeFromParents(File file, Collection<String> parents) throws Exception {
+        for (String parentId : parents) {
+            Path path = trackedDirs.get(parentId);
+            if (path == null)
+                continue;
+            knownFiles.remove(file, parentId);
+            fileLists.get(path).remove(file.getName());
         }
     }
 
@@ -292,7 +309,7 @@ public class FileTree {
             KnownFile kf = files.get(file.getId());
             if (kf == null)
                 throw new IllegalStateException("can't remove parent from unknown file");
-            if(kf.removeParent(parentId))
+            if (kf.removeParent(parentId))
                 files.remove(file.getId());
         }
 

@@ -2,12 +2,8 @@ package jdbox.filetree;
 
 import jdbox.BaseTest;
 import jdbox.DriveAdapter;
-import jdbox.filetree.File;
-import jdbox.filetree.FileTree;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
