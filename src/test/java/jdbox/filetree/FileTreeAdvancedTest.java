@@ -10,10 +10,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
-import java.util.Map;
-
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
 
 @Category(FileTree.class)
 @RunWith(Parameterized.class)
@@ -44,17 +40,13 @@ public class FileTreeAdvancedTest extends BaseFileTreeTest {
         Date newDate = new Date(new Date().getTime() + 3600);
         drive.touchFile(testFile, newDate);
 
-        assertTestDirContainsOnlyTestFile();
+        assertFileTreeContains().defaultTestFile().only();
 
         fileTree.update();
-
-        String fileName = rename ? "test_file_2" : testFileName;
-        Map<String, File> children = fileTree.getChildren(testDirPath);
-        assertThat(children.size(), equalTo(1));
-        assertThat(children.get(fileName).getName(), equalTo(fileName));
-        assertThat(children.get(fileName).isDirectory(), equalTo(false));
-        assertThat(children.get(fileName).getAccessedDate(), equalTo(newDate));
-        assertThat(children.get(fileName).getSize(), equalTo((long) newContent.length()));
+        assertFileTreeContains()
+                .file()
+                .withName(rename ? "test_file_2" : testFileName)
+                .withSize(newContent.length()).only();
 
         assertCounts(1, 1);
     }
@@ -68,9 +60,9 @@ public class FileTreeAdvancedTest extends BaseFileTreeTest {
         if (rename)
             drive.renameFile(testFile, "test_file_2");
         drive.trashFile(testFile);
-        assertTestDirContainsOnlyTestFile();
+        assertFileTreeContains().defaultTestFile().only();
         fileTree.update();
-        assertTestDirContainsNothing();
+        assertFileTreeContains().nothing();
         assertCounts(0, 1);
     }
 
@@ -83,9 +75,9 @@ public class FileTreeAdvancedTest extends BaseFileTreeTest {
         if (rename)
             drive.renameFile(testFile, "test_file_2");
         drive.deleteFile(testFile);
-        assertTestDirContainsOnlyTestFile();
+        assertFileTreeContains().defaultTestFile().only();
         fileTree.update();
-        assertTestDirContainsNothing();
+        assertFileTreeContains().nothing();
         assertCounts(0, 1);
     }
 
@@ -94,20 +86,21 @@ public class FileTreeAdvancedTest extends BaseFileTreeTest {
      */
     @Test
     public void deleteTrackedDir() throws Exception {
-        Path folderPath = testDirPath.resolve("folder");
-        File folder = drive.createFolder("folder", testDir);
+
+        Path folderPath = testDirPath.resolve(testFolderName);
+        File folder = drive.createFolder(testFolderName, testDir);
         createTestFileAndUpdate(folder, folderPath);
+
         assertCounts(2, 2);
+
         if (rename)
-            drive.renameFile(folder, "folder_2");
+            drive.renameFile(folder, testFolderName + "_2");
         drive.deleteFile(folder);
-        Map<String, File> children = fileTree.getChildren(testDirPath);
-        assertThat(children.size(), equalTo(1));
-        String name = "folder";
-        assertThat(children.get(name).getName(), equalTo(name));
-        assertThat(children.get(name).isDirectory(), equalTo(true));
+        assertFileTreeContains().defaultTestFolder().only();
+
         fileTree.update();
-        assertTestDirContainsNothing();
+        assertFileTreeContains().nothing();
+
         assertCounts(0, 1);
     }
 
@@ -130,12 +123,12 @@ public class FileTreeAdvancedTest extends BaseFileTreeTest {
         if (rename)
             drive.renameFile(testFile, "test_file_2");
         drive.moveFile(testFile, destination);
-        assertTestDirContainsOnlyTestFile(sourcePath, testFileName);
-        assertTestDirContainsNothing(destinationPath);
+        assertFileTreeContains().in(sourcePath).defaultTestFile().only();
+        assertFileTreeContains().in(destinationPath).nothing();
 
         fileTree.update();
-        assertTestDirContainsNothing(sourcePath);
-        assertTestDirContainsOnlyTestFile(destinationPath, rename ? "test_file_2" : testFileName);
+        assertFileTreeContains().in(sourcePath).nothing();
+        assertFileTreeContains().in(destinationPath).defaultTestFile().withName(rename ? "test_file_2" : testFileName).only();
 
         assertCounts(3, 3);
     }
@@ -157,10 +150,10 @@ public class FileTreeAdvancedTest extends BaseFileTreeTest {
         if (rename)
             drive.renameFile(testFile, "test_file_2");
         drive.moveFile(testFile, destination);
-        assertTestDirContainsOnlyTestFile(sourcePath, testFileName);
+        assertFileTreeContains().in(sourcePath).defaultTestFile().only();
 
         fileTree.update();
-        assertTestDirContainsNothing(sourcePath);
+        assertFileTreeContains().in(sourcePath).nothing();
 
         assertCounts(2, 2);
     }
@@ -182,10 +175,10 @@ public class FileTreeAdvancedTest extends BaseFileTreeTest {
         if (rename)
             drive.renameFile(testFile, "test_file_2");
         drive.moveFile(testFile, destination);
-        assertTestDirContainsNothing(destinationPath);
+        assertFileTreeContains().in(destinationPath).nothing();
 
         fileTree.update();
-        assertTestDirContainsOnlyTestFile(destinationPath, rename ? "test_file_2" : testFileName);
+        assertFileTreeContains().in(destinationPath).defaultTestFile().withName(rename ? "test_file_2" : testFileName).only();
 
         assertCounts(3, 2);
     }

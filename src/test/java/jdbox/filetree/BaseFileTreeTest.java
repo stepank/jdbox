@@ -9,11 +9,13 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.UUID;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class BaseFileTreeTest extends BaseTest {
 
@@ -24,7 +26,7 @@ public class BaseFileTreeTest extends BaseTest {
     protected DriveAdapter drive;
     protected FileTree fileTree;
     protected Path testDirPath;
-    protected File testDir;
+    protected jdbox.filetree.File testDir;
 
     @Before
     public void setUp() throws Exception {
@@ -46,67 +48,150 @@ public class BaseFileTreeTest extends BaseTest {
         drive.deleteFile(testDir);
     }
 
-    protected File createTestFile(File parent) throws Exception {
+    protected jdbox.filetree.File createTestFile(jdbox.filetree.File parent) throws Exception {
         return drive.createFile(testFileName, parent, getTestContent());
     }
 
-    protected File createTestFileAndUpdate() throws Exception {
+    protected jdbox.filetree.File createTestFileAndUpdate() throws Exception {
         return createTestFileAndUpdate(testDir, testDirPath);
     }
 
-    protected File createTestFileAndUpdate(File parent, Path parentPath) throws Exception {
+    protected jdbox.filetree.File createTestFileAndUpdate(jdbox.filetree.File parent, Path parentPath) throws Exception {
         createTestFile(parent);
         return fileTree.getChildren(parentPath).get(testFileName);
     }
 
-    protected void assertTestDirContainsNothing() throws Exception {
-        assertTestDirContainsNothing(testDirPath);
-    }
-
-    protected void assertTestDirContainsNothing(Path path) throws Exception {
-        assertThat(fileTree.getChildren(path).size(), equalTo(0));
-    }
-
-    protected void assertTestDirContainsOnlyTestFile() throws Exception {
-        assertTestDirContainsOnlyTestFile(testDirPath);
-    }
-
-    protected void assertTestDirContainsOnlyTestFile(Path path) throws Exception {
-        assertTestDirContainsOnlyTestFile(path, testFileName);
-    }
-
-    protected void assertTestDirContainsOnlyTestFile(String name) throws Exception {
-        assertTestDirContainsOnlyTestFile(testDirPath, name);
-    }
-
-    protected void assertTestDirContainsOnlyTestFile(Path path, String name) throws Exception {
-        Map<String, File> children = fileTree.getChildren(path);
-        assertThat(children.size(), equalTo(1));
-        assertContainsTestFile(children, name);
-    }
-
-    protected Map<String, File> assertTestDirContainsTestFile() throws Exception {
-        return assertTestDirContainsTestFile(testFileName);
-    }
-
-    protected Map<String, File> assertTestDirContainsTestFile(String name) throws Exception {
-        Map<String, File> children = fileTree.getChildren(testDirPath);
-        assertContainsTestFile(children, name);
-        return children;
-    }
-
     protected void assertCounts(int knownFilesCount, int trackedDirsCount) {
+        assertCounts(fileTree, knownFilesCount, trackedDirsCount);
+    }
+
+    protected void assertCounts(FileTree fileTree, int knownFilesCount, int trackedDirsCount) {
         assertThat(fileTree.getKnownFilesCount(), equalTo(knownFilesCount));
         assertThat(fileTree.getTrackedDirsCount(), equalTo(trackedDirsCount));
     }
 
-    protected static void assertContainsTestFile(Map<String, File> children, String name) {
-        assertThat(children.get(name).getName(), equalTo(name));
-        assertThat(children.get(name).getSize(), equalTo((long) testContentString.length()));
-        assertThat(children.get(name).isDirectory(), equalTo(false));
-    }
-
     protected static InputStream getTestContent() {
         return new ByteArrayInputStream(testContentString.getBytes());
+    }
+
+    protected AssertCollection assertFileTreeContains() throws Exception {
+        return new AssertCollection();
+    }
+
+    public class AssertCollection {
+
+        private final LinkedList<Assert> asserts = new LinkedList<>();
+        private final FileTree fileTree;
+        private Path path = BaseFileTreeTest.this.testDirPath;
+        private Integer count = null;
+
+        public AssertCollection() {
+            this(BaseFileTreeTest.this.fileTree);
+        }
+
+        public AssertCollection(FileTree fileTree) {
+            this.fileTree = fileTree;
+            and();
+        }
+
+        public void nothing() throws Exception {
+            count = 0;
+            check();
+        }
+
+        public void only() throws Exception {
+            count = 1;
+            check();
+        }
+
+        public AssertCollection file() {
+            asserts.getLast().isDirectory = false;
+            return this;
+        }
+
+        public AssertCollection folder() {
+            asserts.getLast().isDirectory = true;
+            return this;
+        }
+
+        public AssertCollection and() {
+            asserts.add(new Assert());
+            return this;
+        }
+
+        public AssertCollection defaultTestFile() throws Exception {
+            return file()
+                    .withName(testFileName)
+                    .withSize(testContentString.length());
+        }
+
+        public AssertCollection defaultTestFolder() throws Exception {
+            return folder()
+                    .withName(testFolderName)
+                    .withSize(0);
+        }
+
+        public AssertCollection in(String path) {
+            return in(Paths.get(path));
+        }
+
+        public AssertCollection in(Path path) {
+            if (path == null)
+                throw new IllegalArgumentException("path");
+            if (path.isAbsolute())
+                this.path = path;
+            else
+                this.path = testDirPath.resolve(path);
+            return this;
+        }
+
+        public AssertCollection withName(String name) {
+            if (name == null)
+                throw new IllegalArgumentException("name");
+            asserts.getLast().name = name;
+            return this;
+        }
+
+        public AssertCollection withSize(int size) {
+            asserts.getLast().size = size;
+            return this;
+        }
+
+        public void check() throws Exception {
+
+            Map<String, jdbox.filetree.File> children = fileTree.getChildren(path);
+
+            if (count != null) {
+                if (count.equals(0)) {
+                    assertThat(children.size(), equalTo(0));
+                    return;
+                } else
+                    assertThat(children.size(), equalTo(count));
+            }
+
+            for (Assert a : asserts) {
+                a.check(children.get(a.name));
+            }
+        }
+
+        public class Assert {
+
+            public String name;
+            public Integer size;
+            public Boolean isDirectory;
+
+            public void check(File file) {
+
+                assertThat(String.format("file %s does not exist", name), file, notNullValue());
+
+                assertThat(file.getName(), equalTo(name));
+
+                if (size != null)
+                    assertThat(file.getSize(), equalTo((long) size));
+
+                if (isDirectory != null)
+                    assertThat(file.isDirectory(), equalTo(isDirectory));
+            }
+        }
     }
 }

@@ -3,11 +3,6 @@ package jdbox.filetree;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import java.util.Map;
-
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-
 @Category(FileTree.class)
 public class FileTreeBasicTest extends BaseFileTreeTest {
 
@@ -21,13 +16,8 @@ public class FileTreeBasicTest extends BaseFileTreeTest {
         File testFolder = drive.createFolder(testFolderName, testDir);
         drive.createFile(testFileName, testFolder, getTestContent());
 
-        Map<String, File> children = assertTestDirContainsTestFile();
-        assertThat(children.size(), equalTo(2));
-        assertThat(children.get(testFolderName).getName(), equalTo(testFolderName));
-        assertThat(children.get(testFolderName).getSize(), equalTo((long) 0));
-        assertThat(children.get(testFolderName).isDirectory(), equalTo(true));
-
-        assertTestDirContainsOnlyTestFile(testDirPath.resolve(testFolderName));
+        assertFileTreeContains().defaultTestFile().and().defaultTestFolder().check();
+        assertFileTreeContains().in(testFolderName).defaultTestFile().only();
 
         assertCounts(3, 2);
     }
@@ -37,11 +27,11 @@ public class FileTreeBasicTest extends BaseFileTreeTest {
      */
     @Test
     public void create() throws Exception {
-        assertTestDirContainsNothing();
+        assertFileTreeContains().nothing();
         drive.createFile(testFileName, testDir, getTestContent());
-        assertTestDirContainsNothing();
+        assertFileTreeContains().nothing();
         fileTree.update();
-        assertTestDirContainsOnlyTestFile();
+        assertFileTreeContains().defaultTestFile().only();
         assertCounts(1, 1);
     }
 
@@ -52,9 +42,9 @@ public class FileTreeBasicTest extends BaseFileTreeTest {
     public void rename() throws Exception {
         File testFile = createTestFileAndUpdate();
         drive.renameFile(testFile, "test_file_2");
-        assertTestDirContainsOnlyTestFile();
+        assertFileTreeContains().defaultTestFile().only();
         fileTree.update();
-        assertTestDirContainsOnlyTestFile("test_file_2");
+        assertFileTreeContains().defaultTestFile().withName("test_file_2").only();
         assertCounts(1, 1);
     }
 }
