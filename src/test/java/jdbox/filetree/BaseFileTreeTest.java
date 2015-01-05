@@ -9,6 +9,7 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Date;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.UUID;
@@ -78,6 +79,10 @@ public class BaseFileTreeTest extends BaseTest {
         return new AssertCollection();
     }
 
+    protected AssertCollection assertFileTreeContains(FileTree fileTree) throws Exception {
+        return new AssertCollection(fileTree);
+    }
+
     public class AssertCollection {
 
         private final LinkedList<Assert> asserts = new LinkedList<>();
@@ -125,6 +130,10 @@ public class BaseFileTreeTest extends BaseTest {
                     .withSize(testContentString.length());
         }
 
+        public AssertCollection defaultEmptyTestFile() throws Exception {
+            return defaultTestFile().withSize(0);
+        }
+
         public AssertCollection defaultTestFolder() throws Exception {
             return folder()
                     .withName(testFolderName)
@@ -157,6 +166,16 @@ public class BaseFileTreeTest extends BaseTest {
             return this;
         }
 
+        public AssertCollection withAccessedDate(Date date) {
+            asserts.getLast().accessedDate = date;
+            return this;
+        }
+
+        public AssertCollection withModifiedDate(Date date) {
+            asserts.getLast().modifiedDate = date;
+            return this;
+        }
+
         public void check() throws Exception {
 
             Map<String, jdbox.filetree.File> children = fileTree.getChildren(path);
@@ -179,18 +198,28 @@ public class BaseFileTreeTest extends BaseTest {
             public String name;
             public Integer size;
             public Boolean isDirectory;
+            public Date accessedDate;
+            public Date modifiedDate;
 
             public void check(File file) {
 
                 assertThat(String.format("file %s does not exist", name), file, notNullValue());
 
-                assertThat(file.getName(), equalTo(name));
+                assertThat(String.format("%s has wrong name", file), file.getName(), equalTo(name));
 
                 if (size != null)
-                    assertThat(file.getSize(), equalTo((long) size));
+                    assertThat(String.format("%s has wrong size", file), file.getSize(), equalTo((long) size));
 
                 if (isDirectory != null)
-                    assertThat(file.isDirectory(), equalTo(isDirectory));
+                    assertThat(
+                            String.format("%s is not a %s", file, isDirectory ? "folder" : "file"),
+                            file.isDirectory(), equalTo(isDirectory));
+
+                if (accessedDate != null)
+                    assertThat(String.format("%s has wrong accessed date", file), file.getAccessedDate(), equalTo(accessedDate));
+
+                if (modifiedDate != null)
+                    assertThat(String.format("%s has wrong modified date", file), file.getModifiedDate(), equalTo(modifiedDate));
             }
         }
     }

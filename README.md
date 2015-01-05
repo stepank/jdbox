@@ -44,6 +44,29 @@ make uninstall
 
 *WARNING:* do not run with `sudo`.
 
+## Development
+
+The easiest way to set up development environment is to run:
+
+```
+make setup_tests
+```
+
+It will create mount point `~/mnt/jdbox-test` and config directory `~/.jdbox-test` to set up test
+environment. To do so, it will ask you to open a link in your web browser to generate an OAuth 2.0
+key that will be used to authorize all requests to Google Drive API performed during auto tests.
+
+*WARNING:* I suggest not using your personal Google account, but to create a test one, after
+all these are only tests.
+
+After doing this set up, you will be able to run auto tests with:
+
+```
+make test
+```
+
+In fact, this target depends on `setup_tests`, but I decided to be more explicit here.
+
 ## Contacting me
 
 Feel free to contact me concerning any problems, issues or questions about this

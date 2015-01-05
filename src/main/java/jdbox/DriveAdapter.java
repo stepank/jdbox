@@ -62,7 +62,7 @@ public class DriveAdapter {
         try {
             return new BasicInfo(drive.about().get().execute());
         } catch (IOException e) {
-            throw new DriveException("could not retrieve a list of changes", e);
+            throw new DriveException("could not retrieve basic info", e);
         }
     }
 
@@ -92,17 +92,32 @@ public class DriveAdapter {
     }
 
     public File createFile(String name, File parent, InputStream content) throws DriveException {
+        return createFile(new File(null, name, parent.getId(), false), content);
+    }
 
-        logger.debug("creating file {} in {}", name, parent);
+    public File createFile(File file, InputStream content) throws DriveException {
 
-        com.google.api.services.drive.model.File file =
+        logger.debug("creating {}", file);
+
+        com.google.api.services.drive.model.File gdFile =
                 new com.google.api.services.drive.model.File()
-                        .setTitle(name)
-                        .setParents(Collections.singletonList(new ParentReference().setId(parent.getId())));
+                        .setTitle(file.getName())
+                        .setParents(Collections.singletonList(new ParentReference().setId(file.getParentIds().get(0))));
+
+        if (file.getCreatedDate() != null)
+            gdFile.setCreatedDate(new DateTime(file.getCreatedDate()));
+
+        if (file.isDirectory())
+            gdFile.setMimeType("application/vnd.google-apps.folder");
 
         try {
-            Drive.Files.Insert request = drive.files().insert(file, new InputStreamContent("text/plain", content));
-            request.getMediaHttpUploader().setDirectUploadEnabled(true);
+            Drive.Files.Insert request;
+            if (file.isDirectory()) {
+                request = drive.files().insert(gdFile);
+            } else {
+                request = drive.files().insert(gdFile, new InputStreamContent("text/plain", content));
+                request.getMediaHttpUploader().setDirectUploadEnabled(true);
+            }
             return new File(request.execute());
         } catch (IOException e) {
             throw new DriveException("could not create file", e);
@@ -110,20 +125,7 @@ public class DriveAdapter {
     }
 
     public File createFolder(String name, File parent) throws DriveException {
-
-        logger.debug("creating folder {} in {}", name, parent);
-
-        com.google.api.services.drive.model.File file =
-                new com.google.api.services.drive.model.File()
-                        .setTitle(name)
-                        .setParents(Collections.singletonList(new ParentReference().setId(parent.getId())))
-                        .setMimeType("application/vnd.google-apps.folder");
-
-        try {
-            return new File(drive.files().insert(file).execute());
-        } catch (IOException e) {
-            throw new DriveException("could not create folder", e);
-        }
+        return createFile(new File(null, name, parent.getId(), true), null);
     }
 
     public void deleteFile(File file) throws DriveException {
@@ -161,23 +163,38 @@ public class DriveAdapter {
         }
     }
 
-    public void touchFile(File file, Date date) throws DriveException {
+    public void touchFile(File file, Date accessedDate) throws DriveException {
+        touchFile(file, accessedDate, null);
+    }
+
+    public void touchFile(File file, Date accessedDate, Date modifiedDate) throws DriveException {
 
         logger.debug("touching {}", file);
 
         com.google.api.services.drive.model.File newFile =
-                new com.google.api.services.drive.model.File().setLastViewedByMeDate(new DateTime(date));
+                new com.google.api.services.drive.model.File().setLastViewedByMeDate(new DateTime(accessedDate));
+
+        String fields = "lastViewedByMeDate";
+
+        if (modifiedDate != null) {
+            newFile.setModifiedByMeDate(new DateTime(modifiedDate));
+            newFile.setModifiedDate(new DateTime(modifiedDate));
+            fields += ",modifiedDate,modifiedByMeDate";
+        }
 
         try {
-            drive.files().patch(file.getId(), newFile).setFields("lastViewedByMeDate").execute();
+            Drive.Files.Patch request = drive.files().patch(file.getId(), newFile).setFields(fields);
+            if (modifiedDate != null)
+                request.setSetModifiedDate(true);
+            request.execute();
         } catch (IOException e) {
-            throw new DriveException("could not rename file", e);
+            throw new DriveException("could not touch file", e);
         }
     }
 
     public void updateFileContent(File file, InputStream content) throws DriveException {
 
-        logger.debug("touching {}", file);
+        logger.debug("updating {}", file);
 
         try {
             Drive.Files.Update request = drive.files().update(
@@ -185,7 +202,7 @@ public class DriveAdapter {
             request.getMediaHttpUploader().setDirectUploadEnabled(true);
             request.execute();
         } catch (IOException e) {
-            throw new DriveException("could not rename file", e);
+            throw new DriveException("could not update file", e);
         }
     }
 

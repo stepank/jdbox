@@ -6,10 +6,7 @@ import jdbox.filereaders.FileReader;
 import jdbox.filereaders.FileReaderFactory;
 import jdbox.filetree.File;
 import jdbox.filetree.FileTree;
-import net.fusejna.DirectoryFiller;
-import net.fusejna.ErrorCodes;
-import net.fusejna.StructFuseFileInfo;
-import net.fusejna.StructStat;
+import net.fusejna.*;
 import net.fusejna.types.TypeMode;
 import net.fusejna.util.FuseFilesystemAdapterFull;
 import org.slf4j.Logger;
@@ -17,6 +14,7 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -136,6 +134,57 @@ public class FileSystem extends FuseFilesystemAdapterFull {
             return -ErrorCodes.ENOENT();
         } catch (Exception e) {
             logger.error("[{}] an error occured while reading file", path, e);
+            return -ErrorCodes.EPIPE();
+        }
+    }
+
+    @Override
+    public int create(String path, TypeMode.ModeWrapper mode, StructFuseFileInfo.FileInfoWrapper info) {
+
+        logger.debug("[{}] creating file", path);
+
+        if (mode.type() != TypeMode.NodeType.FILE)
+            return -ErrorCodes.ENOSYS();
+
+        try {
+            fileTree.create(path, false);
+            return 0;
+        } catch (FileTree.NoSuchFileException e) {
+            return -ErrorCodes.ENOENT();
+        } catch (Exception e) {
+            logger.error("[{}] an error occured while creating file", path, e);
+            return -ErrorCodes.EPIPE();
+        }
+    }
+
+    @Override
+    public int mkdir(String path, TypeMode.ModeWrapper mode) {
+
+        logger.debug("[{}] creating directory", path);
+
+        try {
+            fileTree.create(path, true);
+            return 0;
+        } catch (FileTree.NoSuchFileException e) {
+            return -ErrorCodes.ENOENT();
+        } catch (Exception e) {
+            logger.error("[{}] an error occured while creating file", path, e);
+            return -ErrorCodes.EPIPE();
+        }
+    }
+
+    @Override
+    public int utimens(String path, StructTimeBuffer.TimeBufferWrapper wrapper) {
+
+        logger.debug("[{}] setting times", path);
+
+        try {
+            fileTree.setDates(path, new Date(wrapper.ac_sec() * 1000), new Date(wrapper.mod_sec() * 1000));
+            return 0;
+        } catch (FileTree.NoSuchFileException e) {
+            return -ErrorCodes.ENOENT();
+        } catch (Exception e) {
+            logger.error("[{}] an error occured while setting times", path, e);
             return -ErrorCodes.EPIPE();
         }
     }

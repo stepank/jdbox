@@ -13,7 +13,7 @@ import java.util.Date;
 
 @Category(FileTree.class)
 @RunWith(Parameterized.class)
-public class FileTreeAdvancedTest extends BaseFileTreeTest {
+public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
 
     @Parameterized.Parameter
     public boolean rename;

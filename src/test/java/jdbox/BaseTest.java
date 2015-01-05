@@ -20,6 +20,10 @@ public class BaseTest {
 
     @Before
     public void setUp() throws Exception {
-        injector = JdBox.createInjector(env, drive, false);
+        injector = createInjector();
+    }
+
+    protected Injector createInjector() throws Exception {
+        return JdBox.createInjector(env, drive, false);
     }
 }

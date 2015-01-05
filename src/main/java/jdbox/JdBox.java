@@ -114,11 +114,12 @@ public class JdBox {
             bind(ExecutorService.class).toInstance(executor);
             bind(ScheduledExecutorService.class).toInstance(executor);
             bind(DriveAdapter.class).in(Singleton.class);
+            bind(Uploader.class).in(Singleton.class);
         }
 
         @Provides
-        public FileTree createFileFree(DriveAdapter drive, ScheduledExecutorService executor) throws Exception {
-            FileTree ft = new FileTree(drive, executor, autoUpdateFileTree);
+        public FileTree createFileTree(DriveAdapter drive, ScheduledExecutorService executor, Uploader uploader) throws Exception {
+            FileTree ft = new FileTree(drive, uploader, executor, autoUpdateFileTree);
             ft.start();
             return ft;
         }

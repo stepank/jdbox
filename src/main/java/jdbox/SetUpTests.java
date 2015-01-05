@@ -1,7 +1,5 @@
 package jdbox;
 
-import com.google.api.services.drive.Drive;
-
 public class SetUpTests {
 
     public static JdBox.Environment createEnvironment() throws Exception {

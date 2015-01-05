@@ -4,7 +4,7 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 @Category(FileTree.class)
-public class FileTreeBasicTest extends BaseFileTreeTest {
+public class FileTreeBasicReadTest extends BaseFileTreeTest {
 
     /**
      * List all files, make sure the files are visible.

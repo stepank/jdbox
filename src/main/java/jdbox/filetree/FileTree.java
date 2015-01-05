@@ -4,9 +4,11 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.inject.Inject;
 import jdbox.DriveAdapter;
+import jdbox.Uploader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayInputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
@@ -29,14 +31,16 @@ public class FileTree {
     private final SettableFuture syncError = SettableFuture.create();
     private final CountDownLatch start = new CountDownLatch(1);
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
+    private final Uploader uploader;
     private final boolean autoUpdate;
 
     private volatile long largestChangeId;
     private volatile File root;
 
     @Inject
-    public FileTree(DriveAdapter drive, ScheduledExecutorService executor, boolean autoUpdate) {
+    public FileTree(DriveAdapter drive, Uploader uploader, ScheduledExecutorService executor, boolean autoUpdate) {
         this.drive = drive;
+        this.uploader = uploader;
         this.executor = executor;
         this.autoUpdate = autoUpdate;
     }
@@ -97,10 +101,10 @@ public class FileTree {
         if (path.equals(rootPath))
             return root;
 
-        File file = getChildren(path.getParent()).get(path.getFileName().toString());
+        File file = getChildrenInternal(path.getParent()).get(path.getFileName().toString());
 
         if (file == null)
-            throw new NoSuchFileException(path.toString());
+            throw new NoSuchFileException(path);
 
         return file;
     }
@@ -111,6 +115,93 @@ public class FileTree {
 
     public Map<String, File> getChildren(Path path) throws Exception {
         return ImmutableMap.copyOf(getChildrenInternal(path));
+    }
+
+    public void create(String path, boolean isDirectory) throws Exception {
+        create(Paths.get(path), isDirectory);
+    }
+
+    public void create(final Path path, boolean isDirectory) throws Exception {
+
+        logger.debug("[{}] creating {}", path, isDirectory ? "folder" : "file");
+
+        Path parentPath = path.getParent();
+        final String fileName = path.getFileName().toString();
+        final File parent = get(parentPath);
+
+        Map<String, File> siblings = getChildren(parentPath);
+
+        if (siblings.containsKey(fileName))
+            throw new FileAlreadyExistsException(path);
+
+        lock.writeLock().lock();
+
+        try {
+
+            final String tempId = UUID.randomUUID().toString();
+            final File file = new File(tempId, fileName, parent.getId(), isDirectory);
+            file.setCreatedDate(new Date());
+
+            fileLists.get(parentPath).put(fileName, file);
+            knownFiles.put(file, parent.getId());
+
+            uploader.submit(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        File createdFile = drive.createFile(
+                                file, new ByteArrayInputStream(new byte[0]));
+                        logger.debug("created {}", file);
+                        lock.writeLock().lock();
+                        try {
+                            knownFiles.remove(file, parent.getId());
+                            knownFiles.put(file, parent.getId());
+                            file.update(createdFile);
+                            Map<String, File> children = fileLists.get(path);
+                            if (children != null) {
+                                for (File child : fileLists.get(path).values()) {
+                                    child.getParentIds().remove(tempId);
+                                    child.getParentIds().add(file.getId());
+                                }
+                            }
+                        } finally {
+                            lock.writeLock().unlock();
+                        }
+                    } catch (Exception e) {
+                        logger.error("an error occured while creating file", e);
+                    }
+                }
+            });
+
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
+    public void setDates(String path, Date accessedDate, Date modifiedDate) throws Exception {
+        setDates(Paths.get(path), accessedDate, modifiedDate);
+    }
+
+    public void setDates(Path path, final Date accessedDate, final Date modifiedDate) throws Exception {
+
+        logger.debug("[{}] setting dates", path);
+
+        final File file = get(path);
+
+        file.setAccessedDate(accessedDate);
+        file.setModifiedDate(modifiedDate);
+
+        uploader.submit(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    drive.touchFile(file, accessedDate, modifiedDate);
+                    logger.debug("set dates for {}", file);
+                } catch (Exception e) {
+                    logger.error("an error occured while setting dates", e);
+                }
+            }
+        });
     }
 
     private Map<String, File> getChildrenInternal(Path path) throws Exception {
@@ -125,10 +216,10 @@ public class FileTree {
         File file = get(path);
 
         if (file == null)
-            throw new NoSuchFileException(path.toString());
+            throw new NoSuchFileException(path);
 
         if (!file.isDirectory())
-            throw new NotDirectoryException(path.toString());
+            throw new NotDirectoryException(path);
 
         lock.readLock().lock();
         Map<String, File> result = fileLists.get(path);
@@ -141,31 +232,36 @@ public class FileTree {
 
         try {
 
-            Map<String, File> existing = fileLists.get(path);
+            result = fileLists.get(path);
 
-            if (existing != null)
-                return existing;
+            if (result != null)
+                return result;
 
             trackedDirs.put(file.getId(), path);
 
-            try {
+            List<File> children;
 
-                List<File> children = drive.getChildren(file);
+            if (!file.isUploaded())
+                result = new HashMap<>();
+            else {
+
+                try {
+                    children = drive.getChildren(file);
+                } catch (Exception e) {
+                    trackedDirs.remove(file.getId());
+                    throw e;
+                }
 
                 result = new HashMap<>();
                 for (File child : children) {
                     result.put(child.getName(), child);
                     knownFiles.put(child, file.getId());
                 }
-
-                fileLists.put(path, result);
-
-                return result;
-
-            } catch (Exception e) {
-                trackedDirs.remove(file.getId());
-                throw e;
             }
+
+            fileLists.put(path, result);
+
+            return result;
 
         } finally {
             lock.writeLock().unlock();
@@ -200,7 +296,7 @@ public class FileTree {
 
             File currentFile = knownFiles.get(changedFileId);
 
-            if (currentFile == null && changedFile != null) {
+            if (currentFile == null && changedFile != null && !changedFile.isTrashed()) {
 
                 logger.debug("adding {} to tree", changedFile);
 
@@ -343,14 +439,20 @@ public class FileTree {
     }
 
     public class NoSuchFileException extends Exception {
-        public NoSuchFileException(String message) {
-            super(message);
+        public NoSuchFileException(Path path) {
+            super(path.toString());
         }
     }
 
     public class NotDirectoryException extends Exception {
-        public NotDirectoryException(String message) {
-            super(message);
+        public NotDirectoryException(Path path) {
+            super(path.toString());
+        }
+    }
+
+    public class FileAlreadyExistsException extends Exception {
+        public FileAlreadyExistsException(Path path) {
+            super(path.toString());
         }
     }
 }
