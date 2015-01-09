@@ -19,7 +19,7 @@ public class FileTreeBasicReadTest extends BaseFileTreeTest {
         assertFileTreeContains().defaultTestFile().and().defaultTestFolder().check();
         assertFileTreeContains().in(testFolderName).defaultTestFile().only();
 
-        assertCounts(3, 2);
+        assertCounts(4, 2);
     }
 
     /**
@@ -32,7 +32,7 @@ public class FileTreeBasicReadTest extends BaseFileTreeTest {
         assertFileTreeContains().nothing();
         fileTree.update();
         assertFileTreeContains().defaultTestFile().only();
-        assertCounts(1, 1);
+        assertCounts(2, 1);
     }
 
     /**
@@ -45,6 +45,6 @@ public class FileTreeBasicReadTest extends BaseFileTreeTest {
         assertFileTreeContains().defaultTestFile().only();
         fileTree.update();
         assertFileTreeContains().defaultTestFile().withName("test_file_2").only();
-        assertCounts(1, 1);
+        assertCounts(2, 1);
     }
 }

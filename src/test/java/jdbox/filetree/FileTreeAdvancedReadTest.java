@@ -48,7 +48,7 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
                 .withName(rename ? "test_file_2" : testFileName)
                 .withSize(newContent.length()).only();
 
-        assertCounts(1, 1);
+        assertCounts(2, 1);
     }
 
     /**
@@ -63,7 +63,7 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
         assertFileTreeContains().defaultTestFile().only();
         fileTree.update();
         assertFileTreeContains().nothing();
-        assertCounts(0, 1);
+        assertCounts(1, 1);
     }
 
     /**
@@ -78,7 +78,7 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
         assertFileTreeContains().defaultTestFile().only();
         fileTree.update();
         assertFileTreeContains().nothing();
-        assertCounts(0, 1);
+        assertCounts(1, 1);
     }
 
     /**
@@ -91,7 +91,7 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
         File folder = drive.createFolder(testFolderName, testDir);
         createTestFileAndUpdate(folder, folderPath);
 
-        assertCounts(2, 2);
+        assertCounts(3, 2);
 
         if (rename)
             drive.renameFile(folder, testFolderName + "_2");
@@ -101,7 +101,7 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
         fileTree.update();
         assertFileTreeContains().nothing();
 
-        assertCounts(0, 1);
+        assertCounts(1, 1);
     }
 
     /**
@@ -130,7 +130,7 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
         assertFileTreeContains().in(sourcePath).nothing();
         assertFileTreeContains().in(destinationPath).defaultTestFile().withName(rename ? "test_file_2" : testFileName).only();
 
-        assertCounts(3, 3);
+        assertCounts(4, 3);
     }
 
     /**
@@ -155,7 +155,7 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
         fileTree.update();
         assertFileTreeContains().in(sourcePath).nothing();
 
-        assertCounts(2, 2);
+        assertCounts(3, 2);
     }
 
     /**
@@ -180,6 +180,6 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
         fileTree.update();
         assertFileTreeContains().in(destinationPath).defaultTestFile().withName(rename ? "test_file_2" : testFileName).only();
 
-        assertCounts(3, 2);
+        assertCounts(4, 2);
     }
 }

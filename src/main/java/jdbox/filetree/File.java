@@ -82,15 +82,21 @@ public class File {
         return new File(id, "/", null, true, true);
     }
 
+    public void updateId(String id) {
+        assert !uploaded : "file is already uploaded and has id";
+        this.id = id;
+        uploaded = true;
+    }
+
+    public void updateName(File file) {
+        assert file.getId().equals(id) : "new file id is not equal the original one";
+        name = file.getName();
+    }
+
     public void update(File file) {
 
-        if (!uploaded) {
-            id = file.getId();
-            uploaded = true;
-        } else if (!file.getId().equals(id))
-            throw new IllegalArgumentException("new file id is not equal the original one");
+        assert file.getId().equals(id) : "new file id is not equal the original one";
 
-        name = file.getName();
         isDownloadable = file.isDownloadable();
         isTrashed = file.isTrashed();
         downloadUrl = file.getDownloadUrl();

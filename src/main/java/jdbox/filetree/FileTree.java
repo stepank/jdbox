@@ -25,9 +25,7 @@ public class FileTree {
 
     private final DriveAdapter drive;
     private final ScheduledExecutorService executor;
-    private final Map<Path, Map<String, File>> fileLists = new HashMap<>();
     private final KnownFiles knownFiles = new KnownFiles();
-    private final Map<String, Path> trackedDirs = new HashMap<>();
     private final SettableFuture syncError = SettableFuture.create();
     private final CountDownLatch start = new CountDownLatch(1);
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
@@ -54,6 +52,7 @@ public class FileTree {
 
         largestChangeId = info.largestChangeId;
         root = File.getRoot(info.rootFolderId);
+        knownFiles.put(root);
 
         start.countDown();
 
@@ -73,7 +72,14 @@ public class FileTree {
 
     public void setRoot(File file) throws InterruptedException {
         start.await();
-        root = file;
+        lock.writeLock().lock();
+        try {
+            knownFiles.remove(root);
+            knownFiles.put(file);
+            root = file;
+        } finally {
+            lock.writeLock().unlock();
+        }
     }
 
     public void update() {
@@ -85,11 +91,11 @@ public class FileTree {
     }
 
     public int getKnownFilesCount() {
-        return knownFiles.count();
+        return knownFiles.getFileCount();
     }
 
     public int getTrackedDirsCount() {
-        return trackedDirs.size();
+        return knownFiles.getDirCount();
     }
 
     public File get(String path) throws Exception {
@@ -101,7 +107,7 @@ public class FileTree {
         if (path.equals(rootPath))
             return root;
 
-        File file = getChildrenInternal(path.getParent()).get(path.getFileName().toString());
+        File file = getChildren(path.getParent()).get(path.getFileName().toString());
 
         if (file == null)
             throw new NoSuchFileException(path);
@@ -114,7 +120,8 @@ public class FileTree {
     }
 
     public Map<String, File> getChildren(Path path) throws Exception {
-        return ImmutableMap.copyOf(getChildrenInternal(path));
+        logger.debug("[{}] getting children", path);
+        return getOrFetchChildren(path);
     }
 
     public void create(String path, boolean isDirectory) throws Exception {
@@ -142,28 +149,17 @@ public class FileTree {
             final File file = new File(tempId, fileName, parent.getId(), isDirectory);
             file.setCreatedDate(new Date());
 
-            fileLists.get(parentPath).put(fileName, file);
             knownFiles.put(file, parent.getId());
 
             uploader.submit(new Runnable() {
                 @Override
                 public void run() {
                     try {
-                        File createdFile = drive.createFile(
-                                file, new ByteArrayInputStream(new byte[0]));
+                        File createdFile = drive.createFile(file, new ByteArrayInputStream(new byte[0]));
                         logger.debug("created {}", file);
                         lock.writeLock().lock();
                         try {
-                            knownFiles.remove(file, parent.getId());
-                            knownFiles.put(file, parent.getId());
-                            file.update(createdFile);
-                            Map<String, File> children = fileLists.get(path);
-                            if (children != null) {
-                                for (File child : fileLists.get(path).values()) {
-                                    child.getParentIds().remove(tempId);
-                                    child.getParentIds().add(file.getId());
-                                }
-                            }
+                            knownFiles.getFile(file).updateId(createdFile.getId());
                         } finally {
                             lock.writeLock().unlock();
                         }
@@ -204,62 +200,58 @@ public class FileTree {
         });
     }
 
-    private Map<String, File> getChildrenInternal(Path path) throws Exception {
-
-        logger.debug("[{}] getting children", path);
+    private Map<String, File> getOrFetchChildren(Path path) throws Exception {
 
         start.await();
 
         if (syncError.isDone())
             syncError.get();
 
-        File file = get(path);
+        KnownFile dir;
 
-        if (file == null)
-            throw new NoSuchFileException(path);
+        lock.readLock().lock();
+        try {
+
+            dir = knownFiles.getDir(path);
+
+            if (dir != null)
+                return ImmutableMap.copyOf(dir.getChildren());
+
+        } finally {
+            lock.readLock().unlock();
+        }
+
+        File file = get(path);
 
         if (!file.isDirectory())
             throw new NotDirectoryException(path);
-
-        lock.readLock().lock();
-        Map<String, File> result = fileLists.get(path);
-        lock.readLock().unlock();
-
-        if (result != null)
-            return result;
 
         lock.writeLock().lock();
 
         try {
 
-            result = fileLists.get(path);
+            dir = knownFiles.getDir(path);
 
-            if (result != null)
-                return result;
+            if (dir != null)
+                return ImmutableMap.copyOf(dir.getChildren());
 
-            trackedDirs.put(file.getId(), path);
+            dir = knownFiles.getFile(file.getId());
 
-            List<File> children;
+            if (dir == null)
+                throw new NoSuchFileException(path);
 
-            if (!file.isUploaded())
+            Map<String, File> result;
+
+            if (!dir.self.isUploaded())
                 result = new HashMap<>();
             else {
-
-                try {
-                    children = drive.getChildren(file);
-                } catch (Exception e) {
-                    trackedDirs.remove(file.getId());
-                    throw e;
-                }
-
                 result = new HashMap<>();
-                for (File child : children) {
+                for (File child : drive.getChildren(dir.self)) {
                     result.put(child.getName(), child);
-                    knownFiles.put(child, file.getId());
                 }
             }
 
-            fileLists.put(path, result);
+            knownFiles.put(result, dir, path);
 
             return result;
 
@@ -294,45 +286,24 @@ public class FileTree {
             String changedFileId = change.fileId;
             File changedFile = change.file;
 
-            File currentFile = knownFiles.get(changedFileId);
+            KnownFile currentFile = knownFiles.getFile(changedFileId);
 
             if (currentFile == null && changedFile != null && !changedFile.isTrashed()) {
 
                 logger.debug("adding {} to tree", changedFile);
-
-                addToParents(changedFile, changedFile.getParentIds());
+                knownFiles.put(changedFile, changedFile.getParentIds());
 
             } else if (currentFile != null) {
 
-                if (changedFile != null && !currentFile.getName().equals(changedFile.getName())) {
-
+                if (changedFile != null && !currentFile.self.getName().equals(changedFile.getName())) {
                     logger.debug("renaming {} to {}", currentFile, changedFile);
-
-                    for (String parentId : currentFile.getParentIds()) {
-                        Path path = trackedDirs.get(parentId);
-                        if (path == null)
-                            continue;
-                        Map<String, File> fileList = fileLists.get(path);
-                        fileList.remove(currentFile.getName());
-                        fileList.put(changedFile.getName(), changedFile);
-                    }
+                    knownFiles.rename(currentFile, changedFile);
                 }
 
                 if (changedFile == null || changedFile.isTrashed()) {
 
                     logger.debug("removing {} from tree", changedFile);
-
-                    removeFromParents(changedFile != null ? changedFile : currentFile, currentFile.getParentIds());
-
-                    Path path = trackedDirs.get(changedFileId);
-
-                    if (path != null) {
-                        trackedDirs.remove(changedFileId);
-                        Map<String, File> files = fileLists.remove(path);
-                        for (File file : files.values()) {
-                            knownFiles.remove(file, changedFileId);
-                        }
-                    }
+                    knownFiles.remove(changedFile != null ? changedFile : currentFile.self);
 
                 } else {
 
@@ -341,100 +312,18 @@ public class FileTree {
                     List<String> newParents = changedFile.getParentIds();
 
                     Set<String> parentsToAddTo = new TreeSet<>(newParents);
-                    parentsToAddTo.removeAll(currentFile.getParentIds());
-                    addToParents(changedFile, parentsToAddTo);
+                    parentsToAddTo.removeAll(currentFile.self.getParentIds());
+                    knownFiles.put(changedFile, parentsToAddTo);
 
-                    Set<String> parentsToRemoveFrom = new TreeSet<>(currentFile.getParentIds());
+                    Set<String> parentsToRemoveFrom = new TreeSet<>(currentFile.self.getParentIds());
                     parentsToRemoveFrom.removeAll(newParents);
-                    removeFromParents(changedFile, parentsToRemoveFrom);
+                    knownFiles.remove(changedFile, parentsToRemoveFrom);
 
-                    Set<String> remainingParents = new TreeSet<>(newParents);
-                    remainingParents.removeAll(parentsToAddTo);
-
-                    for (String parentId : remainingParents) {
-                        Path path = trackedDirs.get(parentId);
-                        if (path == null)
-                            continue;
-                        fileLists.get(path).get(changedFile.getName()).update(changedFile);
-                    }
+                    currentFile.self.update(changedFile);
                 }
             }
         } finally {
             lock.writeLock().unlock();
-        }
-    }
-
-    private void addToParents(File file, Collection<String> parents) throws Exception {
-        for (String parentId : parents) {
-            Path path = trackedDirs.get(parentId);
-            if (path == null)
-                continue;
-            knownFiles.put(file, parentId);
-            fileLists.get(path).put(file.getName(), file);
-        }
-    }
-
-    private void removeFromParents(File file, Collection<String> parents) throws Exception {
-        for (String parentId : parents) {
-            Path path = trackedDirs.get(parentId);
-            if (path == null)
-                continue;
-            knownFiles.remove(file, parentId);
-            fileLists.get(path).remove(file.getName());
-        }
-    }
-
-    private class KnownFiles {
-
-        private final Map<String, KnownFile> files = new HashMap<>();
-
-        public File get(String id) {
-            KnownFile kf = files.get(id);
-            return kf != null ? kf.file : null;
-        }
-
-        public void put(File file, String parentId) {
-            KnownFile kf = files.get(file.getId());
-            if (kf == null)
-                files.put(file.getId(), new KnownFile(file, parentId));
-            else
-                files.get(file.getId()).addParent(parentId);
-        }
-
-        public void remove(File file, String parentId) {
-            KnownFile kf = files.get(file.getId());
-            if (kf == null)
-                throw new IllegalStateException("can't remove parent from unknown file");
-            if (kf.removeParent(parentId))
-                files.remove(file.getId());
-        }
-
-        public int count() {
-            return files.size();
-        }
-
-        private class KnownFile {
-
-            public final File file;
-            private final Set<String> parents = new HashSet<>();
-
-            public KnownFile(File file) {
-                this.file = file;
-            }
-
-            public KnownFile(File file, String parent) {
-                this(file);
-                this.parents.add(parent);
-            }
-
-            public void addParent(String parent) {
-                parents.add(parent);
-            }
-
-            public boolean removeParent(String parent) {
-                parents.remove(parent);
-                return parents.size() == 0;
-            }
         }
     }
 
@@ -454,5 +343,178 @@ public class FileTree {
         public FileAlreadyExistsException(Path path) {
             super(path.toString());
         }
+    }
+}
+
+class KnownFiles {
+
+    private final Map<String, KnownFile> files = new HashMap<>();
+    private final Map<Path, KnownFile> dirs = new HashMap<>();
+
+    public KnownFile getFile(File file) {
+        return files.get(file.getId());
+    }
+
+    public KnownFile getFile(String id) {
+        return files.get(id);
+    }
+
+    public KnownFile getDir(Path path) {
+        return dirs.get(path);
+    }
+
+    public void put(File file) {
+        files.put(file.getId(), new KnownFile(file));
+    }
+
+    public void put(File file, String parentId) {
+        assert parentId != null;
+        KnownFile kf = getFile(parentId);
+        if (kf == null || !kf.addChild(file))
+            return;
+        kf = getFile(file);
+        if (kf != null)
+            kf.addParent(parentId);
+        else
+            files.put(file.getId(), new KnownFile(file, parentId));
+    }
+
+    public void put(File file, Collection<String> parentIds) throws Exception {
+        for (String parentId : parentIds) {
+            put(file, parentId);
+        }
+    }
+
+    public void put(Map<String, File> files, KnownFile dir, Path path) {
+        dirs.put(path, dir);
+        dir.setPath(path);
+        for (File file : files.values()) {
+            put(file, dir.self.getId());
+        }
+    }
+
+    public void remove(File file, String parentId) {
+        KnownFile kf = getFile(parentId);
+        if (kf != null)
+            kf.removeChild(file);
+        kf = getFile(file);
+        if (kf.removeParent(parentId)) {
+            files.remove(file.getId());
+            removeDir(kf);
+        }
+    }
+
+    public void remove(File file, Collection<String> parentIds) throws Exception {
+        for (String parentId : parentIds) {
+            remove(file, parentId);
+        }
+    }
+
+    public void remove(File file) {
+        KnownFile kf = files.remove(file.getId());
+        removeDir(kf);
+        for (String parentId : kf.getParents()) {
+            getFile(parentId).removeChild(file);
+        }
+    }
+
+    public void removeDir(KnownFile dir) {
+        if (dir.getPath() == null)
+            return;
+        dirs.remove(dir.getPath());
+        for (File child : dir.getChildren().values()) {
+            remove(child, dir.self.getId());
+        }
+    }
+
+    public void rename(KnownFile currentFile, File changedFile) {
+        for (String parentId : currentFile.self.getParentIds()) {
+            KnownFile kf = getFile(parentId);
+            if (kf == null)
+                continue;
+            kf.renameChild(currentFile, changedFile);
+        }
+    }
+
+    public int getFileCount() {
+        return files.size();
+    }
+
+    public int getDirCount() {
+        return dirs.size();
+    }
+}
+
+class KnownFile {
+
+    public final File self;
+    private Path path = null;
+    private Map<String, File> children = null;
+    private final Set<String> parents = new HashSet<>();
+
+    public KnownFile(File file) {
+        this.self = file;
+    }
+
+    public KnownFile(File file, String parent) {
+        this(file);
+        this.parents.add(parent);
+    }
+
+    public Path getPath() {
+        return path;
+    }
+
+    public void setPath(Path path) {
+        this.path = path;
+        children = new HashMap<>();
+    }
+
+    public Map<String, File> getChildren() {
+        return children;
+    }
+
+    public Set<String> getParents() {
+        return parents;
+    }
+
+    public void updateId(String id) {
+
+        if (children != null) {
+            for (File child : children.values()) {
+                child.getParentIds().remove(self.getId());
+                child.getParentIds().add(id);
+            }
+        }
+
+        self.updateId(id);
+    }
+
+    public void addParent(String parent) {
+        parents.add(parent);
+    }
+
+    public boolean removeParent(String parent) {
+        parents.remove(parent);
+        return parents.size() == 0;
+    }
+
+    public boolean addChild(File file) {
+        if (children == null)
+            return false;
+        children.put(file.getName(), file);
+        return true;
+    }
+
+    public void renameChild(KnownFile currentFile, File changedFile) {
+        children.remove(currentFile.self.getName());
+        children.put(changedFile.getName(), changedFile);
+    }
+
+    public boolean removeChild(File file) {
+        if (children == null)
+            return false;
+        children.remove(file.getName());
+        return true;
     }
 }
