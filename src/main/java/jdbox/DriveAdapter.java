@@ -101,8 +101,10 @@ public class DriveAdapter {
 
         com.google.api.services.drive.model.File gdFile =
                 new com.google.api.services.drive.model.File()
-                        .setTitle(file.getName())
-                        .setParents(Collections.singletonList(new ParentReference().setId(file.getParentIds().get(0))));
+                        .setTitle(file.getName());
+
+        if (file.getParentIds() != null && file.getParentIds().size() > 0)
+            gdFile.setParents(Collections.singletonList(new ParentReference().setId(file.getParentIds().get(0))));
 
         if (file.getCreatedDate() != null)
             gdFile.setCreatedDate(new DateTime(file.getCreatedDate()));
@@ -122,6 +124,10 @@ public class DriveAdapter {
         } catch (IOException e) {
             throw new DriveException("could not create file", e);
         }
+    }
+
+    public File createFolder(String name) throws DriveException {
+        return createFile(new File(null, name, null, true), null);
     }
 
     public File createFolder(String name, File parent) throws DriveException {

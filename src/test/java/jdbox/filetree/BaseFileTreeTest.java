@@ -1,8 +1,6 @@
 package jdbox.filetree;
 
 import jdbox.BaseTest;
-import jdbox.DriveAdapter;
-import org.junit.After;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
@@ -12,7 +10,6 @@ import java.nio.file.Paths;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.Map;
-import java.util.UUID;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -20,33 +17,15 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class BaseFileTreeTest extends BaseTest {
 
-    protected final static String testFolderName = "test_folder";
-    protected final static String testFileName = "test_file";
-    protected final static String testContentString = "hello world";
-
-    protected DriveAdapter drive;
-    protected FileTree fileTree;
     protected Path testDirPath;
-    protected jdbox.filetree.File testDir;
+    protected FileTree fileTree;
 
     @Before
     public void setUp() throws Exception {
-
         super.setUp();
-
-        drive = injector.getInstance(DriveAdapter.class);
-        fileTree = injector.getInstance(FileTree.class);
-
-        String testDirName = UUID.randomUUID().toString();
         testDirPath = Paths.get("/");
-        testDir = drive.createFolder(testDirName, fileTree.getRoot());
-
+        fileTree = injector.getInstance(FileTree.class);
         fileTree.setRoot(testDir);
-    }
-
-    @After
-    public void tearDown() throws Exception {
-        drive.deleteFile(testDir);
     }
 
     protected jdbox.filetree.File createTestFile(jdbox.filetree.File parent) throws Exception {
@@ -69,10 +48,6 @@ public class BaseFileTreeTest extends BaseTest {
     protected void assertCounts(FileTree fileTree, int knownFilesCount, int trackedDirsCount) {
         assertThat(fileTree.getKnownFilesCount(), equalTo(knownFilesCount));
         assertThat(fileTree.getTrackedDirsCount(), equalTo(trackedDirsCount));
-    }
-
-    protected static InputStream getTestContent() {
-        return new ByteArrayInputStream(testContentString.getBytes());
     }
 
     protected AssertCollection assertFileTreeContains() throws Exception {

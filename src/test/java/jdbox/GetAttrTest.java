@@ -6,6 +6,8 @@ import net.fusejna.StatHolder;
 import net.fusejna.types.TypeMode;
 import org.junit.Test;
 
+import java.nio.file.Paths;
+
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -18,16 +20,20 @@ public class GetAttrTest extends BaseFileSystemTest {
 
     @Test
     public void file() throws Exception {
+        drive.createFile(testFileName, testDir, getTestContent());
         StatHolder stat = Export.createStatHolder();
-        assertThat(fs.getattr("/test.txt", stat.wrapper), equalTo(0));
-        assertThat(stat.size(), equalTo(JdBox.class.getResourceAsStream("/test.txt").available()));
+        String path = Paths.get("/").resolve(testDir.getName()).resolve(testFileName).toString();
+        assertThat(fs.getattr(path, stat.wrapper), equalTo(0));
+        assertThat(stat.size(), equalTo(testContentString.length()));
         assertThat(stat.type(), equalTo(TypeMode.NodeType.FILE));
     }
 
     @Test
     public void directory() throws Exception {
+        drive.createFolder(testFolderName, testDir);
         StatHolder stat = Export.createStatHolder();
-        assertThat(fs.getattr("/test_dir", stat.wrapper), equalTo(0));
+        String path = Paths.get("/").resolve(testDir.getName()).resolve(testFolderName).toString();
+        assertThat(fs.getattr(path, stat.wrapper), equalTo(0));
         assertThat(stat.size(), equalTo(0));
         assertThat(stat.type(), equalTo(TypeMode.NodeType.DIRECTORY));
     }

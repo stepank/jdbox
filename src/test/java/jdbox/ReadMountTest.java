@@ -1,6 +1,5 @@
 package jdbox;
 
-import com.google.common.io.ByteStreams;
 import org.junit.Test;
 
 import java.nio.file.Files;
@@ -13,8 +12,8 @@ public class ReadMountTest extends BaseMountFileSystemTest {
 
     @Test
     public void simple() throws Exception {
-        String actual = new String(Files.readAllBytes(Paths.get(localPath("/test.txt"))));
-        String expected = new String(ByteStreams.toByteArray(JdBox.class.getResourceAsStream("/test.txt")));
-        assertThat(actual, equalTo(expected));
+        drive.createFile("test.txt", testDir, getTestContent());
+        String actual = new String(Files.readAllBytes(mountPoint.resolve(testDir.getName()).resolve("test.txt")));
+        assertThat(actual, equalTo(testContentString));
     }
 }

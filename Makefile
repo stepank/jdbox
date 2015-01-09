@@ -27,7 +27,7 @@ test: setup_tests
 INSTALL_DIR ?= $(HOME)/opt/jdbox
 
 package:
-	mvn clean package dependency:copy-dependencies
+	mvn clean package -DskipTests dependency:copy-dependencies
 	rm -rf package
 	mkdir -p package/lib
 	# copy libs
