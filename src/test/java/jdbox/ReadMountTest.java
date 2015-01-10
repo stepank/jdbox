@@ -15,5 +15,8 @@ public class ReadMountTest extends BaseMountFileSystemTest {
         drive.createFile("test.txt", testDir, getTestContent());
         String actual = new String(Files.readAllBytes(mountPoint.resolve(testDir.getName()).resolve("test.txt")));
         assertThat(actual, equalTo(testContentString));
+        assertThat(fs.getCurrentFileHandler(), equalTo((long) 1));
+        Thread.sleep(100);
+        assertThat(fs.getFileReadersCount(), equalTo(0));
     }
 }

@@ -1,6 +1,5 @@
 package jdbox;
 
-import com.google.common.cache.*;
 import com.google.inject.Inject;
 import jdbox.filereaders.FileReader;
 import jdbox.filereaders.FileReaderFactory;
@@ -15,43 +14,35 @@ import org.slf4j.LoggerFactory;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class FileSystem extends FuseFilesystemAdapterFull {
-
-    private static final int MAX_FILE_READERS = 10;
-    private static final int FILE_READERS_EXPIRY_IN_SECS = 20;
 
     private static final Logger logger = LoggerFactory.getLogger(FileSystem.class);
 
     private final DriveAdapter drive;
     private final FileTree fileTree;
+    private final ScheduledExecutorService executor;
 
-    private final LoadingCache<File, FileReader> fileReaders;
+    private final Map<Long, FileReader> fileReaders = new ConcurrentHashMap<>();
+    private final AtomicLong currentFileHandler = new AtomicLong();
 
     @Inject
     public FileSystem(DriveAdapter drive, FileTree fileTree, final ScheduledExecutorService executor) {
-
         this.drive = drive;
         this.fileTree = fileTree;
+        this.executor = executor;
+    }
 
-        fileReaders = CacheBuilder.newBuilder()
-                .maximumSize(MAX_FILE_READERS)
-                .expireAfterAccess(FILE_READERS_EXPIRY_IN_SECS, TimeUnit.SECONDS)
-                .removalListener(new RemovalListener<File, FileReader>() {
-                    @Override
-                    public void onRemoval(RemovalNotification<File, FileReader> removalNotification) {
-                        logger.debug("discarding {}", removalNotification.getValue());
-                    }
-                })
-                .build(new CacheLoader<File, FileReader>() {
-                    @Override
-                    public FileReader load(File file) throws Exception {
-                        logger.debug("creating a reader for {}", file);
-                        return FileReaderFactory.create(file, FileSystem.this.drive, executor);
-                    }
-                });
+    public int getFileReadersCount() {
+        return fileReaders.size();
+    }
+
+    public long getCurrentFileHandler() {
+        return currentFileHandler.get();
     }
 
     @Override
@@ -110,9 +101,53 @@ public class FileSystem extends FuseFilesystemAdapterFull {
     }
 
     @Override
+    public int open(String path, StructFuseFileInfo.FileInfoWrapper info) {
+
+        info.fh(currentFileHandler.incrementAndGet());
+
+        logger.debug("[{}] opening file, fh {}", path, info.fh());
+
+        try {
+
+            File file = fileTree.get(path);
+
+            if (file.isDownloadable())
+                fileReaders.put(info.fh(), FileReaderFactory.create(file, FileSystem.this.drive, executor));
+
+            return 0;
+
+        } catch (FileTree.NoSuchFileException e) {
+            return -ErrorCodes.ENOENT();
+        } catch (Exception e) {
+            logger.error("[{}] an error occured while opening file", path, e);
+            return -ErrorCodes.EPIPE();
+        }
+    }
+
+    @Override
+    public int release(String path, StructFuseFileInfo.FileInfoWrapper info) {
+
+        logger.debug("[{}] releasing file, fh {}", path, info.fh_old());
+
+        try {
+
+            FileReader fr = fileReaders.remove(info.fh());
+
+            if (fr != null)
+                fr.discard();
+
+            return 0;
+
+        } catch (Exception e) {
+            logger.error("[{}] an error occured while releasig file", path, e);
+            return -ErrorCodes.EPIPE();
+        }
+    }
+
+    @Override
     public int read(String path, ByteBuffer buffer, long count, long offset, StructFuseFileInfo.FileInfoWrapper info) {
 
-        logger.debug("[{}] reading file, offset {}, count {}", path, offset, count);
+        logger.debug("[{}] reading file, fh {}, offset {}, count {}", path, info.fh_old(), offset, count);
 
         try {
 
@@ -126,7 +161,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
 
             long toRead = Math.min(count, file.getSize() - offset);
 
-            fileReaders.get(file).read(buffer, offset, (int) toRead);
+            fileReaders.get(info.fh()).read(buffer, offset, (int) toRead);
 
             return (int) toRead;
 

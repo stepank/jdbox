@@ -176,4 +176,3 @@ public class File {
         return isDirectory() ? String.format("folder %s", getName()) : String.format("file %s", getName());
     }
 }
-

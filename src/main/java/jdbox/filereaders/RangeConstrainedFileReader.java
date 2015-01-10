@@ -24,7 +24,9 @@ public class RangeConstrainedFileReader implements FileReader {
     private final DriveAdapter drive;
     private final byte[] buffer;
     private final SettableFuture<InputStream> stream = SettableFuture.create();
+
     private int read = 0;
+    private boolean discarded = false;
 
     public static RangeConstrainedFileReader create(File file, DriveAdapter drive, ScheduledExecutorService executor) {
         return create(file, drive, executor, 0, file.getSize());
@@ -87,6 +89,9 @@ public class RangeConstrainedFileReader implements FileReader {
 
         logger.debug("reading {}, offset {}, count {}", file, offset, count);
 
+        if (discarded)
+            throw new IllegalStateException("file reader is discarded");
+
         if (offset + count > rightOffset)
             throw new IndexOutOfBoundsException();
 
@@ -99,6 +104,12 @@ public class RangeConstrainedFileReader implements FileReader {
         buffer.put(this.buffer, (int) offset, count);
 
         logger.debug("done reading {}, offset {}, count {}", file, offset, count);
+    }
+
+    @Override
+    public synchronized void discard() throws Exception {
+        discarded = true;
+        stream.get().close();
     }
 
     public String toString() {

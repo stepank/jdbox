@@ -26,6 +26,8 @@ public class RollingFileReader implements FileReader {
     private final ScheduledExecutorService executor;
     private final NavigableMap<Long, Entry> readers = new TreeMap<>();
 
+    private boolean discarded = false;
+
     public RollingFileReader(File file, DriveAdapter drive, ScheduledExecutorService executor) {
         this.file = file;
         this.drive = drive;
@@ -36,6 +38,9 @@ public class RollingFileReader implements FileReader {
     public synchronized void read(ByteBuffer buffer, long offset, int count) throws Exception {
 
         logger.debug("reading {}, offset {}, count {}", file, offset, count);
+
+        if (discarded)
+            throw new IllegalStateException("file reader is discarded");
 
         if (offset + count > file.getSize())
             throw new IndexOutOfBoundsException();
@@ -62,6 +67,14 @@ public class RollingFileReader implements FileReader {
         }
 
         logger.debug("done reading {}, offset {}, count {}", file, offset, count);
+    }
+
+    @Override
+    public synchronized void discard() throws Exception {
+        discarded = true;
+        for (Entry e : readers.values()) {
+            e.reader.discard();
+        }
     }
 
     private RangeConstrainedFileReader getReader(long offset) {

@@ -5,4 +5,6 @@ import java.nio.ByteBuffer;
 public interface FileReader {
 
     public void read(ByteBuffer buffer, long offset, int count) throws Exception;
+
+    void discard() throws Exception;
 }
