@@ -14,6 +14,7 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -28,7 +29,8 @@ public class FileTree {
     private final KnownFiles knownFiles = new KnownFiles();
     private final SettableFuture syncError = SettableFuture.create();
     private final CountDownLatch start = new CountDownLatch(1);
-    private final ReadWriteLock lock = new ReentrantReadWriteLock();
+    private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+    private final Semaphore applyChangesSemaphore = new Semaphore(1);
     private final Uploader uploader;
     private final boolean autoUpdate;
 
@@ -36,7 +38,8 @@ public class FileTree {
     private volatile File root;
 
     @Inject
-    public FileTree(DriveAdapter drive, Uploader uploader, ScheduledExecutorService executor, boolean autoUpdate) {
+    public FileTree(
+            DriveAdapter drive, Uploader uploader, ScheduledExecutorService executor, boolean autoUpdate) {
         this.drive = drive;
         this.uploader = uploader;
         this.executor = executor;
@@ -65,20 +68,15 @@ public class FileTree {
             }, 0, 5, TimeUnit.SECONDS);
     }
 
-    public File getRoot() throws InterruptedException {
-        start.await();
-        return root;
-    }
-
     public void setRoot(File file) throws InterruptedException {
         start.await();
-        lock.writeLock().lock();
+        readWriteLock.writeLock().lock();
         try {
             knownFiles.remove(root);
             knownFiles.put(file);
             root = file;
         } finally {
-            lock.writeLock().unlock();
+            readWriteLock.writeLock().unlock();
         }
     }
 
@@ -124,11 +122,11 @@ public class FileTree {
         return getOrFetchChildren(path);
     }
 
-    public void create(String path, boolean isDirectory) throws Exception {
-        create(Paths.get(path), isDirectory);
+    public File create(String path, boolean isDirectory) throws Exception {
+        return create(Paths.get(path), isDirectory);
     }
 
-    public void create(final Path path, boolean isDirectory) throws Exception {
+    public File create(final Path path, boolean isDirectory) throws Exception {
 
         logger.debug("[{}] creating {}", path, isDirectory ? "folder" : "file");
 
@@ -141,7 +139,7 @@ public class FileTree {
         if (siblings.containsKey(fileName))
             throw new FileAlreadyExistsException(path);
 
-        lock.writeLock().lock();
+        readWriteLock.writeLock().lock();
 
         try {
 
@@ -154,23 +152,28 @@ public class FileTree {
             uploader.submit(new Runnable() {
                 @Override
                 public void run() {
+                    applyChangesSemaphore.acquireUninterruptibly();
                     try {
                         File createdFile = drive.createFile(file, new ByteArrayInputStream(new byte[0]));
                         logger.debug("created {}", file);
-                        lock.writeLock().lock();
+                        readWriteLock.writeLock().lock();
                         try {
-                            knownFiles.getFile(file).updateId(createdFile.getId());
+                            knownFiles.updateId(file, createdFile.getId());
                         } finally {
-                            lock.writeLock().unlock();
+                            readWriteLock.writeLock().unlock();
                         }
                     } catch (Exception e) {
                         logger.error("an error occured while creating file", e);
+                    } finally {
+                        applyChangesSemaphore.release();
                     }
                 }
             });
 
+            return file;
+
         } finally {
-            lock.writeLock().unlock();
+            readWriteLock.writeLock().unlock();
         }
     }
 
@@ -209,7 +212,7 @@ public class FileTree {
 
         KnownFile dir;
 
-        lock.readLock().lock();
+        readWriteLock.readLock().lock();
         try {
 
             dir = knownFiles.getDir(path);
@@ -218,7 +221,7 @@ public class FileTree {
                 return ImmutableMap.copyOf(dir.getChildren());
 
         } finally {
-            lock.readLock().unlock();
+            readWriteLock.readLock().unlock();
         }
 
         File file = get(path);
@@ -226,7 +229,7 @@ public class FileTree {
         if (!file.isDirectory())
             throw new NotDirectoryException(path);
 
-        lock.writeLock().lock();
+        readWriteLock.writeLock().lock();
 
         try {
 
@@ -256,11 +259,14 @@ public class FileTree {
             return result;
 
         } finally {
-            lock.writeLock().unlock();
+            readWriteLock.writeLock().unlock();
         }
     }
 
     private void retrieveAndApplyChanges() {
+
+        if (!applyChangesSemaphore.tryAcquire())
+            return;
 
         try {
 
@@ -274,12 +280,14 @@ public class FileTree {
         } catch (Exception e) {
             logger.error("an error occured retrieving a list of changes", e);
             syncError.setException(e);
+        } finally {
+            applyChangesSemaphore.release();
         }
     }
 
     private void applyChange(DriveAdapter.Change change) throws Exception {
 
-        lock.writeLock().lock();
+        readWriteLock.writeLock().lock();
 
         try {
 
@@ -323,7 +331,7 @@ public class FileTree {
                 }
             }
         } finally {
-            lock.writeLock().unlock();
+            readWriteLock.writeLock().unlock();
         }
     }
 
@@ -434,6 +442,12 @@ class KnownFiles {
                 continue;
             kf.renameChild(currentFile, changedFile);
         }
+    }
+
+    public void updateId(File file, String id) {
+        KnownFile existing = files.remove(file.getId());
+        existing.updateId(id);
+        files.put(id, existing);
     }
 
     public int getFileCount() {
