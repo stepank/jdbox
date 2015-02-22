@@ -42,7 +42,7 @@ public class DriveAdapter {
             return Lists.transform(
                     drive.files().list()
                             .setQ("'" + file.getId() + "' in parents and trashed = false")
-                            .setFields(File.fields).execute().getItems(),
+                            .setFields(File.fields).setMaxResults(1000).execute().getItems(),
                     new Function<com.google.api.services.drive.model.File, File>() {
                         @Nullable
                         @Override
