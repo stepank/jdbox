@@ -13,6 +13,7 @@ import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.DriveScopes;
 import com.google.inject.*;
 import jdbox.filetree.FileTree;
+import jdbox.openedfiles.OpenedFiles;
 import org.ini4j.Ini;
 
 import java.io.BufferedReader;
@@ -115,6 +116,7 @@ public class JdBox {
             bind(ScheduledExecutorService.class).toInstance(executor);
             bind(DriveAdapter.class).in(Singleton.class);
             bind(Uploader.class).in(Singleton.class);
+            bind(OpenedFiles.class).in(Singleton.class);
         }
 
         @Provides

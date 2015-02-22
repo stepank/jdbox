@@ -198,7 +198,7 @@ public class DriveAdapter {
         }
     }
 
-    public void updateFileContent(File file, InputStream content) throws DriveException {
+    public File updateFileContent(File file, InputStream content) throws DriveException {
 
         logger.debug("updating {}", file);
 
@@ -206,7 +206,7 @@ public class DriveAdapter {
             Drive.Files.Update request = drive.files().update(
                     file.getId(), new com.google.api.services.drive.model.File(), new InputStreamContent("text/plain", content));
             request.getMediaHttpUploader().setDirectUploadEnabled(true);
-            request.execute();
+            return new File(request.execute());
         } catch (IOException e) {
             throw new DriveException("could not update file", e);
         }

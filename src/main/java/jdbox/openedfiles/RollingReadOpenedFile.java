@@ -1,4 +1,4 @@
-package jdbox.filereaders;
+package jdbox.openedfiles;
 
 import jdbox.DriveAdapter;
 import jdbox.filetree.File;
@@ -13,13 +13,13 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-public class RollingFileReader implements FileReader {
+public class RollingReadOpenedFile implements OpenedFile {
 
     private static final int MIN_PAGE_SIZE = 4 * 1024 * 1024;
     private static final int MAX_PAGE_SIZE = 16 * 1024 * 1024;
     private static final int PAGE_EXPIRY_IN_SECS = 10;
 
-    private static final Logger logger = LoggerFactory.getLogger(RollingFileReader.class);
+    private static final Logger logger = LoggerFactory.getLogger(RollingReadOpenedFile.class);
 
     private final File file;
     private final DriveAdapter drive;
@@ -28,56 +28,61 @@ public class RollingFileReader implements FileReader {
 
     private boolean discarded = false;
 
-    public RollingFileReader(File file, DriveAdapter drive, ScheduledExecutorService executor) {
+    public RollingReadOpenedFile(File file, DriveAdapter drive, ScheduledExecutorService executor) {
         this.file = file;
         this.drive = drive;
         this.executor = executor;
     }
 
     @Override
-    public synchronized void read(ByteBuffer buffer, long offset, int count) throws Exception {
+    public File getOrigin() {
+        return file;
+    }
+
+    @Override
+    public synchronized int read(ByteBuffer buffer, long offset, int count) throws Exception {
 
         logger.debug("reading {}, offset {}, count {}", file, offset, count);
 
-        if (discarded)
-            throw new IllegalStateException("file reader is discarded");
+        assert !discarded;
+        assert offset + count < file.getSize();
 
-        if (offset + count > file.getSize())
-            throw new IndexOutOfBoundsException();
+        int read = 0;
 
-        while (count > 0) {
+        while (read < count) {
 
-            RangeConstrainedFileReader reader = getReader(offset);
+            RangeMappedOpenedFile reader = getReader(offset);
 
             logger.debug("got {}", reader);
 
             try {
-
-                int bytesToRead = (int) Math.min(count, reader.rightOffset - offset);
-
-                reader.read(buffer, (int) (offset - reader.offset), bytesToRead);
-
-                count -= bytesToRead;
-                offset += bytesToRead;
-
+                int bytesToRead = (int) Math.min(count - read, reader.getRigthOffset() - offset);
+                read += reader.read(buffer, (int) (offset - reader.getOffset()), bytesToRead);
             } catch (Exception e) {
-                readers.remove(reader.offset);
+                readers.remove(reader.getOffset());
                 throw e;
             }
         }
 
         logger.debug("done reading {}, offset {}, count {}", file, offset, count);
+
+        return read;
     }
 
     @Override
-    public synchronized void discard() throws Exception {
+    public int write(ByteBuffer buffer, long offset, int count) throws Exception {
+        throw new UnsupportedOperationException("write is not supported");
+    }
+
+    @Override
+    public synchronized void close() throws Exception {
         discarded = true;
         for (Entry e : readers.values()) {
-            e.reader.discard();
+            e.reader.close();
         }
     }
 
-    private RangeConstrainedFileReader getReader(long offset) {
+    private RangeMappedOpenedFile getReader(long offset) {
 
         Entry entry = getOrCreateReader(offset);
 
@@ -86,13 +91,15 @@ public class RollingFileReader implements FileReader {
 
         scheduleReaderExpiry(entry);
 
-        Entry nextEntry = readers.get(entry.reader.rightOffset);
+        Entry nextEntry = readers.get(entry.reader.getRigthOffset());
         if (nextEntry == null &&
-                entry.reader.rightOffset < file.getSize() && offset - entry.reader.offset > entry.reader.length / 2) {
+                entry.reader.getRigthOffset() < file.getSize() &&
+                offset - entry.reader.getOffset() > entry.reader.getLength() / 2) {
             nextEntry = new Entry(createReader(
-                    entry.reader.rightOffset,
-                    Math.min(MAX_PAGE_SIZE, entry.reader.length * 2), (int) (file.getSize() - entry.reader.rightOffset)));
-            readers.put(entry.reader.rightOffset, nextEntry);
+                    entry.reader.getRigthOffset(),
+                    Math.min(MAX_PAGE_SIZE, entry.reader.getLength() * 2),
+                    (int) (file.getSize() - entry.reader.getRigthOffset())));
+            readers.put(entry.reader.getRigthOffset(), nextEntry);
         }
 
         if (nextEntry != null)
@@ -106,8 +113,8 @@ public class RollingFileReader implements FileReader {
         Map.Entry<Long, Entry> mapEntry = readers.floorEntry(offset);
         if (mapEntry != null) {
             Entry floorEntry = mapEntry.getValue();
-            RangeConstrainedFileReader reader = floorEntry.reader;
-            if (reader.rightOffset > offset)
+            RangeMappedOpenedFile reader = floorEntry.reader;
+            if (reader.getRigthOffset() > offset)
                 return floorEntry;
         }
 
@@ -120,12 +127,12 @@ public class RollingFileReader implements FileReader {
         if (ceilingEntry == null)
             return new Entry(createReader(offset, MIN_PAGE_SIZE, (int) (file.getSize() - offset)));
 
-        return new Entry(createReader(offset, MIN_PAGE_SIZE, (int) (ceilingEntry.reader.offset - offset)));
+        return new Entry(createReader(offset, MIN_PAGE_SIZE, (int) (ceilingEntry.reader.getOffset() - offset)));
     }
 
-    private RangeConstrainedFileReader createReader(long offset, int desiredLength, int maxLength) {
-        return RangeConstrainedFileReader.create(
-                file, drive, executor, offset, (maxLength < desiredLength * 5 / 4) ? maxLength : desiredLength);
+    private RangeMappedOpenedFile createReader(long offset, int desiredLength, int maxLength) {
+        return RangeMappedOpenedFile.create(
+                file, drive, null, executor, offset, (maxLength < desiredLength * 5 / 4) ? maxLength : desiredLength);
     }
 
     private void scheduleReaderExpiry(Entry entry) {
@@ -133,28 +140,28 @@ public class RollingFileReader implements FileReader {
         if (entry.expiry != null)
             entry.expiry.cancel(false);
 
-        final RangeConstrainedFileReader reader = entry.reader;
+        final RangeMappedOpenedFile reader = entry.reader;
 
         logger.debug("scheduling {} to be discarded", reader);
         entry.expiry = executor.schedule(new Runnable() {
             @Override
             public void run() {
                 logger.debug("discarding {}", reader);
-                readers.remove(reader.offset);
+                readers.remove(reader.getOffset());
             }
         }, PAGE_EXPIRY_IN_SECS, TimeUnit.SECONDS);
     }
 
     public String toString() {
-        return String.format("RollingFileReader{file = %s}", file.getName());
+        return String.format("RollingReadOpenedFile{file = %s}", file.getName());
     }
 
     private class Entry {
 
-        public final RangeConstrainedFileReader reader;
+        public final RangeMappedOpenedFile reader;
         private ScheduledFuture expiry = null;
 
-        private Entry(RangeConstrainedFileReader reader) {
+        private Entry(RangeMappedOpenedFile reader) {
             this.reader = reader;
         }
     }

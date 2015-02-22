@@ -172,6 +172,10 @@ public class File {
         return size;
     }
 
+    public void setSize(long size) {
+        this.size = size;
+    }
+
     public String toString() {
         return isDirectory() ? String.format("folder %s", getName()) : String.format("file %s", getName());
     }

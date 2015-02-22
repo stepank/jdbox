@@ -1,10 +1,9 @@
 package jdbox;
 
 import com.google.inject.Inject;
-import jdbox.filereaders.FileReader;
-import jdbox.filereaders.FileReaderFactory;
 import jdbox.filetree.File;
 import jdbox.filetree.FileTree;
+import jdbox.openedfiles.OpenedFiles;
 import net.fusejna.*;
 import net.fusejna.types.TypeMode;
 import net.fusejna.util.FuseFilesystemAdapterFull;
@@ -12,37 +11,19 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.Date;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicLong;
 
 public class FileSystem extends FuseFilesystemAdapterFull {
 
     private static final Logger logger = LoggerFactory.getLogger(FileSystem.class);
 
-    private final DriveAdapter drive;
     private final FileTree fileTree;
-    private final ScheduledExecutorService executor;
-
-    private final Map<Long, FileReader> fileReaders = new ConcurrentHashMap<>();
-    private final AtomicLong currentFileHandler = new AtomicLong();
+    private final OpenedFiles openedFiles;
 
     @Inject
-    public FileSystem(DriveAdapter drive, FileTree fileTree, final ScheduledExecutorService executor) {
-        this.drive = drive;
+    public FileSystem(FileTree fileTree, OpenedFiles openedFiles) {
         this.fileTree = fileTree;
-        this.executor = executor;
-    }
-
-    public int getFileReadersCount() {
-        return fileReaders.size();
-    }
-
-    public long getCurrentFileHandler() {
-        return currentFileHandler.get();
+        this.openedFiles = openedFiles;
     }
 
     @Override
@@ -55,9 +36,17 @@ public class FileSystem extends FuseFilesystemAdapterFull {
             File file = fileTree.get(path);
 
             if (file.isDirectory())
-                stat.setMode(TypeMode.NodeType.DIRECTORY, true, true, true, true, true, true, true, false, true);
+                stat.setMode(
+                        TypeMode.NodeType.DIRECTORY,
+                        true, true, true,
+                        true, false, true,
+                        true, false, true);
             else
-                stat.setMode(TypeMode.NodeType.FILE).size(file.getSize());
+                stat.setMode(
+                        TypeMode.NodeType.FILE,
+                        true, file.isDownloadable(), false,
+                        true, false, false,
+                        true, false, false).size(file.getSize());
 
             stat.size(file.getSize());
             if (file.getCreatedDate() != null)
@@ -103,19 +92,12 @@ public class FileSystem extends FuseFilesystemAdapterFull {
     @Override
     public int open(String path, StructFuseFileInfo.FileInfoWrapper info) {
 
-        info.fh(currentFileHandler.incrementAndGet());
-
-        logger.debug("[{}] opening file, fh {}", path, info.fh());
+        logger.debug("[{}] opening file, mode {}", path, info.openMode());
 
         try {
-
-            File file = fileTree.get(path);
-
-            if (file.isDownloadable())
-                fileReaders.put(info.fh(), FileReaderFactory.create(file, FileSystem.this.drive, executor));
-
+            info.fh(openedFiles.open(fileTree.get(path), getOpenMode(info.openMode())));
+            logger.debug("[{}] opened file, fh {}, mode {}", path, info.fh(), info.openMode());
             return 0;
-
         } catch (FileTree.NoSuchFileException e) {
             return -ErrorCodes.ENOENT();
         } catch (Exception e) {
@@ -130,14 +112,8 @@ public class FileSystem extends FuseFilesystemAdapterFull {
         logger.debug("[{}] releasing file, fh {}", path, info.fh_old());
 
         try {
-
-            FileReader fr = fileReaders.remove(info.fh());
-
-            if (fr != null)
-                fr.discard();
-
+            openedFiles.close(info.fh());
             return 0;
-
         } catch (Exception e) {
             logger.error("[{}] an error occured while releasig file", path, e);
             return -ErrorCodes.EPIPE();
@@ -147,28 +123,29 @@ public class FileSystem extends FuseFilesystemAdapterFull {
     @Override
     public int read(String path, ByteBuffer buffer, long count, long offset, StructFuseFileInfo.FileInfoWrapper info) {
 
-        logger.debug("[{}] reading file, fh {}, offset {}, count {}", path, info.fh_old(), offset, count);
+        logger.debug("[{}] reading file, fh {}, offset {}, count {}", path, info.fh(), offset, count);
 
         try {
-
-            File file = fileTree.get(path);
-
-            if (!file.isDownloadable()) {
-                String exportInfo = file.getExportInfo();
-                buffer.put(Arrays.copyOfRange(exportInfo.getBytes(), (int) offset, (int) (offset + count)));
-                return (int) Math.min(count, exportInfo.length() - offset);
-            }
-
-            long toRead = Math.min(count, file.getSize() - offset);
-
-            fileReaders.get(info.fh()).read(buffer, offset, (int) toRead);
-
-            return (int) toRead;
-
+            return openedFiles.get(info.fh()).read(buffer, offset, (int) count);
         } catch (FileTree.NoSuchFileException e) {
             return -ErrorCodes.ENOENT();
         } catch (Exception e) {
             logger.error("[{}] an error occured while reading file", path, e);
+            return -ErrorCodes.EPIPE();
+        }
+    }
+
+    @Override
+    public int write(String path, ByteBuffer buffer, long count, long offset, StructFuseFileInfo.FileInfoWrapper info) {
+
+        logger.debug("[{}] writing file, fh {}, offset {}, count {}", path, info.fh(), offset, count);
+
+        try {
+            return openedFiles.get(info.fh()).write(buffer, offset, (int) count);
+        } catch (FileTree.NoSuchFileException e) {
+            return -ErrorCodes.ENOENT();
+        } catch (Exception e) {
+            logger.error("[{}] an error occured while writing file", path, e);
             return -ErrorCodes.EPIPE();
         }
     }
@@ -182,7 +159,8 @@ public class FileSystem extends FuseFilesystemAdapterFull {
             return -ErrorCodes.ENOSYS();
 
         try {
-            fileTree.create(path, false);
+            info.fh(openedFiles.open(fileTree.create(path, false), getOpenMode(info.openMode())));
+            logger.debug("[{}] opened file, fh {}, mode {}", path, info.fh(), info.openMode());
             return 0;
         } catch (FileTree.NoSuchFileException e) {
             return -ErrorCodes.ENOENT();
@@ -196,6 +174,9 @@ public class FileSystem extends FuseFilesystemAdapterFull {
     public int mkdir(String path, TypeMode.ModeWrapper mode) {
 
         logger.debug("[{}] creating directory", path);
+
+        if (mode.type() != TypeMode.NodeType.DIRECTORY)
+            return -ErrorCodes.ENOSYS();
 
         try {
             fileTree.create(path, true);
@@ -221,6 +202,19 @@ public class FileSystem extends FuseFilesystemAdapterFull {
         } catch (Exception e) {
             logger.error("[{}] an error occured while setting times", path, e);
             return -ErrorCodes.EPIPE();
+        }
+    }
+
+    private static OpenedFiles.OpenMode getOpenMode(StructFuseFileInfo.FileInfoWrapper.OpenMode openMode) {
+        switch (openMode) {
+            case READONLY:
+                return OpenedFiles.OpenMode.READ_ONLY;
+            case WRITEONLY:
+                return OpenedFiles.OpenMode.WRITE_ONLY;
+            case READWRITE:
+                return OpenedFiles.OpenMode.READ_WRITE;
+            default:
+                return null;
         }
     }
 }
