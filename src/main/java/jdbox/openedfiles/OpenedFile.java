@@ -1,9 +1,7 @@
 package jdbox.openedfiles;
 
-import com.google.common.util.concurrent.ListenableFuture;
 import jdbox.filetree.File;
 
-import java.io.InputStream;
 import java.nio.ByteBuffer;
 
 public interface OpenedFile {

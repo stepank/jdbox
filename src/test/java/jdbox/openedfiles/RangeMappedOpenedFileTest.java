@@ -3,7 +3,6 @@ package jdbox.openedfiles;
 import jdbox.BaseTest;
 import jdbox.Uploader;
 import jdbox.filetree.File;
-import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,82 +18,84 @@ import static org.hamcrest.Matchers.equalTo;
 public class RangeMappedOpenedFileTest extends BaseTest {
 
     private static final Logger logger = LoggerFactory.getLogger(RangeMappedOpenedFileTest.class);
-
-    private final static int bufferSize = 4;
-
-    File file;
-    RangeMappedOpenedFile openedFile;
-    Uploader uploader;
-
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
-        uploader = injector.getInstance(Uploader.class);
-    }
+    private static final int bufferSize = 4;
 
     @Test
     public void read() throws Exception {
 
-        file = drive.createFile(testFileName, testDir, getTestContent());
+        File file = drive.createFile(testFileName, testDir, getTestContent());
 
-        runReadTest(11);
-        runReadTest(16);
-        runReadTest(4, 4, 3);
-        runReadTest(4, 4, 4);
-        runReadTest(2, 4, 4, 1);
-        runReadTest(2, 4, 4, 4);
-        runReadTest(8, 3);
-        runReadTest(8, 8);
-        runReadTest(2, 8, 1);
-        runReadTest(2, 8, 8);
+        runReadTest(file, 11);
+        runReadTest(file, 16);
+        runReadTest(file, 4, 4, 3);
+        runReadTest(file, 4, 4, 4);
+        runReadTest(file, 2, 4, 4, 1);
+        runReadTest(file, 2, 4, 4, 4);
+        runReadTest(file, 8, 3);
+        runReadTest(file, 8, 8);
+        runReadTest(file, 2, 8, 1);
+        runReadTest(file, 2, 8, 8);
     }
 
-    private void runReadTest(int... counts) throws Exception {
+    private void runReadTest(File file, int... counts) throws Exception {
 
-        openedFile = RangeMappedOpenedFile.create(
+        byte[] content = testContentString.getBytes();
+
+        RangeMappedOpenedFile openedFile = RangeMappedOpenedFile.create(
                 file, drive, null, injector.getInstance(ScheduledExecutorService.class), bufferSize);
         assertThat(openedFile.getBufferCount(), equalTo(0));
 
-        byte[] bytes = new byte[testContentString.length()];
+        byte[] bytes = new byte[content.length];
 
         int offset = 0;
         for (int count : counts) {
 
-            int bytesToRead = Math.min(bytes.length - offset, count);
+            int expectedRead = Math.min(bytes.length - offset, count);
 
-            ByteBuffer buffer = ByteBuffer.allocate(bytesToRead);
-            assertThat(openedFile.read(buffer, offset, bytesToRead), equalTo(bytesToRead));
+            ByteBuffer buffer = ByteBuffer.allocate(count);
+            assertThat(openedFile.read(buffer, offset, count), equalTo(expectedRead));
+
+            byte[] actual = new byte[expectedRead];
+            buffer.rewind();
+            buffer.get(actual, 0, expectedRead);
+
+            byte[] expected = new byte[expectedRead];
+            System.arraycopy(content, offset, expected, 0, expectedRead);
+
+            assertThat(actual, equalTo(expected));
 
             buffer.rewind();
-            buffer.get(bytes, offset, bytesToRead);
+            buffer.get(bytes, offset, expectedRead);
 
             offset += count;
         }
 
-        assertThat(bytes, equalTo(testContentString.getBytes()));
+        assertThat(bytes, equalTo(content));
         assertThat(openedFile.getBufferCount(), equalTo(3));
     }
 
     @Test
     public void write() throws Exception {
 
-        file = drive.createFile(testFileName, testDir, getTestContent());
+        File file = drive.createFile(testFileName, testDir, getTestContent());
 
-        runWriteTest(15);
-        runWriteTest(16);
-        runWriteTest(4, 4, 4, 3);
-        runWriteTest(4, 4, 4, 4);
-        runWriteTest(2, 4, 4, 4, 1);
-        runWriteTest(2, 4, 4, 4, 4);
-        runWriteTest(8, 7);
-        runWriteTest(8, 8);
-        runWriteTest(2, 8, 5);
-        runWriteTest(2, 8, 8);
+        runWriteTest(file, 15);
+        runWriteTest(file, 16);
+        runWriteTest(file, 4, 4, 4, 3);
+        runWriteTest(file, 4, 4, 4, 4);
+        runWriteTest(file, 2, 4, 4, 4, 1);
+        runWriteTest(file, 2, 4, 4, 4, 4);
+        runWriteTest(file, 8, 7);
+        runWriteTest(file, 8, 8);
+        runWriteTest(file, 2, 8, 5);
+        runWriteTest(file, 2, 8, 8);
     }
 
-    public void runWriteTest(int... counts) throws Exception {
+    public void runWriteTest(File file, int... counts) throws Exception {
 
-        openedFile = RangeMappedOpenedFile.create(
+        Uploader uploader = injector.getInstance(Uploader.class);
+
+        RangeMappedOpenedFile openedFile = RangeMappedOpenedFile.create(
                 file, drive, uploader, injector.getInstance(ScheduledExecutorService.class), bufferSize);
         assertThat(openedFile.getBufferCount(), equalTo(0));
 
@@ -140,36 +141,39 @@ public class RangeMappedOpenedFileTest extends BaseTest {
 
         final int contentLength = 1024 * 1024;
         final int[] maxReadChunkSizes =
-                new int[]{10, 100, 1024, 4 * 1024, 16 * 1024, 62 * 1024, 256 * 1024, contentLength};
+                new int[]{10, 100, 1024, 4 * 1024, 16 * 1024, 64 * 1024, 256 * 1024, contentLength};
+
+        Random random = new Random();
+        byte[] content = new byte[contentLength];
+        random.nextBytes(content);
+
+        File file = drive.createFile(testFileName, testDir, new ByteArrayInputStream(content));
 
         for (int maxReadChunkSize : maxReadChunkSizes) {
 
             logger.info("max read chunk size is {}", maxReadChunkSize);
 
-            Random random = new Random();
-            byte[] content = new byte[contentLength];
-            random.nextBytes(content);
-
-            file = drive.createFile(testFileName, testDir, new ByteArrayInputStream(content));
-
-            openedFile = RangeMappedOpenedFile.create(
+            RangeMappedOpenedFile openedFile = RangeMappedOpenedFile.create(
                     file, drive, null, injector.getInstance(ScheduledExecutorService.class), 1024);
             assertThat(openedFile.getBufferCount(), equalTo(0));
+
+            ByteBuffer buffer = ByteBuffer.allocate(maxReadChunkSize);
 
             for (int i = 0; i < 100; i++) {
 
                 int offset = random.nextInt(contentLength);
-                int bytesToRead = 1 + random.nextInt(Math.min(contentLength - offset - 1, maxReadChunkSize));
+                int bytesToRead = 1 + random.nextInt(maxReadChunkSize);
+                int expectedRead = Math.min(contentLength - offset, bytesToRead);
 
-                ByteBuffer buffer = ByteBuffer.allocate(bytesToRead);
-                assertThat(openedFile.read(buffer, offset, bytesToRead), equalTo(bytesToRead));
-
-                byte[] actual = new byte[bytesToRead];
                 buffer.rewind();
-                buffer.get(actual, 0, bytesToRead);
+                assertThat(openedFile.read(buffer, offset, bytesToRead), equalTo(expectedRead));
 
-                byte[] expected = new byte[bytesToRead];
-                System.arraycopy(content, offset, expected, 0, bytesToRead);
+                byte[] actual = new byte[expectedRead];
+                buffer.rewind();
+                buffer.get(actual, 0, expectedRead);
+
+                byte[] expected = new byte[expectedRead];
+                System.arraycopy(content, offset, expected, 0, expectedRead);
 
                 assertThat(actual, equalTo(expected));
             }

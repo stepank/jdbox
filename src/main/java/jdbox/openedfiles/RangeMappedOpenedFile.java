@@ -17,16 +17,17 @@ import java.util.Date;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
- * Even though this opened file is mapped on a range of a cloud file, all methods accepting offset treat it as
- * starting from the beginning of that range, not from the beginning of of the cloud file.
+ * Even though this opened file is mapped on a range of a cloud file, read and write methods treat offset as
+ * starting from the beginning of that range, not from the beginning of the cloud file.
  */
 public class RangeMappedOpenedFile implements OpenedFile {
 
-    private static final Logger logger = LoggerFactory.getLogger(RangeMappedOpenedFile.class);
+    public static final int READER_BUFFER_SIZE = 16 * 1024;
 
-    private static final int BUFFER_SIZE = 128 * 1024;
+    private static final Logger logger = LoggerFactory.getLogger(RangeMappedOpenedFile.class);
 
     private final int bufferSize;
     private final long offset;
@@ -44,18 +45,13 @@ public class RangeMappedOpenedFile implements OpenedFile {
     private final List<byte[]> buffers = new ArrayList<>();
 
     public static RangeMappedOpenedFile create(
-            File file, DriveAdapter drive, Uploader uploader, ExecutorService executor) {
-        return create(file, drive, uploader, executor, 0, file.getSize(), BUFFER_SIZE);
+            File file, DriveAdapter drive, Uploader uploader, ScheduledExecutorService executor) {
+        return create(file, drive, uploader, executor, 0, file.getSize(), READER_BUFFER_SIZE);
     }
 
     public static RangeMappedOpenedFile create(
             File file, DriveAdapter drive, Uploader uploader, ExecutorService executor, int bufferSize) {
         return create(file, drive, uploader, executor, 0, file.getSize(), bufferSize);
-    }
-
-    public static RangeMappedOpenedFile create(
-            File file, DriveAdapter drive, Uploader uploader, ExecutorService executor, long offset, long length) {
-        return create(file, drive, uploader, executor, offset, length, BUFFER_SIZE);
     }
 
     public static RangeMappedOpenedFile create(
@@ -94,6 +90,9 @@ public class RangeMappedOpenedFile implements OpenedFile {
     private RangeMappedOpenedFile(
             File file, DriveAdapter drive, Uploader uploader, Future<InputStream> streamFuture,
             long offset, long length, int bufferSize) {
+
+        assert offset >= 0;
+        assert length > 0 || offset == 0 && length == 0;
 
         if (file.getSize() > Integer.MAX_VALUE)
             throw new UnsupportedOperationException("the file is too large");
