@@ -4,7 +4,6 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListenableFutureTask;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.inject.Inject;
-import com.sun.istack.internal.NotNull;
 
 import java.util.Queue;
 import java.util.concurrent.*;
@@ -50,7 +49,7 @@ public class Uploader {
         waitUntilDone(5, TimeUnit.SECONDS);
     }
 
-    public void waitUntilDone(long timeout, @NotNull TimeUnit unit)
+    public void waitUntilDone(long timeout, TimeUnit unit)
             throws InterruptedException, ExecutionException, TimeoutException {
         final SettableFuture<Object> future = SettableFuture.create();
         submit(new Runnable() {

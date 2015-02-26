@@ -82,11 +82,10 @@ public class OpenedFiles {
 
             assert sharedFile.refCount > 0;
 
-            sharedFile.refCount--;
-
             ListenableFuture future = sharedFile.file.flush();
 
             if (future == null) {
+                sharedFile.refCount--;
                 if (sharedFile.refCount == 0)
                     sharedFiles.remove(sharedFile.file.getOrigin()).file.close();
             } else {
@@ -95,11 +94,14 @@ public class OpenedFiles {
                     public void run() {
                         synchronized (OpenedFiles.this) {
 
+                            sharedFile.refCount--;
                             if (sharedFile.refCount > 0)
                                 return;
 
+                            SharedOpenedFile sharedOpenedFile;
                             try {
-                                sharedFiles.remove(sharedFile.file.getOrigin()).file.close();
+                                sharedOpenedFile = sharedFiles.remove(sharedFile.file.getOrigin());
+                                sharedOpenedFile.file.close();
                             } catch (Exception e) {
                                 logger.error("an error occured while closing a shared file", e);
                             }

@@ -1,6 +1,7 @@
 package jdbox;
 
 import jdbox.openedfiles.OpenedFiles;
+import org.junit.After;
 import org.junit.Test;
 
 import java.io.OutputStream;
@@ -13,6 +14,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
 public class MountTest extends BaseMountFileSystemTest {
+
+    @After
+    public void tearDown() throws Exception {
+        waitUntilSharedFilesAreClosed();
+        super.tearDown();
+    }
 
     @Test
     public void read() throws Exception {
@@ -30,16 +37,8 @@ public class MountTest extends BaseMountFileSystemTest {
 
     @Test
     public void writeAndReadAfterClose() throws Exception {
-
         Files.write(mountPoint.resolve(testDir.getName()).resolve("test.txt"), testContentString.getBytes());
-
-        // wait until all shared files are closed and forgotten
-        Date start = new Date();
-        while (injector.getInstance(OpenedFiles.class).getSharedFilesCount() != 0) {
-            Thread.sleep(100);
-            assertThat(new Date().getTime() - start.getTime(), lessThan((long) 5000));
-        }
-
+        waitUntilSharedFilesAreClosed();
         String actual = new String(Files.readAllBytes(mountPoint.resolve(testDir.getName()).resolve("test.txt")));
         assertThat(actual, equalTo(testContentString));
     }
@@ -57,5 +56,13 @@ public class MountTest extends BaseMountFileSystemTest {
         }
 
         assertThat(path.toFile().length(), equalTo((long) testContentString.length()));
+    }
+
+    private void waitUntilSharedFilesAreClosed() throws Exception {
+        Date start = new Date();
+        while (injector.getInstance(OpenedFiles.class).getSharedFilesCount() != 0) {
+            Thread.sleep(100);
+            assertThat(new Date().getTime() - start.getTime(), lessThan((long) 5000));
+        }
     }
 }

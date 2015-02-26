@@ -213,8 +213,12 @@ public class RangeMappedOpenedFile implements OpenedFile {
 
         assert !discarded;
 
-        if (!hasChanged)
+        if (!hasChanged) {
+            logger.debug("nothing to flush for {}", file);
             return null;
+        }
+
+        logger.debug("flushing {}", file);
 
         hasChanged = false;
 
