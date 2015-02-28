@@ -76,24 +76,23 @@ public class RangeMappedOpenedFileTest extends BaseTest {
 
     @Test
     public void write() throws Exception {
-
-        File file = drive.createFile(testFileName, testDir, getTestContent());
-
-        runWriteTest(file, 15);
-        runWriteTest(file, 16);
-        runWriteTest(file, 4, 4, 4, 3);
-        runWriteTest(file, 4, 4, 4, 4);
-        runWriteTest(file, 2, 4, 4, 4, 1);
-        runWriteTest(file, 2, 4, 4, 4, 4);
-        runWriteTest(file, 8, 7);
-        runWriteTest(file, 8, 8);
-        runWriteTest(file, 2, 8, 5);
-        runWriteTest(file, 2, 8, 8);
+        runWriteTest(15);
+        runWriteTest(16);
+        runWriteTest(4, 4, 4, 3);
+        runWriteTest(4, 4, 4, 4);
+        runWriteTest(2, 4, 4, 4, 1);
+        runWriteTest(2, 4, 4, 4, 4);
+        runWriteTest(8, 7);
+        runWriteTest(8, 8);
+        runWriteTest(2, 8, 5);
+        runWriteTest(2, 8, 8);
     }
 
-    public void runWriteTest(File file, int... counts) throws Exception {
+    public void runWriteTest(int... counts) throws Exception {
 
         Uploader uploader = injector.getInstance(Uploader.class);
+
+        File file = drive.createFile(testFileName, testDir, getTestContent());
 
         RangeMappedOpenedFile openedFile = RangeMappedOpenedFile.create(
                 file, drive, uploader, injector.getInstance(ScheduledExecutorService.class), bufferSize);
@@ -126,6 +125,7 @@ public class RangeMappedOpenedFileTest extends BaseTest {
         openedFile.flush();
 
         uploader.waitUntilDone();
+        openedFile.close();
 
         openedFile = RangeMappedOpenedFile.create(
                 file, drive, uploader, injector.getInstance(ScheduledExecutorService.class), bufferSize);
@@ -134,6 +134,8 @@ public class RangeMappedOpenedFileTest extends BaseTest {
         assertThat(openedFile.read(buffer, 0, bytes.length), equalTo(bytes.length));
         assertThat(buffer.array(), equalTo(bytes));
         assertThat(openedFile.getBufferCount(), equalTo(4));
+
+        openedFile.close();
     }
 
     @Test
