@@ -12,5 +12,7 @@ public interface OpenedFile {
 
     public int write(ByteBuffer buffer, long offset, int count) throws Exception;
 
+    public void truncate(long offset) throws Exception;
+
     void close() throws Exception;
 }

@@ -88,6 +88,11 @@ public class RollingReadOpenedFile implements OpenedFile {
     }
 
     @Override
+    public void truncate(long offset) throws Exception {
+        throw new UnsupportedOperationException("truncate is not supported");
+    }
+
+    @Override
     public synchronized void close() throws Exception {
         discarded = true;
         readers.closeAll();

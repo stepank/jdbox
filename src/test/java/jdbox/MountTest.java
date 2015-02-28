@@ -4,6 +4,7 @@ import jdbox.openedfiles.OpenedFiles;
 import org.junit.After;
 import org.junit.Test;
 
+import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -56,6 +57,16 @@ public class MountTest extends BaseMountFileSystemTest {
         }
 
         assertThat(path.toFile().length(), equalTo((long) testContentString.length()));
+    }
+
+    @Test
+    public void truncate() throws Exception {
+        Path path = mountPoint.resolve(testDir.getName()).resolve("test.txt");
+        Files.write(path, testContentString.getBytes());
+        waitUntilSharedFilesAreClosed();
+        new FileOutputStream(path.toFile(), true).getChannel().truncate(5).close();
+        waitUntilSharedFilesAreClosed();
+        assertThat(new String(Files.readAllBytes(path)), equalTo(testContentString));
     }
 
     private void waitUntilSharedFilesAreClosed() throws Exception {

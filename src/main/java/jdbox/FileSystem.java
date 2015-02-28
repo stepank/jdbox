@@ -92,7 +92,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
     @Override
     public int open(String path, StructFuseFileInfo.FileInfoWrapper info) {
 
-        logger.debug("[{}] opening file, mode {}", path, info.openMode());
+        logger.debug("[{}] opening, mode {}", path, info.openMode());
 
         try {
             info.fh(openedFiles.open(fileTree.get(path), getOpenMode(info.openMode())));
@@ -109,7 +109,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
     @Override
     public int release(String path, StructFuseFileInfo.FileInfoWrapper info) {
 
-        logger.debug("[{}] releasing file, fh {}", path, info.fh_old());
+        logger.debug("[{}] releasing, fh {}", path, info.fh_old());
 
         try {
             openedFiles.close(info.fh());
@@ -123,7 +123,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
     @Override
     public int read(String path, ByteBuffer buffer, long count, long offset, StructFuseFileInfo.FileInfoWrapper info) {
 
-        logger.debug("[{}] reading file, fh {}, offset {}, count {}", path, info.fh(), offset, count);
+        logger.debug("[{}] reading, fh {}, offset {}, count {}", path, info.fh(), offset, count);
 
         try {
             return openedFiles.get(info.fh()).read(buffer, offset, (int) count);
@@ -138,7 +138,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
     @Override
     public int write(String path, ByteBuffer buffer, long count, long offset, StructFuseFileInfo.FileInfoWrapper info) {
 
-        logger.debug("[{}] writing file, fh {}, offset {}, count {}", path, info.fh(), offset, count);
+        logger.debug("[{}] writing, fh {}, offset {}, count {}", path, info.fh(), offset, count);
 
         try {
             return openedFiles.get(info.fh()).write(buffer, offset, (int) count);
@@ -186,6 +186,31 @@ public class FileSystem extends FuseFilesystemAdapterFull {
         } catch (Exception e) {
             logger.error("[{}] an error occured while creating file", path, e);
             return -ErrorCodes.EPIPE();
+        }
+    }
+
+    @Override
+    public int truncate(String path, long offset) {
+
+        logger.debug("[{}] truncating, offset {}", path, offset);
+
+        long fileHandler = 0;
+        try {
+            fileHandler = openedFiles.open(fileTree.get(path), OpenedFiles.OpenMode.WRITE_ONLY);
+            logger.debug("[{}] opened file, fh {}, mode {}", path, fileHandler, OpenedFiles.OpenMode.WRITE_ONLY);
+            return 0;
+        } catch (FileTree.NoSuchFileException e) {
+            return -ErrorCodes.ENOENT();
+        } catch (Exception e) {
+            logger.error("[{}] an error occured while opening file", path, e);
+            return -ErrorCodes.EPIPE();
+        } finally {
+            if (fileHandler != 0)
+                try {
+                    openedFiles.close(fileHandler);
+                } catch (Exception e) {
+                    logger.error("[{}] an error occured while closing file", path, e);
+                }
         }
     }
 

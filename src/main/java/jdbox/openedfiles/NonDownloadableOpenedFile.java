@@ -31,6 +31,11 @@ public class NonDownloadableOpenedFile implements OpenedFile {
     }
 
     @Override
+    public void truncate(long offset) throws Exception {
+        throw new UnsupportedOperationException("truncate is not supported");
+    }
+
+    @Override
     public void close() throws Exception {
     }
 }

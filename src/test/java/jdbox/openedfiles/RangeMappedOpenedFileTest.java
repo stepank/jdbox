@@ -1,6 +1,7 @@
 package jdbox.openedfiles;
 
 import jdbox.BaseTest;
+import jdbox.DriveAdapter;
 import jdbox.Uploader;
 import jdbox.filetree.File;
 import org.junit.Test;
@@ -134,6 +135,51 @@ public class RangeMappedOpenedFileTest extends BaseTest {
         assertThat(openedFile.read(buffer, 0, bytes.length), equalTo(bytes.length));
         assertThat(buffer.array(), equalTo(bytes));
         assertThat(openedFile.getBufferCount(), equalTo(4));
+
+        openedFile.close();
+    }
+
+    @Test
+    public void truncate() throws Exception {
+        runTruncateTest(2);
+        runTruncateTest(4);
+        runTruncateTest(6);
+        runTruncateTest(8);
+        runTruncateTest(22);
+        runTruncateTest(24);
+    }
+
+    private void runTruncateTest(int length) throws Exception {
+
+        Uploader uploader = injector.getInstance(Uploader.class);
+
+        File file = drive.createFile(testFileName, testDir, getTestContent());
+
+        RangeMappedOpenedFile openedFile = RangeMappedOpenedFile.create(
+                file, drive, uploader, injector.getInstance(ScheduledExecutorService.class), bufferSize);
+        assertThat(openedFile.getBufferCount(), equalTo(0));
+
+        byte[] expected = new byte[length];
+        System.arraycopy(testContentString.getBytes(), 0, expected, 0, Math.min(length, testContentString.length()));
+
+        openedFile.truncate(length);
+
+        ByteBuffer buffer = ByteBuffer.allocate(length);
+
+        assertThat(openedFile.read(buffer, 0, expected.length), equalTo(expected.length));
+        assertThat(buffer.array(), equalTo(expected));
+
+        openedFile.flush();
+
+        uploader.waitUntilDone();
+        openedFile.close();
+
+        openedFile = RangeMappedOpenedFile.create(
+                file, drive, uploader, injector.getInstance(ScheduledExecutorService.class), bufferSize);
+
+        buffer.rewind();
+        assertThat(openedFile.read(buffer, 0, expected.length), equalTo(expected.length));
+        assertThat(buffer.array(), equalTo(expected));
 
         openedFile.close();
     }

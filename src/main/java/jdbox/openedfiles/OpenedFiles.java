@@ -28,7 +28,7 @@ public class OpenedFiles {
 
     private final Map<Long, OpenedFile> fileHandlers = new HashMap<>();
     private final Map<File, SharedOpenedFile> sharedFiles = new HashMap<>();
-    private long currentFileHandler = 0;
+    private long currentFileHandler = 1;
 
     @Inject
     public OpenedFiles(DriveAdapter drive, Uploader uploader, ScheduledExecutorService executor) {

@@ -34,14 +34,14 @@ public class RangeMappedOpenedFile implements OpenedFile {
     private final long initialLength;
     private final File file;
     private final DriveAdapter drive;
-    private final Future<InputStream> stream;
     private final Uploader uploader;
 
+    private int length;
     private int available = 0;
     private boolean hasChanged = false;
     private boolean discarded = false;
+    private Future<InputStream> stream;
 
-    private int length;
     private final List<byte[]> buffers = new ArrayList<>();
 
     public static RangeMappedOpenedFile create(
@@ -209,6 +209,26 @@ public class RangeMappedOpenedFile implements OpenedFile {
         return written;
     }
 
+    @Override
+    public synchronized void truncate(long length) throws Exception {
+
+        if (length == this.length)
+            return;
+
+        if (length < this.length)
+            this.length = (int) length;
+        else {
+
+            ensureContentIsAvailable(length);
+
+            ByteBuffer buffer = ByteBuffer.allocate(bufferSize);
+            while (this.length < length) {
+                buffer.rewind();
+                write(buffer, this.length, (int) Math.min(bufferSize, length - this.length));
+            }
+        }
+    }
+
     public synchronized ListenableFuture flush() {
 
         assert !discarded;
@@ -275,6 +295,11 @@ public class RangeMappedOpenedFile implements OpenedFile {
             ByteStreams.readFully(this.stream.get(), dst, dstOffset, bytesToRead);
 
             available += bytesToRead;
+        }
+
+        if (available >= initialLength || available >= length) {
+            stream.get().close();
+            stream = null;
         }
     }
 
