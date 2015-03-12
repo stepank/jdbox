@@ -14,6 +14,7 @@ import com.google.api.services.drive.DriveScopes;
 import com.google.inject.*;
 import jdbox.filetree.FileTree;
 import jdbox.openedfiles.OpenedFiles;
+import jdbox.openedfiles.OpenedFilesModule;
 import org.ini4j.Ini;
 
 import java.io.BufferedReader;
@@ -51,7 +52,7 @@ public class JdBox {
     }
 
     public static Injector createInjector(Environment env, Drive drive, boolean autoUpdateFileTree) throws Exception {
-        return Guice.createInjector(new MainModule(env, drive, autoUpdateFileTree));
+        return Guice.createInjector(new MainModule(env, drive, autoUpdateFileTree), new OpenedFilesModule());
     }
 
     public static Drive createDriveService(Environment env) throws Exception {
@@ -116,7 +117,6 @@ public class JdBox {
             bind(ScheduledExecutorService.class).toInstance(executor);
             bind(DriveAdapter.class).in(Singleton.class);
             bind(Uploader.class).in(Singleton.class);
-            bind(OpenedFiles.class).in(Singleton.class);
         }
 
         @Provides

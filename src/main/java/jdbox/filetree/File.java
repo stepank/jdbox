@@ -22,7 +22,7 @@ public class File {
     private volatile String id;
     private volatile String name;
     private volatile boolean isDirectory;
-    private volatile boolean isDownloadable;
+    private volatile boolean isReal;
     private volatile boolean isTrashed;
     private volatile String downloadUrl;
     private volatile String exportInfo;
@@ -37,6 +37,7 @@ public class File {
     }
 
     private File(String id, String name, final String parentId, boolean isDirectory, boolean uploaded) {
+        isReal = true;
         this.uploaded = uploaded;
         this.id = id;
         this.name = name;
@@ -54,7 +55,7 @@ public class File {
         id = file.getId();
         name = file.getTitle();
         isDirectory = file.getMimeType().equals("application/vnd.google-apps.folder");
-        isDownloadable = file.getDownloadUrl() != null && file.getDownloadUrl().length() != 0;
+        isReal = file.getDownloadUrl() != null && file.getDownloadUrl().length() != 0;
         isTrashed = file.getLabels().getTrashed();
         downloadUrl = file.getDownloadUrl();
         exportInfo = alternateLinkText + file.getAlternateLink() + "\n";
@@ -72,7 +73,7 @@ public class File {
 
         if (isDirectory)
             size = 0;
-        else if (!isDownloadable())
+        else if (!isReal())
             size = getExportInfo().length();
         else
             size = file.getFileSize() == null ? 0 : file.getFileSize();
@@ -97,7 +98,7 @@ public class File {
 
         assert file.getId().equals(id) : "new file id is not equal the original one";
 
-        isDownloadable = file.isDownloadable();
+        isReal = file.isReal();
         isTrashed = file.isTrashed();
         downloadUrl = file.getDownloadUrl();
         exportInfo = file.getExportInfo();
@@ -124,8 +125,8 @@ public class File {
         return isDirectory;
     }
 
-    public boolean isDownloadable() {
-        return isDownloadable;
+    public boolean isReal() {
+        return isReal;
     }
 
     public boolean isTrashed() {

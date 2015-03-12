@@ -3,7 +3,6 @@ package jdbox.openedfiles;
 import com.google.common.io.ByteSource;
 import com.google.common.io.ByteStreams;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.SettableFuture;
 import jdbox.DriveAdapter;
 import jdbox.Uploader;
 import jdbox.filetree.File;
@@ -13,19 +12,14 @@ import org.slf4j.LoggerFactory;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Even though this opened file is mapped on a range of a cloud file, read and write methods treat offset as
  * starting from the beginning of that range, not from the beginning of the cloud file.
  */
 public class RangeMappedOpenedFile implements OpenedFile {
-
-    public static final int READER_BUFFER_SIZE = 16 * 1024;
 
     private static final Logger logger = LoggerFactory.getLogger(RangeMappedOpenedFile.class);
 
@@ -44,50 +38,7 @@ public class RangeMappedOpenedFile implements OpenedFile {
 
     private final List<byte[]> buffers = new ArrayList<>();
 
-    public static RangeMappedOpenedFile create(
-            File file, DriveAdapter drive, Uploader uploader, ScheduledExecutorService executor) {
-        return create(file, drive, uploader, executor, 0, file.getSize(), READER_BUFFER_SIZE);
-    }
-
-    public static RangeMappedOpenedFile create(
-            File file, DriveAdapter drive, Uploader uploader, ExecutorService executor, int bufferSize) {
-        return create(file, drive, uploader, executor, 0, file.getSize(), bufferSize);
-    }
-
-    public static RangeMappedOpenedFile create(
-            final File file, final DriveAdapter drive, Uploader uploader, ExecutorService executor,
-            final long offset, final long length, int bufferSize) {
-
-        final SettableFuture<InputStream> streamFuture;
-
-        if (!file.isDownloadable())
-            streamFuture = null;
-        else {
-
-            logger.debug("requesting a stream of {}, offset {}, length {}", file, offset, length);
-
-            streamFuture = SettableFuture.create();
-            final Date start = new Date();
-            executor.execute(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        InputStream stream = drive.downloadFileRange(file, offset, length);
-                        logger.debug(
-                                "got a stream of {}, offset {}, length {}, exec time {} ms",
-                                file, offset, length, new Date().getTime() - start.getTime());
-                        streamFuture.set(stream);
-                    } catch (Exception e) {
-                        streamFuture.setException(e);
-                    }
-                }
-            });
-        }
-
-        return new RangeMappedOpenedFile(file, drive, uploader, streamFuture, offset, length, bufferSize);
-    }
-
-    private RangeMappedOpenedFile(
+    RangeMappedOpenedFile(
             File file, DriveAdapter drive, Uploader uploader, Future<InputStream> streamFuture,
             long offset, long length, int bufferSize) {
 

@@ -44,7 +44,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
             else
                 stat.setMode(
                         TypeMode.NodeType.FILE,
-                        true, file.isDownloadable(), false,
+                        true, file.isReal(), false,
                         true, false, false,
                         true, false, false).size(file.getSize());
 

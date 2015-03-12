@@ -9,7 +9,7 @@ public class NonDownloadableOpenedFile implements OpenedFile {
 
     private final File file;
 
-    public NonDownloadableOpenedFile(File file) {
+    NonDownloadableOpenedFile(File file) {
         this.file = file;
     }
 
@@ -37,5 +37,17 @@ public class NonDownloadableOpenedFile implements OpenedFile {
 
     @Override
     public void close() throws Exception {
+    }
+}
+
+class NonDownloadableOpenedFileFactory implements OpenedFileFactory {
+
+    @Override
+    public OpenedFile create(File file) {
+        return new NonDownloadableOpenedFile(file);
+    }
+
+    @Override
+    public void close(OpenedFile openedFile) {
     }
 }

@@ -1,6 +1,6 @@
 package jdbox.openedfiles;
 
-import jdbox.DriveAdapter;
+import com.google.inject.Inject;
 import jdbox.filetree.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,40 +9,28 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.ScheduledExecutorService;
 
 public class RollingReadOpenedFile implements OpenedFile {
 
-    private static final int MIN_PAGE_SIZE = 4 * 1024 * 1024;
-    private static final int MAX_PAGE_SIZE = 16 * 1024 * 1024;
     private static final int PAGES_NUMBER = 3;
     private static final double MAX_STRETCH_FACTOR = 1.5;
 
     private static final Logger logger = LoggerFactory.getLogger(RollingReadOpenedFile.class);
 
     private final File file;
-    private final DriveAdapter drive;
-    private final ScheduledExecutorService executor;
+    private final RangeMappedOpenedFileFactory readerFactory;
     private final int minPageSize;
     private final int maxPageSize;
-    private final int readerBufferSize;
     private final Readers readers = new Readers(PAGES_NUMBER);
 
     private boolean discarded = false;
 
-    public RollingReadOpenedFile(File file, DriveAdapter drive, ScheduledExecutorService executor) {
-        this(file, drive, executor, MIN_PAGE_SIZE, MAX_PAGE_SIZE, RangeMappedOpenedFile.READER_BUFFER_SIZE);
-    }
-
-    public RollingReadOpenedFile(
-            File file, DriveAdapter drive, ScheduledExecutorService executor,
-            int minPageSize, int maxPageSize, int readerBufferSize) {
+    RollingReadOpenedFile(
+            File file, RangeMappedOpenedFileFactory readerFactory, int minPageSize, int maxPageSize) {
         this.file = file;
-        this.drive = drive;
-        this.executor = executor;
+        this.readerFactory = readerFactory;
         this.minPageSize = minPageSize;
         this.maxPageSize = maxPageSize;
-        this.readerBufferSize = readerBufferSize;
     }
 
     @Override
@@ -132,7 +120,7 @@ public class RollingReadOpenedFile implements OpenedFile {
 
     private RangeMappedOpenedFile createReader(long offset, int desiredLength, int maxLength) {
         int length = (desiredLength * MAX_STRETCH_FACTOR > maxLength) ? maxLength : desiredLength;
-        return readers.create(offset, length, readerBufferSize).reader;
+        return readers.create(offset, length).reader;
     }
 
     public String toString() {
@@ -169,10 +157,9 @@ public class RollingReadOpenedFile implements OpenedFile {
             return result;
         }
 
-        public Entry create(long offset, int length, int bufferSize) {
+        public Entry create(long offset, int length) {
 
-            Entry result = new Entry(
-                    RangeMappedOpenedFile.create(file, drive, null, executor, offset, length, bufferSize), current++);
+            Entry result = new Entry(readerFactory.create(file, offset, length), current++);
 
             entries.add(result);
 
@@ -231,6 +218,51 @@ public class RollingReadOpenedFile implements OpenedFile {
                 touched = current++;
                 return this;
             }
+        }
+    }
+}
+
+class RollingReadOpenedFileFactory implements OpenedFileFactory {
+
+    public static Config defaultConfig = new Config();
+
+    private final RangeMappedOpenedFileFactory readerFactory;
+
+    private volatile Config config;
+
+    @Inject
+    public RollingReadOpenedFileFactory(RangeMappedOpenedFileFactory readerFactor, Config config) {
+        this.readerFactory = readerFactor;
+        this.config = config;
+    }
+
+    public void setConfig(Config config) {
+        this.config = config;
+    }
+
+    @Override
+    public OpenedFile create(File file) {
+        return new RollingReadOpenedFile(file, readerFactory, config.minPageSize, config.maxPageSize);
+    }
+
+    @Override
+    public void close(OpenedFile openedFile) throws Exception {
+        openedFile.close();
+    }
+
+    public static class Config {
+
+        public final int minPageSize;
+        public final int maxPageSize;
+
+        public Config() {
+            minPageSize = 4 * 1024 * 1024;
+            maxPageSize = 16 * 1024 * 1024;
+        }
+
+        public Config(int minPageSize, int maxPageSize) {
+            this.minPageSize = minPageSize;
+            this.maxPageSize = maxPageSize;
         }
     }
 }
