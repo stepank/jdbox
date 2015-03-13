@@ -2,6 +2,7 @@ package jdbox;
 
 import com.google.api.services.drive.Drive;
 import com.google.inject.Injector;
+import jdbox.openedfiles.RangeMappedOpenedFileFactory;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -10,7 +11,11 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Date;
 import java.util.UUID;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.lessThan;
 
 public class BaseTest {
 
@@ -46,6 +51,14 @@ public class BaseTest {
 
     protected Injector createInjector() throws Exception {
         return JdBox.createInjector(env, driveService, false);
+    }
+
+    protected void waitUntilSharedFilesAreClosed(long timeout) throws Exception {
+        Date start = new Date();
+        while (injector.getInstance(RangeMappedOpenedFileFactory.class).getSharedFilesCount() != 0) {
+            Thread.sleep(100);
+            assertThat(new Date().getTime() - start.getTime(), lessThan(timeout));
+        }
     }
 
     protected static InputStream getTestContent() {

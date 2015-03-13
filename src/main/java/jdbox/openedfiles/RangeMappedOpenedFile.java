@@ -3,6 +3,7 @@ package jdbox.openedfiles;
 import com.google.common.io.ByteSource;
 import com.google.common.io.ByteStreams;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.SettableFuture;
 import jdbox.DriveAdapter;
 import jdbox.Uploader;
 import jdbox.filetree.File;
@@ -18,6 +19,8 @@ import java.util.concurrent.Future;
 /**
  * Even though this opened file is mapped on a range of a cloud file, read and write methods treat offset as
  * starting from the beginning of that range, not from the beginning of the cloud file.
+ * <p/>
+ * Any of mothods write, read, truncate, flush can potentially block until it reads the data it needs.
  */
 public class RangeMappedOpenedFile implements OpenedFile {
 
@@ -39,8 +42,8 @@ public class RangeMappedOpenedFile implements OpenedFile {
     private final List<byte[]> buffers = new ArrayList<>();
 
     RangeMappedOpenedFile(
-            File file, DriveAdapter drive, Uploader uploader, Future<InputStream> streamFuture,
-            long offset, long length, int bufferSize) {
+            File file, DriveAdapter drive, Uploader uploader,
+            Future<InputStream> streamFuture, long offset, long length, int bufferSize) {
 
         assert offset >= 0;
         assert length > 0 || offset == 0 && length == 0;
@@ -180,14 +183,18 @@ public class RangeMappedOpenedFile implements OpenedFile {
         }
     }
 
-    public synchronized ListenableFuture flush() {
+    public synchronized ListenableFuture flush() throws Exception {
 
         assert !discarded;
 
         if (!hasChanged) {
             logger.debug("nothing to flush for {}", file);
-            return null;
+            SettableFuture<Void> result = SettableFuture.create();
+            result.set(null);
+            return result;
         }
+
+        ensureContentIsAvailable(initialLength);
 
         logger.debug("flushing {}", file);
 

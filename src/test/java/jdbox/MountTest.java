@@ -1,8 +1,5 @@
 package jdbox;
 
-import jdbox.openedfiles.OpenedFiles;
-import jdbox.openedfiles.RangeMappedOpenedFile;
-import jdbox.openedfiles.RangeMappedOpenedFileFactory;
 import org.junit.After;
 import org.junit.Test;
 
@@ -10,17 +7,15 @@ import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Date;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThan;
 
 public class MountTest extends BaseMountFileSystemTest {
 
     @After
     public void tearDown() throws Exception {
-        waitUntilSharedFilesAreClosed();
+        waitUntilSharedFilesAreClosed(5000);
         super.tearDown();
     }
 
@@ -41,7 +36,7 @@ public class MountTest extends BaseMountFileSystemTest {
     @Test
     public void writeAndReadAfterClose() throws Exception {
         Files.write(mountPoint.resolve(testDir.getName()).resolve("test.txt"), testContentString.getBytes());
-        waitUntilSharedFilesAreClosed();
+        waitUntilSharedFilesAreClosed(5000);
         String actual = new String(Files.readAllBytes(mountPoint.resolve(testDir.getName()).resolve("test.txt")));
         assertThat(actual, equalTo(testContentString));
     }
@@ -65,17 +60,9 @@ public class MountTest extends BaseMountFileSystemTest {
     public void truncate() throws Exception {
         Path path = mountPoint.resolve(testDir.getName()).resolve("test.txt");
         Files.write(path, testContentString.getBytes());
-        waitUntilSharedFilesAreClosed();
+        waitUntilSharedFilesAreClosed(5000);
         new FileOutputStream(path.toFile(), true).getChannel().truncate(5).close();
-        waitUntilSharedFilesAreClosed();
+        waitUntilSharedFilesAreClosed(5000);
         assertThat(new String(Files.readAllBytes(path)), equalTo(testContentString));
-    }
-
-    private void waitUntilSharedFilesAreClosed() throws Exception {
-        Date start = new Date();
-        while (injector.getInstance(RangeMappedOpenedFileFactory.class).getSharedFilesCount() != 0) {
-            Thread.sleep(100);
-            assertThat(new Date().getTime() - start.getTime(), lessThan((long) 5000));
-        }
     }
 }

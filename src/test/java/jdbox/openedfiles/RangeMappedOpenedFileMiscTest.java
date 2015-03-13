@@ -1,5 +1,6 @@
 package jdbox.openedfiles;
 
+import jdbox.Uploader;
 import jdbox.filetree.File;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -14,9 +15,45 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 @Category(RangeMappedOpenedFile.class)
-public class RangeMappedOpenedFileFuzzyTest extends BaseRangeMappedOpenedFileTest {
+public class RangeMappedOpenedFileMiscTest extends BaseRangeMappedOpenedFileTest {
 
-    private static final Logger logger = LoggerFactory.getLogger(RangeMappedOpenedFileFuzzyTest.class);
+    private static final Logger logger = LoggerFactory.getLogger(RangeMappedOpenedFileMiscTest.class);
+
+    @Test
+    public void partialReadWrite() throws Exception {
+
+        Uploader uploader = injector.getInstance(Uploader.class);
+
+        File file = drive.createFile(testFileName, testDir, getTestContent());
+
+        RangeMappedOpenedFile openedFile = factory.create(file);
+
+        String replacement = "abcd";
+        int offset = 3;
+
+        ByteBuffer buffer = ByteBuffer.allocate(replacement.length());
+        buffer.put(replacement.getBytes(), 0, replacement.length());
+
+        buffer.rewind();
+        assertThat(openedFile.write(buffer, offset, replacement.length()), equalTo(replacement.length()));
+
+        openedFile.flush();
+
+        uploader.waitUntilDone();
+        factory.close(openedFile);
+
+        openedFile = factory.create(file);
+
+        String expected =
+                testContentString.substring(0, offset) +
+                        replacement + testContentString.substring(offset + replacement.length());
+
+        buffer = ByteBuffer.allocate(expected.length());
+        assertThat(openedFile.read(buffer, 0, expected.length()), equalTo(expected.length()));
+        assertThat(buffer.array(), equalTo(expected.getBytes()));
+
+        factory.close(openedFile);
+    }
 
     @Test
     public void fuzzyRead() throws Exception {
@@ -62,6 +99,8 @@ public class RangeMappedOpenedFileFuzzyTest extends BaseRangeMappedOpenedFileTes
             }
 
             factory.close(openedFile);
+
+            waitUntilSharedFilesAreClosed(1000);
         }
     }
 }
