@@ -1,12 +1,29 @@
 package jdbox.filetree;
 
+import com.google.inject.Injector;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 import java.util.Date;
 
 @Category(FileTree.class)
-public class FileTreeWriteTest extends BaseFileTreeWriteTest {
+public class FileTreeWriteTest extends BaseFileTreeTest {
+
+    protected FileTree fileTree2;
+
+    @Before
+    public void setUp() throws Exception {
+
+        super.setUp();
+
+        Injector injector2 = createInjector();
+
+        fileTree2 = injector2.getInstance(FileTree.class);
+        fileTree2.setRoot(testDir);
+
+        assertFileTreeContains(fileTree2).nothing();
+    }
 
     /**
      * Create a file, make sure it appears.
@@ -17,7 +34,7 @@ public class FileTreeWriteTest extends BaseFileTreeWriteTest {
         fileTree.create(testDirPath.resolve(testFileName), false);
         assertFileTreeContains().defaultEmptyTestFile().only();
 
-        Thread.sleep(2000);
+        waitUntilUploaderIsDone();
         assertFileTreeContains(fileTree2).nothing();
 
         fileTree2.update();
@@ -33,7 +50,7 @@ public class FileTreeWriteTest extends BaseFileTreeWriteTest {
         fileTree.create(testDirPath.resolve(testFolderName), true);
         assertFileTreeContains().defaultTestFolder().only();
 
-        Thread.sleep(2000);
+        waitUntilUploaderIsDone();
         assertFileTreeContains(fileTree2).nothing();
 
         fileTree2.update();
@@ -51,7 +68,7 @@ public class FileTreeWriteTest extends BaseFileTreeWriteTest {
         assertFileTreeContains().defaultTestFolder().only();
         assertFileTreeContains().in(testFolderName).defaultEmptyTestFile().only();
 
-        Thread.sleep(3000);
+        waitUntilUploaderIsDone();
         assertFileTreeContains(fileTree2).nothing();
 
         fileTree2.update();
@@ -76,7 +93,7 @@ public class FileTreeWriteTest extends BaseFileTreeWriteTest {
                 .withModifiedDate(newModifiedDate)
                 .only();
 
-        Thread.sleep(3000);
+        waitUntilUploaderIsDone();
         assertFileTreeContains(fileTree2).nothing();
 
         fileTree2.update();

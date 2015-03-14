@@ -1,9 +1,6 @@
 package jdbox;
 
-import com.google.api.services.drive.Drive;
-import com.google.inject.Injector;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 public class BaseFileSystemTest extends BaseTest {
 

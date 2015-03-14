@@ -2,8 +2,8 @@ package jdbox.openedfiles;
 
 import com.google.common.io.ByteSource;
 import com.google.common.io.ByteStreams;
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.SettableFuture;
 import jdbox.DriveAdapter;
 import jdbox.Uploader;
 import jdbox.filetree.File;
@@ -79,7 +79,6 @@ public class RangeMappedOpenedFile implements OpenedFile {
         return buffers.size();
     }
 
-    @Override
     public File getOrigin() {
         return file;
     }
@@ -190,9 +189,7 @@ public class RangeMappedOpenedFile implements OpenedFile {
 
         if (!hasChanged) {
             logger.debug("nothing to flush for {}", file);
-            SettableFuture<Void> result = SettableFuture.create();
-            result.set(null);
-            return result;
+            return Futures.immediateFuture(null);
         }
 
         ensureContentIsAvailable(initialLength);
@@ -220,7 +217,6 @@ public class RangeMappedOpenedFile implements OpenedFile {
         });
     }
 
-    @Override
     public synchronized void close() throws Exception {
         discarded = true;
         if (stream != null)

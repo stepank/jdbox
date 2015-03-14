@@ -1,5 +1,6 @@
 package jdbox.openedfiles;
 
+import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.inject.Inject;
 import jdbox.DriveAdapter;
@@ -12,7 +13,6 @@ import java.io.InputStream;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
 
 public class RangeMappedOpenedFileFactory implements OpenedFileFactory {
 
@@ -22,7 +22,7 @@ public class RangeMappedOpenedFileFactory implements OpenedFileFactory {
 
     private final DriveAdapter drive;
     private final Uploader uploader;
-    private final ExecutorService executor;
+    private final ListeningExecutorService executor;
 
     private final Map<File, SharedOpenedFile> sharedFiles = new HashMap<>();
 
@@ -30,7 +30,7 @@ public class RangeMappedOpenedFileFactory implements OpenedFileFactory {
 
     @Inject
     RangeMappedOpenedFileFactory(
-            DriveAdapter drive, Uploader uploader, ExecutorService executor, Config config) {
+            DriveAdapter drive, Uploader uploader, ListeningExecutorService executor, Config config) {
         this.drive = drive;
         this.uploader = uploader;
         this.executor = executor;
@@ -95,7 +95,9 @@ public class RangeMappedOpenedFileFactory implements OpenedFileFactory {
     @Override
     public synchronized void close(OpenedFile openedFile) throws Exception {
 
-        final SharedOpenedFile sharedFile = sharedFiles.get(openedFile.getOrigin());
+        assert openedFile instanceof RangeMappedOpenedFile;
+
+        final SharedOpenedFile sharedFile = sharedFiles.get(((RangeMappedOpenedFile) openedFile).getOrigin());
 
         assert sharedFile.refCount > 0;
 

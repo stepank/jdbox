@@ -1,6 +1,5 @@
 package jdbox.openedfiles;
 
-import jdbox.Uploader;
 import jdbox.filetree.File;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -22,8 +21,6 @@ public class RangeMappedOpenedFileMiscTest extends BaseRangeMappedOpenedFileTest
     @Test
     public void partialReadWrite() throws Exception {
 
-        Uploader uploader = injector.getInstance(Uploader.class);
-
         File file = drive.createFile(testFileName, testDir, getTestContent());
 
         RangeMappedOpenedFile openedFile = factory.create(file);
@@ -37,12 +34,11 @@ public class RangeMappedOpenedFileMiscTest extends BaseRangeMappedOpenedFileTest
         buffer.rewind();
         assertThat(openedFile.write(buffer, offset, replacement.length()), equalTo(replacement.length()));
 
-        openedFile.flush();
-
-        uploader.waitUntilDone();
         factory.close(openedFile);
+        waitUntilSharedFilesAreClosed();
 
         openedFile = factory.create(file);
+        assertThat(openedFile.getBufferCount(), equalTo(0));
 
         String expected =
                 testContentString.substring(0, offset) +
@@ -53,6 +49,7 @@ public class RangeMappedOpenedFileMiscTest extends BaseRangeMappedOpenedFileTest
         assertThat(buffer.array(), equalTo(expected.getBytes()));
 
         factory.close(openedFile);
+        waitUntilSharedFilesAreClosed();
     }
 
     @Test
@@ -99,8 +96,7 @@ public class RangeMappedOpenedFileMiscTest extends BaseRangeMappedOpenedFileTest
             }
 
             factory.close(openedFile);
-
-            waitUntilSharedFilesAreClosed(1000);
+            waitUntilSharedFilesAreClosed();
         }
     }
 }

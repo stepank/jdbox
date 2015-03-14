@@ -3,7 +3,6 @@ package jdbox;
 import org.ini4j.Ini;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -21,6 +20,8 @@ public class BaseMountFileSystemTest extends BaseFileSystemTest {
 
     @After
     public void tearDown() throws Exception {
+        waitUntilSharedFilesAreClosed();
         fs.unmount();
+        super.tearDown();
     }
 }

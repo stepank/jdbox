@@ -1,6 +1,5 @@
 package jdbox.openedfiles;
 
-import jdbox.Uploader;
 import jdbox.filetree.File;
 import org.junit.Before;
 import org.junit.Test;
@@ -38,8 +37,6 @@ public class RangeMappedOpenedFileTruncateTest extends BaseRangeMappedOpenedFile
     @Test
     public void truncate() throws Exception {
 
-        Uploader uploader = injector.getInstance(Uploader.class);
-
         RangeMappedOpenedFile openedFile = factory.create(file);
         assertThat(openedFile.getBufferCount(), equalTo(0));
 
@@ -53,17 +50,17 @@ public class RangeMappedOpenedFileTruncateTest extends BaseRangeMappedOpenedFile
         assertThat(openedFile.read(buffer, 0, expected.length), equalTo(expected.length));
         assertThat(buffer.array(), equalTo(expected));
 
-        openedFile.flush();
-
-        uploader.waitUntilDone();
         factory.close(openedFile);
+        waitUntilSharedFilesAreClosed();
 
         openedFile = factory.create(file);
+        assertThat(openedFile.getBufferCount(), equalTo(0));
 
         buffer.rewind();
         assertThat(openedFile.read(buffer, 0, expected.length), equalTo(expected.length));
         assertThat(buffer.array(), equalTo(expected));
 
-        openedFile.close();
+        factory.close(openedFile);
+        waitUntilSharedFilesAreClosed();
     }
 }

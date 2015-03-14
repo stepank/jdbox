@@ -2,11 +2,11 @@ package jdbox;
 
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListenableFutureTask;
-import com.google.common.util.concurrent.SettableFuture;
 import com.google.inject.Inject;
 
 import java.util.Queue;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Uploader {
@@ -43,21 +43,5 @@ public class Uploader {
         });
 
         return t;
-    }
-
-    public void waitUntilDone() throws InterruptedException, ExecutionException, TimeoutException {
-        waitUntilDone(5, TimeUnit.SECONDS);
-    }
-
-    public void waitUntilDone(long timeout, TimeUnit unit)
-            throws InterruptedException, ExecutionException, TimeoutException {
-        final SettableFuture<Object> future = SettableFuture.create();
-        submit(new Runnable() {
-            @Override
-            public void run() {
-                future.set(null);
-            }
-        });
-        future.get(timeout, unit);
     }
 }

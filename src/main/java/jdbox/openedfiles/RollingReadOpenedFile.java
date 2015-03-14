@@ -34,11 +34,6 @@ public class RollingReadOpenedFile implements OpenedFile {
     }
 
     @Override
-    public File getOrigin() {
-        return file;
-    }
-
-    @Override
     public synchronized int read(ByteBuffer buffer, long offset, int count) throws Exception {
 
         logger.debug("reading {}, offset {}, count {}", file, offset, count);
@@ -80,7 +75,6 @@ public class RollingReadOpenedFile implements OpenedFile {
         throw new UnsupportedOperationException("truncate is not supported");
     }
 
-    @Override
     public synchronized void close() throws Exception {
         discarded = true;
         readers.closeAll();
@@ -241,13 +235,13 @@ class RollingReadOpenedFileFactory implements OpenedFileFactory {
     }
 
     @Override
-    public OpenedFile create(File file) {
+    public RollingReadOpenedFile create(File file) {
         return new RollingReadOpenedFile(file, readerFactory, config.minPageSize, config.maxPageSize);
     }
 
     @Override
     public void close(OpenedFile openedFile) throws Exception {
-        openedFile.close();
+        ((RollingReadOpenedFile) openedFile).close();
     }
 
     public static class Config {

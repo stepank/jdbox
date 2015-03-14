@@ -61,6 +61,7 @@ public class RollingReadOpenedFileFuzzyTest extends BaseRollingReadOpenedFileTes
             }
 
             factory.close(openedFile);
+            waitUntilSharedFilesAreClosed();
         }
     }
 }

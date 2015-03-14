@@ -11,9 +11,11 @@ import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.client.util.store.FileDataStoreFactory;
 import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.DriveScopes;
+import com.google.common.util.concurrent.ListeningExecutorService;
+import com.google.common.util.concurrent.ListeningScheduledExecutorService;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.google.inject.*;
 import jdbox.filetree.FileTree;
-import jdbox.openedfiles.OpenedFiles;
 import jdbox.openedfiles.OpenedFilesModule;
 import org.ini4j.Ini;
 
@@ -107,20 +109,27 @@ public class JdBox {
         @Override
         protected void configure() {
 
-            ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(8);
-            executor.setRemoveOnCancelPolicy(true);
+            ScheduledThreadPoolExecutor threadPoolExecutor = new ScheduledThreadPoolExecutor(8);
+            threadPoolExecutor.setRemoveOnCancelPolicy(true);
+            ListeningScheduledExecutorService executor = MoreExecutors.listeningDecorator(threadPoolExecutor);
 
             bind(Environment.class).toInstance(env);
             bind(Drive.class).toInstance(drive);
             bind(Ini.class).toInstance(config);
+
+            bind(ScheduledThreadPoolExecutor.class).toInstance(threadPoolExecutor);
             bind(ExecutorService.class).toInstance(executor);
+            bind(ListeningExecutorService.class).toInstance(executor);
             bind(ScheduledExecutorService.class).toInstance(executor);
+            bind(ListeningScheduledExecutorService.class).toInstance(executor);
+
             bind(DriveAdapter.class).in(Singleton.class);
             bind(Uploader.class).in(Singleton.class);
         }
 
         @Provides
-        public FileTree createFileTree(DriveAdapter drive, ScheduledExecutorService executor, Uploader uploader) throws Exception {
+        public FileTree createFileTree(
+                DriveAdapter drive, ScheduledExecutorService executor, Uploader uploader) throws Exception {
             FileTree ft = new FileTree(drive, uploader, executor, autoUpdateFileTree);
             ft.start();
             return ft;

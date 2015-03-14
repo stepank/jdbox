@@ -1,6 +1,7 @@
 package jdbox;
 
 import com.google.api.services.drive.Drive;
+import com.google.common.util.concurrent.SettableFuture;
 import com.google.inject.Injector;
 import jdbox.openedfiles.RangeMappedOpenedFileFactory;
 import org.junit.After;
@@ -9,12 +10,16 @@ import org.junit.BeforeClass;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Date;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
 public class BaseTest {
@@ -46,11 +51,36 @@ public class BaseTest {
 
     @After
     public void tearDown() throws Exception {
+        ScheduledThreadPoolExecutor executor = injector.getInstance(ScheduledThreadPoolExecutor.class);
+        List<Runnable> tasks = executor.shutdownNow();
+        assertThat(tasks.size(), equalTo(0));
+        assertThat(executor.getActiveCount(), equalTo(0));
+        executor.awaitTermination(5, TimeUnit.SECONDS);
         drive.deleteFile(testDir);
     }
 
     protected Injector createInjector() throws Exception {
         return JdBox.createInjector(env, driveService, false);
+    }
+
+    public void waitUntilUploaderIsDone() throws InterruptedException, ExecutionException, TimeoutException {
+        waitUntilUploaderIsDone(5000);
+    }
+
+    public void waitUntilUploaderIsDone(long timeout)
+            throws InterruptedException, ExecutionException, TimeoutException {
+        final SettableFuture<Object> future = SettableFuture.create();
+        injector.getInstance(Uploader.class).submit(new Runnable() {
+            @Override
+            public void run() {
+                future.set(null);
+            }
+        });
+        future.get(timeout, TimeUnit.SECONDS);
+    }
+
+    protected void waitUntilSharedFilesAreClosed() throws Exception {
+        waitUntilSharedFilesAreClosed(5000);
     }
 
     protected void waitUntilSharedFilesAreClosed(long timeout) throws Exception {

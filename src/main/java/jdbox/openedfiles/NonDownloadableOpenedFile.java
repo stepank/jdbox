@@ -14,11 +14,6 @@ public class NonDownloadableOpenedFile implements OpenedFile {
     }
 
     @Override
-    public File getOrigin() {
-        return file;
-    }
-
-    @Override
     public int read(ByteBuffer buffer, long offset, int count) throws Exception {
         String exportInfo = file.getExportInfo();
         buffer.put(Arrays.copyOfRange(exportInfo.getBytes(), (int) offset, (int) (offset + count)));
@@ -34,16 +29,12 @@ public class NonDownloadableOpenedFile implements OpenedFile {
     public void truncate(long offset) throws Exception {
         throw new UnsupportedOperationException("truncate is not supported");
     }
-
-    @Override
-    public void close() throws Exception {
-    }
 }
 
 class NonDownloadableOpenedFileFactory implements OpenedFileFactory {
 
     @Override
-    public OpenedFile create(File file) {
+    public NonDownloadableOpenedFile create(File file) {
         return new NonDownloadableOpenedFile(file);
     }
 

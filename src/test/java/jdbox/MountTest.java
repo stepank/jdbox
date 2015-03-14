@@ -1,6 +1,5 @@
 package jdbox;
 
-import org.junit.After;
 import org.junit.Test;
 
 import java.io.FileOutputStream;
@@ -12,12 +11,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MountTest extends BaseMountFileSystemTest {
-
-    @After
-    public void tearDown() throws Exception {
-        waitUntilSharedFilesAreClosed(5000);
-        super.tearDown();
-    }
 
     @Test
     public void read() throws Exception {
@@ -36,7 +29,7 @@ public class MountTest extends BaseMountFileSystemTest {
     @Test
     public void writeAndReadAfterClose() throws Exception {
         Files.write(mountPoint.resolve(testDir.getName()).resolve("test.txt"), testContentString.getBytes());
-        waitUntilSharedFilesAreClosed(5000);
+        waitUntilSharedFilesAreClosed();
         String actual = new String(Files.readAllBytes(mountPoint.resolve(testDir.getName()).resolve("test.txt")));
         assertThat(actual, equalTo(testContentString));
     }
@@ -60,9 +53,8 @@ public class MountTest extends BaseMountFileSystemTest {
     public void truncate() throws Exception {
         Path path = mountPoint.resolve(testDir.getName()).resolve("test.txt");
         Files.write(path, testContentString.getBytes());
-        waitUntilSharedFilesAreClosed(5000);
+        waitUntilSharedFilesAreClosed();
         new FileOutputStream(path.toFile(), true).getChannel().truncate(5).close();
-        waitUntilSharedFilesAreClosed(5000);
         assertThat(new String(Files.readAllBytes(path)), equalTo(testContentString.substring(0, 5)));
     }
 }
