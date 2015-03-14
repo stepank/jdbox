@@ -197,6 +197,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
         long fileHandler = 0;
         try {
             fileHandler = openedFiles.open(fileTree.get(path), OpenedFiles.OpenMode.WRITE_ONLY);
+            openedFiles.get(fileHandler).truncate(offset);
             logger.debug("[{}] opened file, fh {}, mode {}", path, fileHandler, OpenedFiles.OpenMode.WRITE_ONLY);
             return 0;
         } catch (FileTree.NoSuchFileException e) {

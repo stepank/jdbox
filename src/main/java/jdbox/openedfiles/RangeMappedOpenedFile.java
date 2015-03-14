@@ -169,9 +169,10 @@ public class RangeMappedOpenedFile implements OpenedFile {
         if (length == this.length)
             return;
 
-        if (length < this.length)
+        if (length < this.length) {
             this.length = (int) length;
-        else {
+            hasChanged = true;
+        } else {
 
             ensureContentIsAvailable(length);
 

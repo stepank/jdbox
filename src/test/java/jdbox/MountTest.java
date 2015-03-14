@@ -63,6 +63,6 @@ public class MountTest extends BaseMountFileSystemTest {
         waitUntilSharedFilesAreClosed(5000);
         new FileOutputStream(path.toFile(), true).getChannel().truncate(5).close();
         waitUntilSharedFilesAreClosed(5000);
-        assertThat(new String(Files.readAllBytes(path)), equalTo(testContentString));
+        assertThat(new String(Files.readAllBytes(path)), equalTo(testContentString.substring(0, 5)));
     }
 }
