@@ -103,4 +103,29 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
                 .withModifiedDate(newModifiedDate)
                 .only();
     }
+
+    /**
+     * Remove a file, make sure it disappears.
+     */
+    @Test
+    public void remove() throws Exception {
+
+        fileTree.create(testDirPath.resolve(testFileName), false);
+        assertFileTreeContains().defaultEmptyTestFile().only();
+
+        waitUntilUploaderIsDone();
+        assertFileTreeContains(fileTree2).nothing();
+
+        fileTree2.update();
+        assertFileTreeContains(fileTree2).defaultEmptyTestFile().only();
+
+        fileTree.remove(testDirPath.resolve(testFileName));
+        assertFileTreeContains().nothing();
+
+        waitUntilUploaderIsDone();
+        assertFileTreeContains(fileTree2).defaultEmptyTestFile().only();
+
+        fileTree2.update();
+        assertFileTreeContains(fileTree2).nothing();
+    }
 }

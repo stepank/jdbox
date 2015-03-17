@@ -203,6 +203,59 @@ public class FileTree {
         });
     }
 
+    public void remove(String path) throws Exception {
+        remove(Paths.get(path));
+    }
+
+    public void remove(Path path) throws Exception {
+
+        logger.debug("[{}] removing", path);
+
+        Path parentPath = path.getParent();
+        String fileName = path.getFileName().toString();
+        final File parent = get(parentPath);
+
+        Map<String, File> siblings = getChildren(parentPath);
+
+        final File file = siblings.get(fileName);
+
+        if (file == null)
+            throw new NoSuchFileException(path);
+
+        readWriteLock.writeLock().lock();
+
+        try {
+
+            knownFiles.remove(file, parent.getId());
+
+            uploader.submit(new Runnable() {
+                @Override
+                public void run() {
+                    applyChangesSemaphore.acquireUninterruptibly();
+                    try {
+                        List<String> parentIds = file.getParentIds();
+                        if (!parentIds.contains(parent.getId()))
+                            return;
+                        if (parentIds.size() == 1)
+                            drive.trashFile(file);
+                        else {
+                            parentIds.remove(parent.getId());
+                            drive.updateParentIds(file, parentIds);
+                        }
+                        logger.debug("removed {}", file);
+                    } catch (Exception e) {
+                        logger.error("an error occured while removing file", e);
+                    } finally {
+                        applyChangesSemaphore.release();
+                    }
+                }
+            });
+
+        } finally {
+            readWriteLock.writeLock().unlock();
+        }
+    }
+
     private Map<String, File> getOrFetchChildren(Path path) throws Exception {
 
         start.await();

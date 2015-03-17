@@ -213,16 +213,27 @@ public class DriveAdapter {
     }
 
     public void moveFile(File file, File parent) throws DriveException {
-
         logger.debug("moving {} to {}", file, parent);
+        updateParentIds(file, Collections.singletonList(parent.getId()));
+    }
+
+    public void updateParentIds(File file, List<String> parentIds) throws DriveException {
+
+        logger.debug("updating parent ids of {}", file);
 
         com.google.api.services.drive.model.File newFile = new com.google.api.services.drive.model.File()
-                .setParents(Collections.singletonList(new ParentReference().setId(parent.getId())));
+                .setParents(Lists.transform(parentIds, new Function<String, ParentReference>() {
+                    @Nullable
+                    @Override
+                    public ParentReference apply(@Nullable String parentId) {
+                        return new ParentReference().setId(parentId);
+                    }
+                }));
 
         try {
             drive.files().patch(file.getId(), newFile).setFields("parents").execute();
         } catch (IOException e) {
-            throw new DriveException("could not move file", e);
+            throw new DriveException("could not update a file's parent ids", e);
         }
     }
 
