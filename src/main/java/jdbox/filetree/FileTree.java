@@ -222,6 +222,9 @@ public class FileTree {
         if (file == null)
             throw new NoSuchFileException(path);
 
+        if (file.isDirectory() && getChildren(path).size() != 0)
+            throw new NonEmptyDirectoryException(path);
+
         readWriteLock.writeLock().lock();
 
         try {
@@ -402,6 +405,12 @@ public class FileTree {
 
     public class FileAlreadyExistsException extends Exception {
         public FileAlreadyExistsException(Path path) {
+            super(path.toString());
+        }
+    }
+
+    public class NonEmptyDirectoryException extends Exception {
+        public NonEmptyDirectoryException(Path path) {
             super(path.toString());
         }
     }

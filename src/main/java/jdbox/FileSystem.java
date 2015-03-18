@@ -241,10 +241,17 @@ public class FileSystem extends FuseFilesystemAdapterFull {
             return 0;
         } catch (FileTree.NoSuchFileException e) {
             return -ErrorCodes.ENOENT();
+        } catch (FileTree.NonEmptyDirectoryException e) {
+            return -ErrorCodes.ENOTEMPTY();
         } catch (Exception e) {
             logger.error("[{}] an error occured while removing file", path, e);
             return -ErrorCodes.EPIPE();
         }
+    }
+
+    @Override
+    public int rmdir(String path) {
+        return unlink(path);
     }
 
     private static OpenedFiles.OpenMode getOpenMode(StructFuseFileInfo.FileInfoWrapper.OpenMode openMode) {

@@ -1,14 +1,17 @@
 package jdbox;
 
+import jdbox.filetree.File;
 import org.junit.Test;
 
 import java.io.FileOutputStream;
 import java.io.OutputStream;
+import java.nio.file.DirectoryNotEmptyException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class MountTest extends BaseMountFileSystemTest {
 
@@ -56,5 +59,31 @@ public class MountTest extends BaseMountFileSystemTest {
         waitUntilSharedFilesAreClosed();
         new FileOutputStream(path.toFile(), true).getChannel().truncate(5).close();
         assertThat(new String(Files.readAllBytes(path)), equalTo(testContentString.substring(0, 5)));
+    }
+
+    @Test
+    public void remove() throws Exception {
+
+        File folder = drive.createFolder("test", testDir);
+        drive.createFile("test.txt", folder, getTestContent());
+
+        Path dirPath = mountPoint.resolve(testDir.getName()).resolve("test");
+        Path filePath = dirPath.resolve("test.txt");
+
+        assertThat(Files.exists(filePath), is(true));
+
+        try {
+            Files.delete(dirPath);
+            throw new AssertionError("non-empty directory must not have been deleted");
+        } catch (DirectoryNotEmptyException ignored) {
+        }
+
+        Files.delete(filePath);
+        waitUntilUploaderIsDone();
+        assertThat(Files.exists(filePath), is(false));
+
+        Files.delete(dirPath);
+        waitUntilUploaderIsDone();
+        assertThat(Files.exists(dirPath), is(false));
     }
 }
