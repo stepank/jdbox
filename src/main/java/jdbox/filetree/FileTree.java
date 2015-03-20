@@ -37,6 +37,20 @@ public class FileTree {
     private volatile long largestChangeId;
     private volatile File root;
 
+    private final static Getter<Map<String, File>> immutabler = new Getter<Map<String, File>>() {
+        @Override
+        public Map<String, File> apply(String fileName, Map<String, File> files) {
+            return ImmutableMap.copyOf(files);
+        }
+    };
+
+    private final static Getter<File> singleGetter = new Getter<File>() {
+        @Override
+        public File apply(String fileName, Map<String, File> files) {
+            return files.get(fileName);
+        }
+    };
+
     @Inject
     public FileTree(
             DriveAdapter drive, Uploader uploader, ScheduledExecutorService executor, boolean autoUpdate) {
@@ -105,7 +119,7 @@ public class FileTree {
         if (path.equals(rootPath))
             return root;
 
-        File file = getChildren(path.getParent()).get(path.getFileName().toString());
+        File file = getOrFetch(path.getParent(), path.getFileName().toString(), singleGetter);
 
         if (file == null)
             throw new NoSuchFileException(path);
@@ -119,7 +133,7 @@ public class FileTree {
 
     public Map<String, File> getChildren(Path path) throws Exception {
         logger.debug("[{}] getting children", path);
-        return getOrFetchChildren(path);
+        return getOrFetch(path, null, immutabler);
     }
 
     public File create(String path, boolean isDirectory) throws Exception {
@@ -259,7 +273,7 @@ public class FileTree {
         }
     }
 
-    private Map<String, File> getOrFetchChildren(Path path) throws Exception {
+    private <T> T getOrFetch(Path path, String fileName, Getter<T> getter) throws Exception {
 
         start.await();
 
@@ -274,7 +288,7 @@ public class FileTree {
             dir = knownFiles.getDir(path);
 
             if (dir != null)
-                return ImmutableMap.copyOf(dir.getChildren());
+                return getter.apply(fileName, dir.getChildren());
 
         } finally {
             readWriteLock.readLock().unlock();
@@ -292,27 +306,27 @@ public class FileTree {
             dir = knownFiles.getDir(path);
 
             if (dir != null)
-                return ImmutableMap.copyOf(dir.getChildren());
+                return getter.apply(fileName, dir.getChildren());
 
             dir = knownFiles.getFile(file.getId());
 
             if (dir == null)
                 throw new NoSuchFileException(path);
 
-            Map<String, File> result;
+            Map<String, File> children;
 
             if (!dir.self.isUploaded())
-                result = new HashMap<>();
+                children = new HashMap<>();
             else {
-                result = new HashMap<>();
+                children = new HashMap<>();
                 for (File child : drive.getChildren(dir.self)) {
-                    result.put(child.getName(), child);
+                    children.put(child.getName(), child);
                 }
             }
 
-            knownFiles.put(result, dir, path);
+            knownFiles.put(children, dir, path);
 
-            return result;
+            return getter.apply(fileName, children);
 
         } finally {
             readWriteLock.writeLock().unlock();
@@ -413,6 +427,10 @@ public class FileTree {
         public NonEmptyDirectoryException(Path path) {
             super(path.toString());
         }
+    }
+
+    private interface Getter<T> {
+        public T apply(String fileName, Map<String, File> files);
     }
 }
 
