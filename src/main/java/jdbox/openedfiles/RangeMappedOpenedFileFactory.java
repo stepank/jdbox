@@ -37,7 +37,7 @@ public class RangeMappedOpenedFileFactory implements OpenedFileFactory {
         this.config = config;
     }
 
-    public int getSharedFilesCount() {
+    public synchronized int getSharedFilesCount() {
         return sharedFiles.size();
     }
 

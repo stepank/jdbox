@@ -103,11 +103,21 @@ public class FileTree {
     }
 
     public int getKnownFilesCount() {
-        return knownFiles.getFileCount();
+        readWriteLock.readLock().lock();
+        try {
+            return knownFiles.getFileCount();
+        } finally {
+            readWriteLock.readLock().unlock();
+        }
     }
 
     public int getTrackedDirsCount() {
-        return knownFiles.getDirCount();
+        readWriteLock.readLock().lock();
+        try {
+            return knownFiles.getDirCount();
+        } finally {
+            readWriteLock.readLock().unlock();
+        }
     }
 
     public File get(String path) throws Exception {

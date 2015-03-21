@@ -31,10 +31,6 @@ public class OpenedFiles {
         this.rollingReadOpenedFileFactory = rollingReadOpenedFileFactory;
     }
 
-    public int getFileHandlersCount() {
-        return fileHandlers.size();
-    }
-
     public synchronized long open(File file, OpenMode openMode) {
 
         currentFileHandler++;
