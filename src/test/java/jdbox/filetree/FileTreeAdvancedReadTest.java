@@ -9,7 +9,6 @@ import java.io.ByteArrayInputStream;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Date;
 
 @Category(FileTree.class)
 @RunWith(Parameterized.class)
@@ -36,9 +35,6 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
 
         String newContent = "hello beautiful world";
         drive.updateFileContent(testFile, new ByteArrayInputStream(newContent.getBytes()));
-
-        Date newDate = new Date(new Date().getTime() + 3600);
-        drive.touchFile(testFile, newDate);
 
         assertFileTreeContains().defaultTestFile().only();
 
@@ -128,7 +124,8 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
 
         fileTree.update();
         assertFileTreeContains().in(sourcePath).nothing();
-        assertFileTreeContains().in(destinationPath).defaultTestFile().withName(rename ? "test_file_2" : testFileName).only();
+        assertFileTreeContains()
+                .in(destinationPath).defaultTestFile().withName(rename ? "test_file_2" : testFileName).only();
 
         assertCounts(4, 3);
     }

@@ -3,8 +3,6 @@ package jdbox.filetree;
 import jdbox.BaseTest;
 import org.junit.Before;
 
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Date;
@@ -37,8 +35,9 @@ public class BaseFileTreeTest extends BaseTest {
     }
 
     protected jdbox.filetree.File createTestFileAndUpdate(jdbox.filetree.File parent, Path parentPath) throws Exception {
-        createTestFile(parent);
-        return fileTree.getChildren(parentPath).get(testFileName);
+        File file = createTestFile(parent);
+        fileTree.getChildren(parentPath);
+        return file;
     }
 
     protected void assertCounts(int knownFilesCount, int trackedDirsCount) {

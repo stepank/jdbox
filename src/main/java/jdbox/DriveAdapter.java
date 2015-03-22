@@ -4,6 +4,7 @@ import com.google.api.client.http.GenericUrl;
 import com.google.api.client.http.HttpRequest;
 import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.InputStreamContent;
+import com.google.api.client.repackaged.com.google.common.base.Joiner;
 import com.google.api.client.util.DateTime;
 import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.model.About;
@@ -20,12 +21,19 @@ import org.slf4j.LoggerFactory;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Date;
+import java.util.EnumSet;
+import java.util.LinkedList;
 import java.util.List;
 
 public class DriveAdapter {
+
+    public enum Field {
+        NAME,
+        PARENT_IDS,
+        ACCESSED_DATE,
+        MODIFIED_DATE
+    }
 
     private static final Logger logger = LoggerFactory.getLogger(DriveAdapter.class);
 
@@ -165,47 +173,87 @@ public class DriveAdapter {
         }
     }
 
-    public void renameFile(File file, String newName) throws DriveException {
-
-        logger.debug("renaming {} to {}", file, newName);
-
-        com.google.api.services.drive.model.File newFile =
-                new com.google.api.services.drive.model.File().setTitle(newName);
-
-        try {
-            drive.files().patch(file.getId(), newFile).setFields("title").execute();
-        } catch (IOException e) {
-            throw new DriveException("could not rename file", e);
-        }
+    public void updateFile(File file, Field update) throws DriveException {
+        updateFile(file, EnumSet.of(update));
     }
 
-    public void touchFile(File file, Date accessedDate) throws DriveException {
-        touchFile(file, accessedDate, null);
-    }
+    public void updateFile(File file, EnumSet<Field> update) throws DriveException {
 
-    public void touchFile(File file, Date accessedDate, Date modifiedDate) throws DriveException {
+        logger.debug("updating {}, fields {}", file, update);
 
-        logger.debug("touching {}", file);
+        com.google.api.services.drive.model.File newFile = new com.google.api.services.drive.model.File();
+        List<String> fields = new LinkedList<>();
 
-        com.google.api.services.drive.model.File newFile =
-                new com.google.api.services.drive.model.File().setLastViewedByMeDate(new DateTime(accessedDate));
+        if (update.contains(Field.NAME)) {
+            fields.add("title");
+            newFile.setTitle(file.getName());
+        }
 
-        String fields = "lastViewedByMeDate";
+        if (update.contains(Field.ACCESSED_DATE)) {
+            fields.add("lastViewedByMeDate");
+            newFile.setLastViewedByMeDate(new DateTime(file.getAccessedDate()));
+        }
 
-        if (modifiedDate != null) {
-            newFile.setModifiedByMeDate(new DateTime(modifiedDate));
-            newFile.setModifiedDate(new DateTime(modifiedDate));
-            fields += ",modifiedDate,modifiedByMeDate";
+        if (update.contains(Field.MODIFIED_DATE)) {
+            fields.add("modifiedDate,modifiedByMeDate");
+            newFile.setModifiedDate(new DateTime(file.getModifiedDate()));
+            newFile.setModifiedByMeDate(new DateTime(file.getModifiedDate()));
+        }
+
+        if (update.contains(Field.PARENT_IDS)) {
+            fields.add("parents");
+            newFile.setParents(Lists.newLinkedList(
+                    Collections2.transform(file.getParentIds(), new Function<String, ParentReference>() {
+                        @Nullable
+                        @Override
+                        public ParentReference apply(@Nullable String parentId) {
+                            return new ParentReference().setId(parentId);
+                        }
+                    })));
         }
 
         try {
-            Drive.Files.Patch request = drive.files().patch(file.getId(), newFile).setFields(fields);
-            if (modifiedDate != null)
+            Drive.Files.Patch request =
+                    drive.files().patch(file.getId(), newFile).setFields(Joiner.on(",").join(fields));
+            if (update.contains(Field.MODIFIED_DATE))
                 request.setSetModifiedDate(true);
             request.execute();
         } catch (IOException e) {
-            throw new DriveException("could not touch file", e);
+            throw new DriveException("could not update file", e);
         }
+    }
+
+    public void renameFile(File file) throws DriveException {
+        updateFile(file, Field.NAME);
+    }
+
+    public void renameFile(File file, String newName) throws DriveException {
+        renameFile(file.setName(newName));
+    }
+
+    public void touchFile(File file) throws DriveException {
+        touchFile(file, false);
+    }
+
+    public void touchFile(File file, boolean setModifiedDate) throws DriveException {
+        if (!setModifiedDate)
+            updateFile(file, Field.ACCESSED_DATE);
+        else
+            updateFile(file, EnumSet.of(Field.ACCESSED_DATE, Field.MODIFIED_DATE));
+    }
+
+    public void touchFile(File file, Date accessedDate) throws DriveException {
+        touchFile(file.setAccessedDate(accessedDate));
+    }
+
+    public void moveFile(File file, File parent) throws DriveException {
+        file.getParentIds().clear();
+        file.getParentIds().add(parent.getId());
+        updateParentIds(file);
+    }
+
+    public void updateParentIds(File file) throws DriveException {
+        updateFile(file, Field.PARENT_IDS);
     }
 
     public File updateFileContent(File file, InputStream content) throws DriveException {
@@ -214,36 +262,12 @@ public class DriveAdapter {
 
         try {
             Drive.Files.Update request = drive.files().update(
-                    file.getId(), new com.google.api.services.drive.model.File(), new InputStreamContent("text/plain", content));
+                    file.getId(), new com.google.api.services.drive.model.File(),
+                    new InputStreamContent("text/plain", content));
             request.getMediaHttpUploader().setDirectUploadEnabled(true);
             return new File(request.execute());
         } catch (IOException e) {
             throw new DriveException("could not update file", e);
-        }
-    }
-
-    public void moveFile(File file, File parent) throws DriveException {
-        logger.debug("moving {} to {}", file, parent);
-        updateParentIds(file, Collections.singletonList(parent.getId()));
-    }
-
-    public void updateParentIds(File file, Collection<String> parentIds) throws DriveException {
-
-        logger.debug("updating parent ids of {}", file);
-
-        com.google.api.services.drive.model.File newFile = new com.google.api.services.drive.model.File()
-                .setParents(Lists.newLinkedList(Collections2.transform(parentIds, new Function<String, ParentReference>() {
-                    @Nullable
-                    @Override
-                    public ParentReference apply(@Nullable String parentId) {
-                        return new ParentReference().setId(parentId);
-                    }
-                })));
-
-        try {
-            drive.files().patch(file.getId(), newFile).setFields("parents").execute();
-        } catch (IOException e) {
-            throw new DriveException("could not update a file's parent ids", e);
         }
     }
 

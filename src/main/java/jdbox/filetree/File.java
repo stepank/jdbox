@@ -116,8 +116,9 @@ public class File {
         return name;
     }
 
-    public void setName(String newName) {
+    public File setName(String newName) {
         name = newName;
+        return this;
     }
 
     public boolean isDirectory() {
@@ -144,24 +145,27 @@ public class File {
         return createdDate;
     }
 
-    public void setCreatedDate(Date date) {
+    public File setCreatedDate(Date date) {
         createdDate = date;
+        return this;
     }
 
     public Date getAccessedDate() {
         return accessedDate;
     }
 
-    public void setAccessedDate(Date date) {
+    public File setAccessedDate(Date date) {
         accessedDate = date;
+        return this;
     }
 
     public Date getModifiedDate() {
         return modifiedDate;
     }
 
-    public void setModifiedDate(Date date) {
+    public File setModifiedDate(Date date) {
         modifiedDate = date;
+        return this;
     }
 
     public Collection<String> getParentIds() {
@@ -172,8 +176,9 @@ public class File {
         return size;
     }
 
-    public void setSize(long size) {
+    public File setSize(long size) {
         this.size = size;
+        return this;
     }
 
     public String toString() {

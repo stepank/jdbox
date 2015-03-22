@@ -218,7 +218,7 @@ public class FileTree {
             @Override
             public void run() {
                 try {
-                    drive.touchFile(file, accessedDate, modifiedDate);
+                    drive.touchFile(file, true);
                     logger.debug("set dates for {}", file);
                 } catch (Exception e) {
                     logger.error("an error occured while setting dates", e);
@@ -267,7 +267,7 @@ public class FileTree {
                             drive.trashFile(file);
                         else {
                             parentIds.remove(parent.getId());
-                            drive.updateParentIds(file, parentIds);
+                            drive.updateParentIds(file);
                         }
                         logger.debug("removed {}", file);
                     } catch (Exception e) {
@@ -393,15 +393,17 @@ public class FileTree {
 
                     try {
 
-                        if (!parentPath.equals(newParentPath)) {
-                            drive.updateParentIds(file, file.getParentIds());
-                            logger.debug("moved {}", file);
-                        }
+                        EnumSet<DriveAdapter.Field> fields = EnumSet.noneOf(DriveAdapter.Field.class);
 
-                        if (!fileName.equals(newFileName)) {
-                            drive.renameFile(file, newFileName);
-                            logger.debug("renamed {}", file);
-                        }
+                        if (!parentPath.equals(newParentPath))
+                            fields.add(DriveAdapter.Field.PARENT_IDS);
+
+                        if (!fileName.equals(newFileName))
+                            fields.add(DriveAdapter.Field.NAME);
+
+                        drive.updateFile(file, fields);
+                        logger.debug("moved {}", file);
+
                     } catch (Exception e) {
                         logger.error("an error occured while moving file", e);
                     } finally {
