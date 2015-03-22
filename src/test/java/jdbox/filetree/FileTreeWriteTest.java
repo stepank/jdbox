@@ -128,4 +128,41 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
         fileTree2.update();
         assertFileTreeContains(fileTree2).nothing();
     }
+
+    /**
+     * Move a file, make sure it disappears from the origin and appears in the destination.
+     */
+    @Test
+    public void move() throws Exception {
+
+        final String source = "source";
+        final String destination = "destination";
+
+        fileTree.create(testDirPath.resolve(source), true);
+        fileTree.create(testDirPath.resolve(destination), true);
+        fileTree.create(testDirPath.resolve(source).resolve(testFileName), false);
+        assertFileTreeContains().in(source).defaultEmptyTestFile().only();
+        assertFileTreeContains().in(destination).nothing();
+
+        waitUntilUploaderIsDone();
+        assertFileTreeContains(fileTree2).nothing();
+
+        fileTree2.update();
+        assertFileTreeContains(fileTree2).in(source).defaultEmptyTestFile().only();
+        assertFileTreeContains(fileTree2).in(destination).nothing();
+
+        fileTree.move(
+                testDirPath.resolve(source).resolve(testFileName),
+                testDirPath.resolve(destination).resolve("test_file_2"));
+        assertFileTreeContains().in(source).nothing();
+        assertFileTreeContains().in(destination).file().withName("test_file_2").only();
+
+        waitUntilUploaderIsDone();
+        assertFileTreeContains(fileTree2).in(source).defaultEmptyTestFile().only();
+        assertFileTreeContains(fileTree2).in(destination).nothing();
+
+        fileTree2.update();
+        assertFileTreeContains(fileTree2).in(source).nothing();
+        assertFileTreeContains(fileTree2).in(destination).file().withName("test_file_2").only();
+    }
 }

@@ -254,6 +254,22 @@ public class FileSystem extends FuseFilesystemAdapterFull {
         return unlink(path);
     }
 
+    @Override
+    public int rename(String path, String newPath) {
+
+        logger.debug("[{}] moving to {}", path, newPath);
+
+        try {
+            fileTree.move(path, newPath);
+            return 0;
+        } catch (FileTree.NoSuchFileException e) {
+            return -ErrorCodes.ENOENT();
+        } catch (Exception e) {
+            logger.error("[{}] an error occured while removing file", path, e);
+            return -ErrorCodes.EPIPE();
+        }
+    }
+
     private static OpenedFiles.OpenMode getOpenMode(StructFuseFileInfo.FileInfoWrapper.OpenMode openMode) {
         switch (openMode) {
             case READONLY:

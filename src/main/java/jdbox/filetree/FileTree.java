@@ -260,7 +260,7 @@ public class FileTree {
                 public void run() {
                     applyChangesSemaphore.acquireUninterruptibly();
                     try {
-                        List<String> parentIds = file.getParentIds();
+                        Collection<String> parentIds = file.getParentIds();
                         if (!parentIds.contains(parent.getId()))
                             return;
                         if (parentIds.size() == 1)
@@ -343,6 +343,78 @@ public class FileTree {
         }
     }
 
+    public void move(String path, String newPath) throws Exception {
+        move(Paths.get(path), Paths.get(newPath));
+    }
+
+    public void move(Path path, Path newPath) throws Exception {
+
+        logger.debug("[{}] moving to {}", path, newPath);
+
+        if (path.equals(newPath))
+            return;
+
+        final Path parentPath = path.getParent();
+        final String fileName = path.getFileName().toString();
+        final File parent = get(parentPath);
+
+        final Path newParentPath = newPath.getParent();
+        final String newFileName = newPath.getFileName().toString();
+        final File newParent = get(newParentPath);
+
+        Map<String, File> siblings = getChildren(parentPath);
+
+        final File file = siblings.get(fileName);
+
+        if (file == null)
+            throw new NoSuchFileException(newPath);
+
+        readWriteLock.writeLock().lock();
+
+        try {
+
+            if (!parentPath.equals(newParentPath)) {
+                file.getParentIds().remove(parent.getId());
+                file.getParentIds().add(newParent.getId());
+                knownFiles.remove(file, parent.getId());
+                knownFiles.put(file, newParent.getId());
+            }
+
+            if (!fileName.equals(newFileName)) {
+                file.setName(newFileName);
+                knownFiles.rename(knownFiles.getFile(file), fileName, file);
+            }
+
+            uploader.submit(new Runnable() {
+                @Override
+                public void run() {
+
+                    applyChangesSemaphore.acquireUninterruptibly();
+
+                    try {
+
+                        if (!parentPath.equals(newParentPath)) {
+                            drive.updateParentIds(file, file.getParentIds());
+                            logger.debug("moved {}", file);
+                        }
+
+                        if (!fileName.equals(newFileName)) {
+                            drive.renameFile(file, newFileName);
+                            logger.debug("renamed {}", file);
+                        }
+                    } catch (Exception e) {
+                        logger.error("an error occured while moving file", e);
+                    } finally {
+                        applyChangesSemaphore.release();
+                    }
+                }
+            });
+
+        } finally {
+            readWriteLock.writeLock().unlock();
+        }
+    }
+
     private void retrieveAndApplyChanges() {
 
         if (!applyChangesSemaphore.tryAcquire())
@@ -385,7 +457,7 @@ public class FileTree {
 
                 if (changedFile != null && !currentFile.self.getName().equals(changedFile.getName())) {
                     logger.debug("renaming {} to {}", currentFile, changedFile);
-                    knownFiles.rename(currentFile, changedFile);
+                    knownFiles.rename(currentFile, currentFile.self.getName(), changedFile);
                 }
 
                 if (changedFile == null || changedFile.isTrashed()) {
@@ -397,7 +469,7 @@ public class FileTree {
 
                     logger.debug("ensuring that {} is correctly placed in tree", changedFile);
 
-                    List<String> newParents = changedFile.getParentIds();
+                    Collection<String> newParents = changedFile.getParentIds();
 
                     Set<String> parentsToAddTo = new TreeSet<>(newParents);
                     parentsToAddTo.removeAll(currentFile.self.getParentIds());
@@ -525,12 +597,12 @@ class KnownFiles {
         }
     }
 
-    public void rename(KnownFile currentFile, File changedFile) {
+    public void rename(KnownFile currentFile, String currentName, File changedFile) {
         for (String parentId : currentFile.self.getParentIds()) {
             KnownFile kf = getFile(parentId);
             if (kf == null)
                 continue;
-            kf.renameChild(currentFile, changedFile);
+            kf.renameChild(currentName, changedFile);
         }
     }
 
@@ -610,8 +682,8 @@ class KnownFile {
         return true;
     }
 
-    public void renameChild(KnownFile currentFile, File changedFile) {
-        children.remove(currentFile.self.getName());
+    public void renameChild(String currentName, File changedFile) {
+        children.remove(currentName);
         children.put(changedFile.getName(), changedFile);
     }
 

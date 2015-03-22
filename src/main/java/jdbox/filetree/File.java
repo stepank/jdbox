@@ -2,13 +2,12 @@ package jdbox.filetree;
 
 import com.google.api.services.drive.model.ParentReference;
 import com.google.common.base.Function;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
+import com.google.common.collect.Collections2;
 
 import javax.annotation.Nullable;
+import java.util.Collection;
 import java.util.Date;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class File {
 
@@ -29,7 +28,7 @@ public class File {
     private volatile Date createdDate;
     private volatile Date modifiedDate;
     private volatile Date accessedDate;
-    private volatile List<String> parentIds;
+    private volatile Collection<String> parentIds;
     private volatile long size;
 
     public File(String id, String name, final String parentId, boolean isDirectory) {
@@ -43,7 +42,7 @@ public class File {
         this.name = name;
         this.isDirectory = isDirectory;
         if (parentId != null)
-            this.parentIds = new LinkedList<String>() {{
+            this.parentIds = new ConcurrentLinkedQueue<String>() {{
                 add(parentId);
             }};
     }
@@ -63,13 +62,14 @@ public class File {
         modifiedDate = file.getModifiedDate() != null ? new Date(file.getModifiedDate().getValue()) : null;
         accessedDate = file.getLastViewedByMeDate() != null ? new Date(file.getLastViewedByMeDate().getValue()) : null;
 
-        parentIds = ImmutableList.copyOf(Iterables.transform(file.getParents(), new Function<ParentReference, String>() {
-            @Nullable
-            @Override
-            public String apply(ParentReference parentReference) {
-                return parentReference.getId();
-            }
-        }));
+        parentIds = new ConcurrentLinkedQueue<>(
+                Collections2.transform(file.getParents(), new Function<ParentReference, String>() {
+                    @Nullable
+                    @Override
+                    public String apply(ParentReference parentReference) {
+                        return parentReference.getId();
+                    }
+                }));
 
         if (isDirectory)
             size = 0;
@@ -87,11 +87,6 @@ public class File {
         assert !uploaded : "file is already uploaded and has id";
         this.id = id;
         uploaded = true;
-    }
-
-    public void updateName(File file) {
-        assert file.getId().equals(id) : "new file id is not equal the original one";
-        name = file.getName();
     }
 
     public void update(File file) {
@@ -119,6 +114,10 @@ public class File {
 
     public String getName() {
         return name;
+    }
+
+    public void setName(String newName) {
+        name = newName;
     }
 
     public boolean isDirectory() {
@@ -165,7 +164,7 @@ public class File {
         modifiedDate = date;
     }
 
-    public List<String> getParentIds() {
+    public Collection<String> getParentIds() {
         return parentIds;
     }
 

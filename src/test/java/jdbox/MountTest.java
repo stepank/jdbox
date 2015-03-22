@@ -86,4 +86,23 @@ public class MountTest extends BaseMountFileSystemTest {
         waitUntilUploaderIsDone();
         assertThat(Files.exists(dirPath), is(false));
     }
+
+    @Test
+    public void move() throws Exception {
+
+        File source = drive.createFolder("source", testDir);
+        drive.createFolder("destination", testDir);
+        drive.createFile("test.txt", source, getTestContent());
+
+        Path sourcePath = mountPoint.resolve(testDir.getName()).resolve("source").resolve("test.txt");
+        Path destinationPath = mountPoint.resolve(testDir.getName()).resolve("destination").resolve("test_2.txt");
+
+        assertThat(Files.exists(sourcePath), is(true));
+        assertThat(Files.exists(destinationPath), is(false));
+
+        Files.move(sourcePath, destinationPath);
+        waitUntilUploaderIsDone();
+        assertThat(Files.exists(sourcePath), is(false));
+        assertThat(Files.exists(destinationPath), is(true));
+    }
 }

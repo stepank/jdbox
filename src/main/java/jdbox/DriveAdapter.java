@@ -10,6 +10,7 @@ import com.google.api.services.drive.model.About;
 import com.google.api.services.drive.model.ChangeList;
 import com.google.api.services.drive.model.ParentReference;
 import com.google.common.base.Function;
+import com.google.common.collect.Collections2;
 import com.google.common.collect.Lists;
 import com.google.inject.Inject;
 import jdbox.filetree.File;
@@ -19,6 +20,7 @@ import org.slf4j.LoggerFactory;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -104,7 +106,14 @@ public class DriveAdapter {
                         .setTitle(file.getName());
 
         if (file.getParentIds() != null && file.getParentIds().size() > 0)
-            gdFile.setParents(Collections.singletonList(new ParentReference().setId(file.getParentIds().get(0))));
+            gdFile.setParents(Lists.newLinkedList(
+                    Collections2.transform(file.getParentIds(), new Function<String, ParentReference>() {
+                        @Nullable
+                        @Override
+                        public ParentReference apply(@Nullable String parentId) {
+                            return new ParentReference().setId(parentId);
+                        }
+                    })));
 
         if (file.getCreatedDate() != null)
             gdFile.setCreatedDate(new DateTime(file.getCreatedDate()));
@@ -160,7 +169,8 @@ public class DriveAdapter {
 
         logger.debug("renaming {} to {}", file, newName);
 
-        com.google.api.services.drive.model.File newFile = new com.google.api.services.drive.model.File().setTitle(newName);
+        com.google.api.services.drive.model.File newFile =
+                new com.google.api.services.drive.model.File().setTitle(newName);
 
         try {
             drive.files().patch(file.getId(), newFile).setFields("title").execute();
@@ -217,18 +227,18 @@ public class DriveAdapter {
         updateParentIds(file, Collections.singletonList(parent.getId()));
     }
 
-    public void updateParentIds(File file, List<String> parentIds) throws DriveException {
+    public void updateParentIds(File file, Collection<String> parentIds) throws DriveException {
 
         logger.debug("updating parent ids of {}", file);
 
         com.google.api.services.drive.model.File newFile = new com.google.api.services.drive.model.File()
-                .setParents(Lists.transform(parentIds, new Function<String, ParentReference>() {
+                .setParents(Lists.newLinkedList(Collections2.transform(parentIds, new Function<String, ParentReference>() {
                     @Nullable
                     @Override
                     public ParentReference apply(@Nullable String parentId) {
                         return new ParentReference().setId(parentId);
                     }
-                }));
+                })));
 
         try {
             drive.files().patch(file.getId(), newFile).setFields("parents").execute();
