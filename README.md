@@ -56,8 +56,8 @@ It will create mount point `~/mnt/jdbox-test` and config directory `~/.jdbox-tes
 environment. To do so, it will ask you to open a link in your web browser to generate an OAuth 2.0
 key that will be used to authorize all requests to Google Drive API performed during auto tests.
 
-*WARNING:* I suggest not using your personal Google account, but to create a test one, after
-all these are only tests.
+*WARNING:* I suggest not using your personal Google account, but to create a test one - these are
+only tests, after all.
 
 After doing this set up, you will be able to run auto tests with:
 
