@@ -20,8 +20,11 @@ public class BaseMountFileSystemTest extends BaseFileSystemTest {
 
     @After
     public void tearDown() throws Exception {
-        waitUntilSharedFilesAreClosed();
-        fs.unmount();
-        super.tearDown();
+        try {
+            waitUntilSharedFilesAreClosed();
+            fs.unmount();
+        } finally {
+            super.tearDown();
+        }
     }
 }

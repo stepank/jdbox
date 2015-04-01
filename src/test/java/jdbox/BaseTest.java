@@ -51,12 +51,15 @@ public class BaseTest {
 
     @After
     public void tearDown() throws Exception {
-        ScheduledThreadPoolExecutor executor = injector.getInstance(ScheduledThreadPoolExecutor.class);
-        List<Runnable> tasks = executor.shutdownNow();
-        assertThat(tasks.size(), equalTo(0));
-        assertThat(executor.getActiveCount(), equalTo(0));
-        executor.awaitTermination(5, TimeUnit.SECONDS);
-        drive.deleteFile(testDir);
+        try {
+            ScheduledThreadPoolExecutor executor = injector.getInstance(ScheduledThreadPoolExecutor.class);
+            List<Runnable> tasks = executor.shutdownNow();
+            assertThat(tasks.size(), equalTo(0));
+            assertThat(executor.getActiveCount(), equalTo(0));
+            executor.awaitTermination(5, TimeUnit.SECONDS);
+        } finally {
+            drive.deleteFile(testDir);
+        }
     }
 
     protected Injector createInjector() throws Exception {
