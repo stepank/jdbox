@@ -22,7 +22,7 @@ import org.ini4j.Ini;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -68,7 +68,7 @@ public class JdBox {
                 new InputStreamReader(JdBox.class.getResourceAsStream("/client_secrets.json")));
 
         GoogleAuthorizationCodeFlow flow = new GoogleAuthorizationCodeFlow.Builder(
-                httpTransport, jsonFactory, clientSecrets, Arrays.asList(DriveScopes.DRIVE))
+                httpTransport, jsonFactory, clientSecrets, Collections.singletonList(DriveScopes.DRIVE))
                 .setDataStoreFactory(dataStoreFactory)
                 .setAccessType("offline")
                 .build();
