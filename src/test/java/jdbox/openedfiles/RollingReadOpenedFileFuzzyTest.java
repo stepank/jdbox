@@ -21,7 +21,8 @@ public class RollingReadOpenedFileFuzzyTest extends BaseRollingReadOpenedFileTes
     @Test
     public void fuzzyRead() throws Exception {
 
-        readerFactory.setConfig(new RangeMappedOpenedFileFactory.Config(512));
+        tempStoreFactory.setConfig(new InMemoryByteStoreFactory.Config(512));
+        readerFactory.setConfig(new StreamCachingByteSourceFactory.Config(512));
         factory.setConfig(new RollingReadOpenedFileFactory.Config(2048, 8192));
 
         final int contentLength = 1024 * 1024;

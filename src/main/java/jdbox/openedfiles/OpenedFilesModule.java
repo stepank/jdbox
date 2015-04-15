@@ -12,6 +12,9 @@ public class OpenedFilesModule extends AbstractModule {
 
         bind(NonDownloadableOpenedFileFactory.class).in(Singleton.class);
 
+        bind(StreamCachingByteSourceFactory.Config.class).toInstance(StreamCachingByteSourceFactory.defaultConfig);
+        bind(StreamCachingByteSourceFactory.class).in(Singleton.class);
+
         bind(RollingReadOpenedFileFactory.Config.class).toInstance(RollingReadOpenedFileFactory.defaultConfig);
         bind(RollingReadOpenedFileFactory.class).in(Singleton.class);
 

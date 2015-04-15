@@ -13,6 +13,7 @@ import com.google.api.services.drive.model.ParentReference;
 import com.google.common.base.Function;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Lists;
+import com.google.common.util.concurrent.SettableFuture;
 import com.google.inject.Inject;
 import jdbox.filetree.File;
 import org.slf4j.Logger;
@@ -21,9 +22,12 @@ import org.slf4j.LoggerFactory;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Date;
 import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 
 public class DriveAdapter {
 
@@ -37,10 +41,12 @@ public class DriveAdapter {
     private static final Logger logger = LoggerFactory.getLogger(DriveAdapter.class);
 
     private final Drive drive;
+    private final ExecutorService executor;
 
     @Inject
-    public DriveAdapter(Drive drive) {
+    public DriveAdapter(Drive drive, ExecutorService executor) {
         this.drive = drive;
+        this.executor = executor;
     }
 
     public List<File> getChildren(File file) throws IOException {
@@ -85,6 +91,34 @@ public class DriveAdapter {
         request.getHeaders().setRange(String.format("bytes=%s-%s", offset, offset + length - 1));
         HttpResponse response = request.execute();
         return response.getContent();
+    }
+
+    public Future<InputStream> downloadFileRangeAsync(final File file, final long offset, final long length) {
+
+        if (!file.isReal() || !file.isUploaded())
+            throw new IllegalArgumentException("request for a stream of a file that has not been uploaded yet");
+
+        logger.debug("requesting a stream of {}, offset {}, length {}", file, offset, length);
+
+        final SettableFuture<InputStream> future = SettableFuture.create();
+
+        final Date start = new Date();
+        executor.execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    InputStream stream = DriveAdapter.this.downloadFileRange(file, offset, length);
+                    logger.debug(
+                            "got a stream of {}, offset {}, length {}, exec time {} ms",
+                            file, offset, length, new Date().getTime() - start.getTime());
+                    future.set(stream);
+                } catch (IOException e) {
+                    future.setException(e);
+                }
+            }
+        });
+
+        return future;
     }
 
     public File createFile(String name, File parent, InputStream content) throws IOException {

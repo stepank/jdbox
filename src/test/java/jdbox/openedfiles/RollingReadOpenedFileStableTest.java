@@ -31,7 +31,8 @@ public class RollingReadOpenedFileStableTest extends BaseRollingReadOpenedFileTe
     @Test
     public void read() throws Exception {
 
-        readerFactory.setConfig(new RangeMappedOpenedFileFactory.Config(128));
+        tempStoreFactory.setConfig(new InMemoryByteStoreFactory.Config(128));
+        readerFactory.setConfig(new StreamCachingByteSourceFactory.Config(128));
         factory.setConfig(new RollingReadOpenedFileFactory.Config(1024, 4096));
 
         final int contentLength = 64 * 1024;
@@ -71,6 +72,7 @@ public class RollingReadOpenedFileStableTest extends BaseRollingReadOpenedFileTe
             read += count;
         }
 
+        factory.close(openedFile);
         assertThat(bytes, equalTo(content));
     }
 }

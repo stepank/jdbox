@@ -1,10 +1,12 @@
 package jdbox.openedfiles;
 
 import com.google.inject.Inject;
+import jdbox.DriveAdapter;
 import jdbox.filetree.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -18,27 +20,30 @@ public class RollingReadOpenedFile implements OpenedFile {
     private static final Logger logger = LoggerFactory.getLogger(RollingReadOpenedFile.class);
 
     private final File file;
-    private final RangeMappedOpenedFileFactory readerFactory;
+    private final DriveAdapter drive;
+    private final StreamCachingByteSourceFactory readerFactory;
     private final int minPageSize;
     private final int maxPageSize;
     private final Readers readers = new Readers(PAGES_NUMBER);
 
-    private boolean discarded = false;
+    private boolean closed = false;
 
     RollingReadOpenedFile(
-            File file, RangeMappedOpenedFileFactory readerFactory, int minPageSize, int maxPageSize) {
+            File file, DriveAdapter drive, StreamCachingByteSourceFactory readerFactory,
+            int minPageSize, int maxPageSize) {
         this.file = file;
+        this.drive = drive;
         this.readerFactory = readerFactory;
         this.minPageSize = minPageSize;
         this.maxPageSize = maxPageSize;
     }
 
     @Override
-    public synchronized int read(ByteBuffer buffer, long offset, int count) throws Exception {
+    public synchronized int read(ByteBuffer buffer, long offset, int count) throws IOException {
 
         logger.debug("reading {}, offset {}, count {}", file, offset, count);
 
-        assert !discarded;
+        assert !closed;
         assert offset < file.getSize();
 
         count = (int) Math.min(count, file.getSize() - offset);
@@ -47,15 +52,15 @@ public class RollingReadOpenedFile implements OpenedFile {
 
         while (read < count) {
 
-            RangeMappedOpenedFile reader = getReaderAndCreateAhead(offset + read);
+            Readers.Entry entry = getReaderAndCreateAhead(offset + read);
 
-            logger.debug("got {}", reader);
+            logger.debug("got {}", entry.reader);
 
             try {
-                int bytesToRead = (int) Math.min(count - read, reader.getRigthOffset() - offset - read);
-                read += reader.read(buffer, (int) (offset + read - reader.getOffset()), bytesToRead);
+                int bytesToRead = (int) Math.min(count - read, entry.rightOffset - offset - read);
+                read += entry.reader.read(buffer, (int) (offset + read - entry.offset), bytesToRead);
             } catch (Exception e) {
-                readers.remove(reader);
+                readers.remove(entry);
                 throw e;
             }
         }
@@ -66,55 +71,60 @@ public class RollingReadOpenedFile implements OpenedFile {
     }
 
     @Override
-    public int write(ByteBuffer buffer, long offset, int count) throws Exception {
+    public int write(ByteBuffer buffer, long offset, int count) throws IOException {
         throw new UnsupportedOperationException("write is not supported");
     }
 
     @Override
-    public void truncate(long offset) throws Exception {
+    public void truncate(long offset) throws IOException {
         throw new UnsupportedOperationException("truncate is not supported");
     }
 
-    public synchronized void close() throws Exception {
-        discarded = true;
+    public synchronized void close() throws IOException {
+
+        if (closed)
+            return;
+
+        closed = true;
+
         readers.closeAll();
     }
 
-    private RangeMappedOpenedFile getReaderAndCreateAhead(long offset) {
+    private Readers.Entry getReaderAndCreateAhead(long offset) {
 
-        RangeMappedOpenedFile reader = getOrCreateReader(offset);
+        Readers.Entry entry = getOrCreateReader(offset);
 
-        if (reader.getRigthOffset() == file.getSize())
-            return reader;
+        if (entry.rightOffset == file.getSize())
+            return entry;
 
-        Readers.Entry nextEntry = readers.ceiling(reader.getRigthOffset());
-        if (nextEntry == null || reader.getRigthOffset() < nextEntry.reader.getOffset()) {
-            int desiredLength = Integer.highestOneBit(reader.getLength());
+        Readers.Entry nextEntry = readers.ceiling(entry.rightOffset);
+        if (nextEntry == null || entry.rightOffset < nextEntry.offset) {
+            int desiredLength = Integer.highestOneBit(entry.length);
             if (desiredLength < maxPageSize)
                 desiredLength *= 2;
-            long rightBoundary = nextEntry == null ? file.getSize() : nextEntry.reader.getOffset();
-            createReader(reader.getRigthOffset(), desiredLength, (int) (rightBoundary - reader.getRigthOffset()));
+            long rightBoundary = nextEntry == null ? file.getSize() : nextEntry.offset;
+            createReader(entry.rightOffset, desiredLength, (int) (rightBoundary - entry.rightOffset));
         }
 
-        return reader;
+        return entry;
     }
 
-    private RangeMappedOpenedFile getOrCreateReader(long offset) {
+    private Readers.Entry getOrCreateReader(long offset) {
 
         Readers.Entry floorEntry = readers.floor(offset);
-        if (floorEntry != null && floorEntry.reader.getRigthOffset() > offset)
-            return floorEntry.touch().reader;
+        if (floorEntry != null && floorEntry.rightOffset > offset)
+            return floorEntry.touch();
 
         Readers.Entry ceilingEntry = readers.ceiling(offset);
         if (ceilingEntry == null)
             return createReader(offset, minPageSize, (int) (file.getSize() - offset));
 
-        return createReader(offset, minPageSize, (int) (ceilingEntry.reader.getOffset() - offset));
+        return createReader(offset, minPageSize, (int) (ceilingEntry.offset - offset));
     }
 
-    private RangeMappedOpenedFile createReader(long offset, int desiredLength, int maxLength) {
+    private Readers.Entry createReader(long offset, int desiredLength, int maxLength) {
         int length = (desiredLength * MAX_STRETCH_FACTOR > maxLength) ? maxLength : desiredLength;
-        return readers.create(offset, length).reader;
+        return readers.create(offset, length);
     }
 
     public String toString() {
@@ -124,7 +134,8 @@ public class RollingReadOpenedFile implements OpenedFile {
     private class Readers {
 
         private final int maxSize;
-        private final List<Entry> entries = new LinkedList<>();
+
+        private List<Entry> entries = new LinkedList<>();
         private long current = 0;
 
         public Readers(int maxSize) {
@@ -134,8 +145,7 @@ public class RollingReadOpenedFile implements OpenedFile {
         public Entry floor(long offset) {
             Entry result = null;
             for (Entry entry : entries) {
-                if (entry.reader.getOffset() <= offset &&
-                        (result == null || entry.reader.getOffset() > result.reader.getOffset()))
+                if (entry.offset <= offset && (result == null || entry.offset > result.offset))
                     result = entry;
             }
             return result;
@@ -144,8 +154,7 @@ public class RollingReadOpenedFile implements OpenedFile {
         public Entry ceiling(long offset) {
             Entry result = null;
             for (Entry entry : entries) {
-                if (entry.reader.getOffset() >= offset &&
-                        (result == null || entry.reader.getOffset() < result.reader.getOffset()))
+                if (entry.offset >= offset && (result == null || entry.offset < result.offset))
                     result = entry;
             }
             return result;
@@ -153,7 +162,9 @@ public class RollingReadOpenedFile implements OpenedFile {
 
         public Entry create(long offset, int length) {
 
-            Entry result = new Entry(readerFactory.create(file, offset, length), current++);
+            Entry result = new Entry(
+                    readerFactory.create(drive.downloadFileRangeAsync(file, offset, length)),
+                    offset, length, current++);
 
             entries.add(result);
 
@@ -182,29 +193,36 @@ public class RollingReadOpenedFile implements OpenedFile {
             return result;
         }
 
-        public void remove(RangeMappedOpenedFile reader) {
+        public void remove(Readers.Entry entry) {
             for (Iterator<Entry> iterator = entries.iterator(); iterator.hasNext(); ) {
-                if (iterator.next().reader == reader) {
+                if (iterator.next() == entry) {
                     iterator.remove();
                     break;
                 }
             }
         }
 
-        public void closeAll() throws Exception {
+        public void closeAll() throws IOException {
             for (Entry entry : entries) {
                 entry.reader.close();
             }
             entries.clear();
+            entries = null;
         }
 
         private class Entry {
 
-            final RangeMappedOpenedFile reader;
+            final ByteSource reader;
+            final long offset;
+            final long rightOffset;
+            final int length;
             long touched;
 
-            Entry(RangeMappedOpenedFile reader, long touched) {
+            Entry(ByteSource reader, long offset, int length, long touched) {
                 this.reader = reader;
+                this.offset = offset;
+                this.rightOffset = offset + length;
+                this.length = length;
                 this.touched = touched;
             }
 
@@ -220,13 +238,16 @@ class RollingReadOpenedFileFactory implements OpenedFileFactory {
 
     public static Config defaultConfig = new Config();
 
-    private final RangeMappedOpenedFileFactory readerFactory;
+    private final DriveAdapter drive;
+    private final StreamCachingByteSourceFactory readerFactory;
 
     private volatile Config config;
 
     @Inject
-    public RollingReadOpenedFileFactory(RangeMappedOpenedFileFactory readerFactor, Config config) {
-        this.readerFactory = readerFactor;
+    public RollingReadOpenedFileFactory(
+            DriveAdapter drive, StreamCachingByteSourceFactory readerFactory, Config config) {
+        this.drive = drive;
+        this.readerFactory = readerFactory;
         this.config = config;
     }
 
@@ -236,7 +257,7 @@ class RollingReadOpenedFileFactory implements OpenedFileFactory {
 
     @Override
     public RollingReadOpenedFile create(File file) {
-        return new RollingReadOpenedFile(file, readerFactory, config.minPageSize, config.maxPageSize);
+        return new RollingReadOpenedFile(file, drive, readerFactory, config.minPageSize, config.maxPageSize);
     }
 
     @Override
