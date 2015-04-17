@@ -38,30 +38,30 @@ public class RollingReadOpenedFileFuzzyTest extends BaseRollingReadOpenedFileTes
 
             logger.info("max read chunk size is {}", maxReadChunkSize);
 
-            OpenedFile openedFile = factory.create(file);
+            try (ByteStore openedFile = factory.create(file)) {
 
-            ByteBuffer buffer = ByteBuffer.allocate(maxReadChunkSize);
+                ByteBuffer buffer = ByteBuffer.allocate(maxReadChunkSize);
 
-            for (int i = 0; i < 50; i++) {
+                for (int i = 0; i < 50; i++) {
 
-                int offset = random.nextInt(contentLength);
-                int bytesToRead = 1 + random.nextInt(maxReadChunkSize);
-                int expectedRead = Math.min(contentLength - offset, bytesToRead);
+                    int offset = random.nextInt(contentLength);
+                    int bytesToRead = 1 + random.nextInt(maxReadChunkSize);
+                    int expectedRead = Math.min(contentLength - offset, bytesToRead);
 
-                buffer.rewind();
-                assertThat(openedFile.read(buffer, offset, expectedRead), equalTo(expectedRead));
+                    buffer.rewind();
+                    assertThat(openedFile.read(buffer, offset, expectedRead), equalTo(expectedRead));
 
-                byte[] actual = new byte[expectedRead];
-                buffer.rewind();
-                buffer.get(actual, 0, expectedRead);
+                    byte[] actual = new byte[expectedRead];
+                    buffer.rewind();
+                    buffer.get(actual, 0, expectedRead);
 
-                byte[] expected = new byte[expectedRead];
-                System.arraycopy(content, offset, expected, 0, expectedRead);
+                    byte[] expected = new byte[expectedRead];
+                    System.arraycopy(content, offset, expected, 0, expectedRead);
 
-                assertThat(actual, equalTo(expected));
+                    assertThat(actual, equalTo(expected));
+                }
             }
 
-            factory.close(openedFile);
             waitUntilSharedFilesAreClosed();
         }
     }

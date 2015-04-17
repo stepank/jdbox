@@ -127,8 +127,6 @@ public class FileSystem extends FuseFilesystemAdapterFull {
 
         try {
             return openedFiles.get(info.fh()).read(buffer, offset, (int) count);
-        } catch (FileTree.NoSuchFileException e) {
-            return -ErrorCodes.ENOENT();
         } catch (Exception e) {
             logger.error("[{}] an error occured while reading file", path, e);
             return -ErrorCodes.EPIPE();
@@ -142,8 +140,6 @@ public class FileSystem extends FuseFilesystemAdapterFull {
 
         try {
             return openedFiles.get(info.fh()).write(buffer, offset, (int) count);
-        } catch (FileTree.NoSuchFileException e) {
-            return -ErrorCodes.ENOENT();
         } catch (Exception e) {
             logger.error("[{}] an error occured while writing file", path, e);
             return -ErrorCodes.EPIPE();

@@ -14,9 +14,9 @@ import java.util.Collection;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-@Category(RangeMappedOpenedFile.class)
+@Category(FullAccessOpenedFile.class)
 @RunWith(Parameterized.class)
-public class RangeMappedOpenedFileTruncateTest extends BaseRangeMappedOpenedFileTest {
+public class FullAccessOpenedFileTruncateTest extends BaseFullAccessOpenedFileTest {
 
     @Parameterized.Parameters
     public static Collection<Object[]> data() {
@@ -37,30 +37,29 @@ public class RangeMappedOpenedFileTruncateTest extends BaseRangeMappedOpenedFile
     @Test
     public void truncate() throws Exception {
 
-        RangeMappedOpenedFile openedFile = factory.create(file);
-        assertThat(openedFile.getBufferCount(), equalTo(0));
-
         byte[] expected = new byte[length];
         System.arraycopy(testContentString.getBytes(), 0, expected, 0, Math.min(length, testContentString.length()));
 
-        openedFile.truncate(length);
+        try (ByteStore openedFile = factory.create(file)) {
 
-        ByteBuffer buffer = ByteBuffer.allocate(length);
+            openedFile.truncate(length);
 
-        assertThat(openedFile.read(buffer, 0, expected.length), equalTo(expected.length));
-        assertThat(buffer.array(), equalTo(expected));
+            ByteBuffer buffer = ByteBuffer.allocate(length);
 
-        factory.close(openedFile);
+            assertThat(openedFile.read(buffer, 0, expected.length), equalTo(expected.length));
+            assertThat(buffer.array(), equalTo(expected));
+        }
+
         waitUntilSharedFilesAreClosed();
 
-        openedFile = factory.create(file);
-        assertThat(openedFile.getBufferCount(), equalTo(0));
+        try (ByteStore openedFile = factory.create(file)) {
 
-        buffer.rewind();
-        assertThat(openedFile.read(buffer, 0, expected.length), equalTo(expected.length));
-        assertThat(buffer.array(), equalTo(expected));
+            ByteBuffer buffer = ByteBuffer.allocate(length);
 
-        factory.close(openedFile);
+            assertThat(openedFile.read(buffer, 0, expected.length), equalTo(expected.length));
+            assertThat(buffer.array(), equalTo(expected));
+        }
+
         waitUntilSharedFilesAreClosed();
     }
 }

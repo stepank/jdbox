@@ -14,9 +14,9 @@ import java.util.Collection;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-@Category(RangeMappedOpenedFile.class)
+@Category(FullAccessOpenedFile.class)
 @RunWith(Parameterized.class)
-public class RangeMappedOpenedFileReadTest extends BaseRangeMappedOpenedFileTest {
+public class FullAccessOpenedFileReadTest extends BaseFullAccessOpenedFileTest {
 
     @Parameterized.Parameters
     public static Collection<Object[]> data() {
@@ -49,35 +49,34 @@ public class RangeMappedOpenedFileReadTest extends BaseRangeMappedOpenedFileTest
 
         byte[] content = testContentString.getBytes();
 
-        RangeMappedOpenedFile openedFile = factory.create(file);
-        assertThat(openedFile.getBufferCount(), equalTo(0));
+        try (ByteStore openedFile = factory.create(file)) {
 
-        byte[] bytes = new byte[content.length];
+            byte[] bytes = new byte[content.length];
 
-        int offset = 0;
-        for (int count : counts) {
+            int offset = 0;
+            for (int count : counts) {
 
-            int expectedRead = Math.min(bytes.length - offset, count);
+                int expectedRead = Math.min(bytes.length - offset, count);
 
-            ByteBuffer buffer = ByteBuffer.allocate(count);
-            assertThat(openedFile.read(buffer, offset, count), equalTo(expectedRead));
+                ByteBuffer buffer = ByteBuffer.allocate(count);
+                assertThat(openedFile.read(buffer, offset, count), equalTo(expectedRead));
 
-            byte[] actual = new byte[expectedRead];
-            buffer.rewind();
-            buffer.get(actual, 0, expectedRead);
+                byte[] actual = new byte[expectedRead];
+                buffer.rewind();
+                buffer.get(actual, 0, expectedRead);
 
-            byte[] expected = new byte[expectedRead];
-            System.arraycopy(content, offset, expected, 0, expectedRead);
+                byte[] expected = new byte[expectedRead];
+                System.arraycopy(content, offset, expected, 0, expectedRead);
 
-            assertThat(actual, equalTo(expected));
+                assertThat(actual, equalTo(expected));
 
-            buffer.rewind();
-            buffer.get(bytes, offset, expectedRead);
+                buffer.rewind();
+                buffer.get(bytes, offset, expectedRead);
 
-            offset += count;
+                offset += count;
+            }
+
+            assertThat(bytes, equalTo(content));
         }
-
-        assertThat(bytes, equalTo(content));
-        assertThat(openedFile.getBufferCount(), equalTo(3));
     }
 }

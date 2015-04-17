@@ -43,36 +43,36 @@ public class RollingReadOpenedFileStableTest extends BaseRollingReadOpenedFileTe
 
         File file = drive.createFile(testFileName, testDir, new ByteArrayInputStream(content));
 
-        OpenedFile openedFile = factory.create(file);
+        try (ByteStore openedFile = factory.create(file)) {
 
-        byte[] bytes = new byte[content.length];
+            byte[] bytes = new byte[content.length];
 
-        int offset = 0;
-        int read = 0;
-        while (read < content.length) {
+            int offset = 0;
+            int read = 0;
+            while (read < content.length) {
 
-            int expectedRead = Math.min(bytes.length - offset, count);
+                int expectedRead = Math.min(bytes.length - offset, count);
 
-            ByteBuffer buffer = ByteBuffer.allocate(count);
-            assertThat(openedFile.read(buffer, offset, count), equalTo(expectedRead));
+                ByteBuffer buffer = ByteBuffer.allocate(count);
+                assertThat(openedFile.read(buffer, offset, count), equalTo(expectedRead));
 
-            byte[] actual = new byte[expectedRead];
-            buffer.rewind();
-            buffer.get(actual, 0, expectedRead);
+                byte[] actual = new byte[expectedRead];
+                buffer.rewind();
+                buffer.get(actual, 0, expectedRead);
 
-            byte[] expected = new byte[expectedRead];
-            System.arraycopy(content, offset, expected, 0, expectedRead);
+                byte[] expected = new byte[expectedRead];
+                System.arraycopy(content, offset, expected, 0, expectedRead);
 
-            assertThat(actual, equalTo(expected));
+                assertThat(actual, equalTo(expected));
 
-            buffer.rewind();
-            buffer.get(bytes, offset, expectedRead);
+                buffer.rewind();
+                buffer.get(bytes, offset, expectedRead);
 
-            offset += count;
-            read += count;
+                offset += count;
+                read += count;
+            }
+
+            assertThat(bytes, equalTo(content));
         }
-
-        factory.close(openedFile);
-        assertThat(bytes, equalTo(content));
     }
 }

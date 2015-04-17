@@ -137,6 +137,10 @@ public class File {
         return downloadUrl;
     }
 
+    public void setDownloadUrl(String downloadUrl) {
+        this.downloadUrl = downloadUrl;
+    }
+
     public String getExportInfo() {
         return exportInfo;
     }

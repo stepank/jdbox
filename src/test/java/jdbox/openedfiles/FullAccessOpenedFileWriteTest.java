@@ -14,9 +14,9 @@ import java.util.Collection;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-@Category(RangeMappedOpenedFile.class)
+@Category(FullAccessOpenedFile.class)
 @RunWith(Parameterized.class)
-public class RangeMappedOpenedFileWriteTest extends BaseRangeMappedOpenedFileTest {
+public class FullAccessOpenedFileWriteTest extends BaseFullAccessOpenedFileTest {
 
     @Parameterized.Parameters
     public static Collection<Object[]> data() {
@@ -48,45 +48,41 @@ public class RangeMappedOpenedFileWriteTest extends BaseRangeMappedOpenedFileTes
     @Test
     public void write() throws Exception {
 
-        RangeMappedOpenedFile openedFile = factory.create(file);
-        assertThat(openedFile.getBufferCount(), equalTo(0));
-
         String content = "pysh-pysh-ololo";
         byte[] bytes = content.getBytes();
 
-        int offset = 0;
-        for (int count : counts) {
+        try (ByteStore openedFile = factory.create(file)) {
 
-            int bytesToWrite = Math.min(bytes.length - offset, count);
+            int offset = 0;
+            for (int count : counts) {
 
-            ByteBuffer buffer = ByteBuffer.allocate(bytesToWrite);
-            buffer.put(bytes, offset, bytesToWrite);
+                int bytesToWrite = Math.min(bytes.length - offset, count);
 
-            buffer.rewind();
-            assertThat(openedFile.write(buffer, offset, bytesToWrite), equalTo(bytesToWrite));
+                ByteBuffer buffer = ByteBuffer.allocate(bytesToWrite);
+                buffer.put(bytes, offset, bytesToWrite);
 
-            offset += count;
+                buffer.rewind();
+                assertThat(openedFile.write(buffer, offset, bytesToWrite), equalTo(bytesToWrite));
+
+                offset += count;
+            }
+
+            ByteBuffer buffer = ByteBuffer.allocate(bytes.length);
+
+            assertThat(openedFile.read(buffer, 0, bytes.length), equalTo(bytes.length));
+            assertThat(buffer.array(), equalTo(bytes));
         }
-        assertThat(openedFile.getBufferCount(), equalTo(4));
 
-        ByteBuffer buffer = ByteBuffer.allocate(bytes.length);
-
-        assertThat(openedFile.read(buffer, 0, bytes.length), equalTo(bytes.length));
-        assertThat(buffer.array(), equalTo(bytes));
-        assertThat(openedFile.getBufferCount(), equalTo(4));
-
-        factory.close(openedFile);
         waitUntilSharedFilesAreClosed();
 
-        openedFile = factory.create(file);
-        assertThat(openedFile.getBufferCount(), equalTo(0));
+        try (ByteStore openedFile = factory.create(file)) {
 
-        buffer.rewind();
-        assertThat(openedFile.read(buffer, 0, bytes.length), equalTo(bytes.length));
-        assertThat(buffer.array(), equalTo(bytes));
-        assertThat(openedFile.getBufferCount(), equalTo(4));
+            ByteBuffer buffer = ByteBuffer.allocate(bytes.length);
 
-        factory.close(openedFile);
+            assertThat(openedFile.read(buffer, 0, bytes.length), equalTo(bytes.length));
+            assertThat(buffer.array(), equalTo(bytes));
+        }
+
         waitUntilSharedFilesAreClosed();
     }
 }

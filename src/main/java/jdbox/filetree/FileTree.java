@@ -183,6 +183,7 @@ public class FileTree {
                         readWriteLock.writeLock().lock();
                         try {
                             knownFiles.updateId(file, createdFile.getId());
+                            file.setDownloadUrl(createdFile.getDownloadUrl());
                         } finally {
                             readWriteLock.writeLock().unlock();
                         }
@@ -514,7 +515,7 @@ public class FileTree {
     }
 
     private interface Getter<T> {
-        public T apply(String fileName, Map<String, File> files);
+        T apply(String fileName, Map<String, File> files);
     }
 }
 

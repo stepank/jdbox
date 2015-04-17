@@ -15,19 +15,19 @@ public class OpenedFiles {
     }
 
     private final OpenedFileFactory nonDownloadableOpenedFileFactory;
-    private final OpenedFileFactory rangeMappedOpenedFileFactory;
+    private final OpenedFileFactory fullAccessOpenedFileFactory;
     private final OpenedFileFactory rollingReadOpenedFileFactory;
 
-    private final Map<Long, OpenedFileInfo> fileHandlers = new HashMap<>();
+    private final Map<Long, ByteStore> fileHandlers = new HashMap<>();
     private long currentFileHandler = 1;
 
     @Inject
     public OpenedFiles(
             NonDownloadableOpenedFileFactory nonDownloadableOpenedFileFactory,
-            RangeMappedOpenedFileFactory rangeMappedOpenedFileFactory,
+            FullAccessOpenedFileFactory fullAccessOpenedFileFactory,
             RollingReadOpenedFileFactory rollingReadOpenedFileFactory) {
         this.nonDownloadableOpenedFileFactory = nonDownloadableOpenedFileFactory;
-        this.rangeMappedOpenedFileFactory = rangeMappedOpenedFileFactory;
+        this.fullAccessOpenedFileFactory = fullAccessOpenedFileFactory;
         this.rollingReadOpenedFileFactory = rollingReadOpenedFileFactory;
     }
 
@@ -40,45 +40,30 @@ public class OpenedFiles {
         if (!file.isReal() && openMode.equals(OpenMode.READ_ONLY))
             openedFileFactory = nonDownloadableOpenedFileFactory;
         else if (file.isReal() && !isLargeFile(file))
-            openedFileFactory = rangeMappedOpenedFileFactory;
+            openedFileFactory = fullAccessOpenedFileFactory;
         else if (file.isReal() && isLargeFile(file))
             openedFileFactory = rollingReadOpenedFileFactory;
         else
             throw new UnsupportedOperationException();
 
-        fileHandlers.put(currentFileHandler, new OpenedFileInfo(openedFileFactory.create(file), openedFileFactory));
+        fileHandlers.put(currentFileHandler, openedFileFactory.create(file));
 
         return currentFileHandler;
     }
 
     public synchronized void close(long fileHandler) throws Exception {
-        OpenedFileInfo openedFileInfo = fileHandlers.remove(fileHandler);
-        openedFileInfo.openedFileFactory.close(openedFileInfo.openedFile);
+        fileHandlers.remove(fileHandler).close();
     }
 
-    public synchronized OpenedFile get(long fileHandler) {
-        return fileHandlers.get(fileHandler).openedFile;
+    public synchronized ByteStore get(long fileHandler) {
+        return fileHandlers.get(fileHandler);
     }
 
     private static boolean isLargeFile(File file) {
         return file.getSize() > 1024 * 1024;
     }
-
-    private class OpenedFileInfo {
-
-        OpenedFile openedFile;
-        OpenedFileFactory openedFileFactory;
-
-        public OpenedFileInfo(OpenedFile openedFile, OpenedFileFactory openedFileFactory) {
-            this.openedFile = openedFile;
-            this.openedFileFactory = openedFileFactory;
-        }
-    }
 }
 
 interface OpenedFileFactory {
-
-    public OpenedFile create(File file);
-
-    public void close(OpenedFile openedFile) throws Exception;
+    ByteStore create(File file);
 }

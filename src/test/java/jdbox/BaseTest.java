@@ -3,14 +3,13 @@ package jdbox;
 import com.google.api.services.drive.Drive;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.inject.Injector;
-import jdbox.openedfiles.RangeMappedOpenedFileFactory;
+import jdbox.openedfiles.OpenedFilesUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
-import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
@@ -20,7 +19,6 @@ import java.util.concurrent.TimeoutException;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThan;
 
 public class BaseTest {
 
@@ -82,16 +80,8 @@ public class BaseTest {
         future.get(timeout, TimeUnit.SECONDS);
     }
 
-    protected void waitUntilSharedFilesAreClosed() throws Exception {
-        waitUntilSharedFilesAreClosed(5000);
-    }
-
-    protected void waitUntilSharedFilesAreClosed(long timeout) throws Exception {
-        Date start = new Date();
-        while (injector.getInstance(RangeMappedOpenedFileFactory.class).getSharedFilesCount() != 0) {
-            Thread.sleep(100);
-            assertThat(new Date().getTime() - start.getTime(), lessThan(timeout));
-        }
+    public void waitUntilSharedFilesAreClosed() throws Exception {
+        OpenedFilesUtils.waitUntilSharedFilesAreClosed(injector);
     }
 
     protected static InputStream getTestContent() {

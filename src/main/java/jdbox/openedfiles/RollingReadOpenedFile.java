@@ -12,7 +12,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
-public class RollingReadOpenedFile implements OpenedFile {
+public class RollingReadOpenedFile implements ByteStore {
 
     private static final int PAGES_NUMBER = 3;
     private static final double MAX_STRETCH_FACTOR = 1.5;
@@ -258,11 +258,6 @@ class RollingReadOpenedFileFactory implements OpenedFileFactory {
     @Override
     public RollingReadOpenedFile create(File file) {
         return new RollingReadOpenedFile(file, drive, readerFactory, config.minPageSize, config.maxPageSize);
-    }
-
-    @Override
-    public void close(OpenedFile openedFile) throws Exception {
-        ((RollingReadOpenedFile) openedFile).close();
     }
 
     public static class Config {
