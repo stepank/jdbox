@@ -3,10 +3,14 @@ package jdbox.openedfiles;
 import com.google.inject.Inject;
 import jdbox.filetree.File;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 
 public class OpenedFiles {
+
+    public static Config defaultConfig = new Config();
 
     public enum OpenMode {
         READ_ONLY,
@@ -17,50 +21,115 @@ public class OpenedFiles {
     private final OpenedFileFactory nonDownloadableOpenedFileFactory;
     private final OpenedFileFactory fullAccessOpenedFileFactory;
     private final OpenedFileFactory rollingReadOpenedFileFactory;
+    private final LocalStorage localStorage;
 
-    private final Map<Long, ByteStore> fileHandlers = new HashMap<>();
+    private volatile Config config;
+
+    private final Map<Long, OpenedFile> fileHandlers = new HashMap<>();
     private long currentFileHandler = 1;
 
     @Inject
     public OpenedFiles(
             NonDownloadableOpenedFileFactory nonDownloadableOpenedFileFactory,
-            FullAccessOpenedFileFactory fullAccessOpenedFileFactory,
-            RollingReadOpenedFileFactory rollingReadOpenedFileFactory) {
+            final FullAccessOpenedFileFactory fullAccessOpenedFileFactory,
+            RollingReadOpenedFileFactory rollingReadOpenedFileFactory,
+            final LocalStorage localStorage, Config config) {
+
         this.nonDownloadableOpenedFileFactory = nonDownloadableOpenedFileFactory;
-        this.fullAccessOpenedFileFactory = fullAccessOpenedFileFactory;
         this.rollingReadOpenedFileFactory = rollingReadOpenedFileFactory;
+        this.localStorage = localStorage;
+        this.config = config;
+
+        this.fullAccessOpenedFileFactory = new OpenedFileFactory() {
+            @Override
+            public ByteStore create(File file) {
+                return localStorage.putContent(file, fullAccessOpenedFileFactory.create(file));
+            }
+        };
     }
 
-    public synchronized long open(File file, OpenMode openMode) {
+    public void setConfig(Config config) {
+        this.config = config;
+    }
+
+    public synchronized OpenedFile open(File file, OpenMode openMode) {
 
         currentFileHandler++;
 
-        OpenedFileFactory openedFileFactory;
+        ByteStore openedFile = localStorage.getContent(file);
+        if (openedFile == null)
+            openedFile = getOpenedFileFactory(file, openMode).create(file);
 
-        if (!file.isReal() && openMode.equals(OpenMode.READ_ONLY))
-            openedFileFactory = nonDownloadableOpenedFileFactory;
-        else if (file.isReal() && !isLargeFile(file))
-            openedFileFactory = fullAccessOpenedFileFactory;
-        else if (file.isReal() && isLargeFile(file))
-            openedFileFactory = rollingReadOpenedFileFactory;
-        else
-            throw new UnsupportedOperationException();
+        OpenedFile openedFileHandler = new OpenedFile(currentFileHandler, openedFile);
 
-        fileHandlers.put(currentFileHandler, openedFileFactory.create(file));
+        fileHandlers.put(currentFileHandler, openedFileHandler);
 
-        return currentFileHandler;
+        return openedFileHandler;
     }
 
-    public synchronized void close(long fileHandler) throws Exception {
-        fileHandlers.remove(fileHandler).close();
-    }
-
-    public synchronized ByteStore get(long fileHandler) {
+    public synchronized OpenedFile get(long fileHandler) {
         return fileHandlers.get(fileHandler);
     }
 
-    private static boolean isLargeFile(File file) {
-        return file.getSize() > 1024 * 1024;
+    private OpenedFileFactory getOpenedFileFactory(File file, OpenMode openMode) {
+        if (!file.isReal() && openMode.equals(OpenMode.READ_ONLY))
+            return nonDownloadableOpenedFileFactory;
+        if (file.isReal() && !isLargeFile(file))
+            return fullAccessOpenedFileFactory;
+        if (file.isReal() && isLargeFile(file))
+            return rollingReadOpenedFileFactory;
+        throw new UnsupportedOperationException();
+    }
+
+    private boolean isLargeFile(File file) {
+        return file.getSize() > config.largeFileSize;
+    }
+
+    public static class Config {
+
+        public final int largeFileSize;
+
+        public Config() {
+            largeFileSize = 1024 * 1024;
+        }
+
+        public Config(int largeFileSize) {
+            this.largeFileSize = largeFileSize;
+        }
+    }
+
+    public class OpenedFile implements ByteStore {
+
+        public final long handler;
+        private final ByteStore content;
+
+        public OpenedFile(long handler, ByteStore content) {
+            this.handler = handler;
+            this.content = content;
+        }
+
+        @Override
+        public int read(ByteBuffer buffer, long offset, int count) throws IOException {
+            return content.read(buffer, offset, count);
+        }
+
+        @Override
+        public int write(ByteBuffer buffer, long offset, int count) throws IOException {
+            return content.write(buffer, offset, count);
+        }
+
+        @Override
+        public void truncate(long offset) throws IOException {
+            content.truncate(offset);
+        }
+
+        @Override
+        public void close() throws IOException {
+            synchronized (OpenedFiles.this) {
+                fileHandlers.remove(handler);
+            }
+            content.close();
+        }
     }
 }
 

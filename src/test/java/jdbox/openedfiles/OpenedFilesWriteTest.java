@@ -14,9 +14,9 @@ import java.util.Collection;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-@Category(FullAccessOpenedFile.class)
+@Category(OpenedFiles.class)
 @RunWith(Parameterized.class)
-public class FullAccessOpenedFileWriteTest extends BaseFullAccessOpenedFileTest {
+public class OpenedFilesWriteTest extends BaseOpenedFilesTest {
 
     @Parameterized.Parameters
     public static Collection<Object[]> data() {
@@ -51,7 +51,7 @@ public class FullAccessOpenedFileWriteTest extends BaseFullAccessOpenedFileTest 
         String content = "pysh-pysh-ololo";
         byte[] bytes = content.getBytes();
 
-        try (ByteStore openedFile = factory.create(file)) {
+        try (ByteStore openedFile = openedFiles.open(file, OpenedFiles.OpenMode.READ_WRITE)) {
 
             int offset = 0;
             for (int count : counts) {
@@ -73,9 +73,9 @@ public class FullAccessOpenedFileWriteTest extends BaseFullAccessOpenedFileTest 
             assertThat(buffer.array(), equalTo(bytes));
         }
 
-        waitUntilSharedFilesAreClosed();
+        waitUntilLocalStorageIsEmpty();
 
-        try (ByteStore openedFile = factory.create(file)) {
+        try (ByteStore openedFile = openedFiles.open(file, OpenedFiles.OpenMode.READ_WRITE)) {
 
             ByteBuffer buffer = ByteBuffer.allocate(bytes.length);
 
@@ -83,6 +83,6 @@ public class FullAccessOpenedFileWriteTest extends BaseFullAccessOpenedFileTest 
             assertThat(buffer.array(), equalTo(bytes));
         }
 
-        waitUntilSharedFilesAreClosed();
+        waitUntilLocalStorageIsEmpty();
     }
 }

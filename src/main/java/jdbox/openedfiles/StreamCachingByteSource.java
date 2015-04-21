@@ -86,12 +86,12 @@ class StreamCachingByteSourceFactory {
 
     public static Config defaultConfig = new Config();
 
-    private final InMemoryByteStoreFactory storeFactory;
+    private final InMemoryByteStoreFactory tempStoreFactory;
     private volatile Config config;
 
     @Inject
-    StreamCachingByteSourceFactory(InMemoryByteStoreFactory storeFactory, Config config) {
-        this.storeFactory = storeFactory;
+    StreamCachingByteSourceFactory(InMemoryByteStoreFactory tempStoreFactory, Config config) {
+        this.tempStoreFactory = tempStoreFactory;
         this.config = config;
     }
 
@@ -104,7 +104,7 @@ class StreamCachingByteSourceFactory {
     }
 
     public ByteSource create(Future<InputStream> stream) {
-        return new StreamCachingByteSource(stream, storeFactory.create(), config.bufferSize);
+        return new StreamCachingByteSource(stream, tempStoreFactory.create(), config.bufferSize);
     }
 
     public static class Config {

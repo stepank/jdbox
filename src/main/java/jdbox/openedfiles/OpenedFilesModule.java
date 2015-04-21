@@ -8,7 +8,10 @@ public class OpenedFilesModule extends AbstractModule {
     @Override
     protected void configure() {
 
+        bind(OpenedFiles.Config.class).toInstance(OpenedFiles.defaultConfig);
         bind(OpenedFiles.class).in(Singleton.class);
+
+        bind(NonDownloadableOpenedFileFactory.class).in(Singleton.class);
 
         bind(InMemoryByteStoreFactory.Config.class).toInstance(InMemoryByteStoreFactory.defaultConfig);
         bind(InMemoryByteStoreFactory.class).in(Singleton.class);
@@ -16,11 +19,11 @@ public class OpenedFilesModule extends AbstractModule {
         bind(StreamCachingByteSourceFactory.Config.class).toInstance(StreamCachingByteSourceFactory.defaultConfig);
         bind(StreamCachingByteSourceFactory.class).in(Singleton.class);
 
-        bind(NonDownloadableOpenedFileFactory.class).in(Singleton.class);
-
         bind(FullAccessOpenedFileFactory.class).in(Singleton.class);
 
         bind(RollingReadOpenedFileFactory.Config.class).toInstance(RollingReadOpenedFileFactory.defaultConfig);
         bind(RollingReadOpenedFileFactory.class).in(Singleton.class);
+
+        bind(LocalStorage.class).in(Singleton.class);
     }
 }

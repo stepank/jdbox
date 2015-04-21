@@ -21,7 +21,7 @@ public class BaseMountFileSystemTest extends BaseFileSystemTest {
     @After
     public void tearDown() throws Exception {
         try {
-            waitUntilSharedFilesAreClosed();
+            waitUntilLocalStorageIsEmpty();
             fs.unmount();
         } finally {
             super.tearDown();

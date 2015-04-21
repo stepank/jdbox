@@ -2,7 +2,6 @@ package jdbox.openedfiles;
 
 import com.google.inject.Inject;
 import jdbox.DriveAdapter;
-import jdbox.Uploader;
 import jdbox.filetree.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,8 +9,6 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.Future;
 
 class FullAccessOpenedFile implements ByteStore {
@@ -96,166 +93,23 @@ class FullAccessOpenedFile implements ByteStore {
 
 class FullAccessOpenedFileFactory implements OpenedFileFactory {
 
-    private static final Logger logger = LoggerFactory.getLogger(FullAccessOpenedFileFactory.class);
-
     private final DriveAdapter drive;
-    private final InMemoryByteStoreFactory storeFactory;
+    private final InMemoryByteStoreFactory tempStoreFactory;
     private final StreamCachingByteSourceFactory readerFactory;
-    private final Uploader uploader;
-
-    private final Map<File, SharedOpenedFile> sharedFiles = new HashMap<>();
 
     @Inject
     FullAccessOpenedFileFactory(
-            DriveAdapter drive, InMemoryByteStoreFactory storeFactory,
-            StreamCachingByteSourceFactory readerFactory, Uploader uploader) {
+            DriveAdapter drive, InMemoryByteStoreFactory tempStoreFactory,
+            StreamCachingByteSourceFactory readerFactory) {
         this.drive = drive;
-        this.storeFactory = storeFactory;
+        this.tempStoreFactory = tempStoreFactory;
         this.readerFactory = readerFactory;
-        this.uploader = uploader;
-    }
-
-    public synchronized int getSharedFilesCount() {
-        return sharedFiles.size();
     }
 
     @Override
-    public synchronized ByteStore create(final File file) {
-
-        SharedOpenedFile sharedFile = sharedFiles.get(file);
-
-        ByteStore openedFile;
-
-        if (sharedFile != null) {
-            sharedFile.refCount++;
-        } else {
-            Future<InputStream> stream =
-                    file.isUploaded() ? drive.downloadFileRangeAsync(file, 0, file.getSize()) : null;
-            openedFile = new FullAccessOpenedFile(storeFactory.create(), stream, readerFactory);
-            sharedFile = new SharedOpenedFile(file, openedFile);
-            sharedFiles.put(file, sharedFile);
-        }
-
-        return new ProxyByteStore(sharedFile);
-    }
-
-    private class SharedOpenedFile {
-
-        public final File file;
-        public final ByteStore content;
-        public volatile int refCount = 1;
-        public volatile boolean hasChanged = false;
-
-        private SharedOpenedFile(File file, ByteStore content) {
-            this.file = file;
-            this.content = content;
-        }
-    }
-
-    private class ProxyByteStore implements ByteStore {
-
-        private final SharedOpenedFile shared;
-        private boolean closed = false;
-
-        public ProxyByteStore(SharedOpenedFile shared) {
-            this.shared = shared;
-        }
-
-        @Override
-        public int read(ByteBuffer buffer, long offset, int count) throws IOException {
-
-            synchronized (shared) {
-
-                if (closed)
-                    throw new IOException("read on a closed ByteStore");
-
-                return shared.content.read(buffer, offset, count);
-            }
-        }
-
-        @Override
-        public int write(ByteBuffer buffer, long offset, int count) throws IOException {
-
-            synchronized (shared) {
-
-                if (closed)
-                    throw new IOException("write on a closed ByteStore");
-
-                int written = shared.content.write(buffer, offset, count);
-
-                if (written > 0) {
-                    shared.hasChanged = true;
-                    if (shared.file.getSize() < offset + written)
-                        shared.file.setSize(offset + written);
-                }
-
-                return written;
-            }
-        }
-
-        @Override
-        public void truncate(long offset) throws IOException {
-
-            synchronized (shared) {
-
-                if (closed)
-                    throw new IOException("truncate on a closed ByteStore");
-
-                shared.hasChanged = true;
-                shared.file.setSize(offset);
-
-                shared.content.truncate(offset);
-            }
-        }
-
-        @Override
-        public void close() throws IOException {
-
-            logger.debug(
-                    "closing a proxy for {}, has changed {}, ref count {}",
-                    shared.file, shared.hasChanged, shared.refCount);
-
-            synchronized (shared) {
-
-                if (closed)
-                    return;
-
-                if (!shared.hasChanged) {
-
-                    assert shared.refCount > 0;
-
-                    shared.refCount--;
-                    if (shared.refCount == 0)
-                        sharedFiles.remove(shared.file).content.close();
-
-                    return;
-                }
-
-                final ByteStore capturedContent = storeFactory.create();
-                ByteSources.copy(shared.content, capturedContent);
-
-                uploader.submit(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-
-                            shared.file.update(
-                                    drive.updateFileContent(shared.file, ByteSources.toInputStream(capturedContent)));
-
-                            capturedContent.close();
-
-                            synchronized (shared) {
-                                shared.refCount--;
-                                if (shared.refCount == 0)
-                                    sharedFiles.remove(shared.file).content.close();
-                            }
-
-                        } catch (Exception e) {
-                            logger.error("an error ocured while updating file content", e);
-                        }
-                    }
-                });
-            }
-        }
+    public synchronized ByteStore create(File file) {
+        Future<InputStream> stream =
+                file.isUploaded() ? drive.downloadFileRangeAsync(file, 0, file.getSize()) : null;
+        return new FullAccessOpenedFile(tempStoreFactory.create(), stream, readerFactory);
     }
 }

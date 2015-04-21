@@ -14,9 +14,9 @@ import java.util.Collection;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-@Category(FullAccessOpenedFile.class)
+@Category(OpenedFiles.class)
 @RunWith(Parameterized.class)
-public class FullAccessOpenedFileTruncateTest extends BaseFullAccessOpenedFileTest {
+public class OpenedFilesTruncateTest extends BaseOpenedFilesTest {
 
     @Parameterized.Parameters
     public static Collection<Object[]> data() {
@@ -40,7 +40,7 @@ public class FullAccessOpenedFileTruncateTest extends BaseFullAccessOpenedFileTe
         byte[] expected = new byte[length];
         System.arraycopy(testContentString.getBytes(), 0, expected, 0, Math.min(length, testContentString.length()));
 
-        try (ByteStore openedFile = factory.create(file)) {
+        try (ByteStore openedFile = openedFiles.open(file, OpenedFiles.OpenMode.READ_WRITE)) {
 
             openedFile.truncate(length);
 
@@ -50,9 +50,9 @@ public class FullAccessOpenedFileTruncateTest extends BaseFullAccessOpenedFileTe
             assertThat(buffer.array(), equalTo(expected));
         }
 
-        waitUntilSharedFilesAreClosed();
+        waitUntilLocalStorageIsEmpty();
 
-        try (ByteStore openedFile = factory.create(file)) {
+        try (ByteStore openedFile = openedFiles.open(file, OpenedFiles.OpenMode.READ_WRITE)) {
 
             ByteBuffer buffer = ByteBuffer.allocate(length);
 
@@ -60,6 +60,6 @@ public class FullAccessOpenedFileTruncateTest extends BaseFullAccessOpenedFileTe
             assertThat(buffer.array(), equalTo(expected));
         }
 
-        waitUntilSharedFilesAreClosed();
+        waitUntilLocalStorageIsEmpty();
     }
 }

@@ -19,40 +19,6 @@ public class FullAccessOpenedFileMiscTest extends BaseFullAccessOpenedFileTest {
     private static final Logger logger = LoggerFactory.getLogger(FullAccessOpenedFileMiscTest.class);
 
     @Test
-    public void partialReadWrite() throws Exception {
-
-        File file = drive.createFile(testFileName, testDir, getTestContent());
-
-        String replacement = "abcd";
-        int offset = 3;
-
-        try (ByteStore openedFile = factory.create(file)) {
-
-            ByteBuffer buffer = ByteBuffer.allocate(replacement.length());
-            buffer.put(replacement.getBytes(), 0, replacement.length());
-
-            buffer.rewind();
-            assertThat(openedFile.write(buffer, offset, replacement.length()), equalTo(replacement.length()));
-        }
-
-        waitUntilSharedFilesAreClosed();
-
-        try (ByteStore openedFile = factory.create(file)) {
-
-            String expected =
-                    testContentString.substring(0, offset) +
-                            replacement + testContentString.substring(offset + replacement.length());
-
-            ByteBuffer buffer = ByteBuffer.allocate(expected.length());
-
-            assertThat(openedFile.read(buffer, 0, expected.length()), equalTo(expected.length()));
-            assertThat(buffer.array(), equalTo(expected.getBytes()));
-        }
-
-        waitUntilSharedFilesAreClosed();
-    }
-
-    @Test
     public void fuzzyRead() throws Exception {
 
         tempStoreFactory.setConfig(new InMemoryByteStoreFactory.Config(1024));
@@ -96,7 +62,7 @@ public class FullAccessOpenedFileMiscTest extends BaseFullAccessOpenedFileTest {
                 }
             }
 
-            waitUntilSharedFilesAreClosed();
+            waitUntilLocalStorageIsEmpty();
         }
     }
 }

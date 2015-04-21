@@ -32,7 +32,7 @@ public class MountTest extends BaseMountFileSystemTest {
     @Test
     public void writeAndReadAfterClose() throws Exception {
         Files.write(mountPoint.resolve(testDir.getName()).resolve("test.txt"), testContentString.getBytes());
-        waitUntilSharedFilesAreClosed();
+        waitUntilLocalStorageIsEmpty();
         String actual = new String(Files.readAllBytes(mountPoint.resolve(testDir.getName()).resolve("test.txt")));
         assertThat(actual, equalTo(testContentString));
     }
@@ -56,7 +56,7 @@ public class MountTest extends BaseMountFileSystemTest {
     public void truncate() throws Exception {
         Path path = mountPoint.resolve(testDir.getName()).resolve("test.txt");
         Files.write(path, testContentString.getBytes());
-        waitUntilSharedFilesAreClosed();
+        waitUntilLocalStorageIsEmpty();
         new FileOutputStream(path.toFile(), true).getChannel().truncate(5).close();
         assertThat(new String(Files.readAllBytes(path)), equalTo(testContentString.substring(0, 5)));
     }

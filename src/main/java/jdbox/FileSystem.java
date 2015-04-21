@@ -95,7 +95,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
         logger.debug("[{}] opening, mode {}", path, info.openMode());
 
         try {
-            info.fh(openedFiles.open(fileTree.get(path), getOpenMode(info.openMode())));
+            info.fh(openedFiles.open(fileTree.get(path), getOpenMode(info.openMode())).handler);
             logger.debug("[{}] opened file, fh {}, mode {}", path, info.fh(), info.openMode());
             return 0;
         } catch (FileTree.NoSuchFileException e) {
@@ -112,7 +112,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
         logger.debug("[{}] releasing, fh {}", path, info.fh_old());
 
         try {
-            openedFiles.close(info.fh());
+            openedFiles.get(info.fh()).close();
             return 0;
         } catch (Exception e) {
             logger.error("[{}] an error occured while releasig file", path, e);
@@ -155,7 +155,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
             return -ErrorCodes.ENOSYS();
 
         try {
-            info.fh(openedFiles.open(fileTree.create(path, false), getOpenMode(info.openMode())));
+            info.fh(openedFiles.open(fileTree.create(path, false), getOpenMode(info.openMode())).handler);
             logger.debug("[{}] opened file, fh {}, mode {}", path, info.fh(), info.openMode());
             return 0;
         } catch (FileTree.NoSuchFileException e) {
@@ -192,22 +192,17 @@ public class FileSystem extends FuseFilesystemAdapterFull {
 
         long fileHandler = 0;
         try {
-            fileHandler = openedFiles.open(fileTree.get(path), OpenedFiles.OpenMode.WRITE_ONLY);
-            openedFiles.get(fileHandler).truncate(offset);
-            logger.debug("[{}] opened file, fh {}, mode {}", path, fileHandler, OpenedFiles.OpenMode.WRITE_ONLY);
+            try (OpenedFiles.OpenedFile openedFile =
+                         openedFiles.open(fileTree.get(path), OpenedFiles.OpenMode.WRITE_ONLY)) {
+                logger.debug("[{}] opened file, fh {}, mode {}", path, fileHandler, OpenedFiles.OpenMode.WRITE_ONLY);
+                openedFile.truncate(offset);
+            }
             return 0;
         } catch (FileTree.NoSuchFileException e) {
             return -ErrorCodes.ENOENT();
         } catch (Exception e) {
             logger.error("[{}] an error occured while opening file", path, e);
             return -ErrorCodes.EPIPE();
-        } finally {
-            if (fileHandler != 0)
-                try {
-                    openedFiles.close(fileHandler);
-                } catch (Exception e) {
-                    logger.error("[{}] an error occured while closing file", path, e);
-                }
         }
     }
 

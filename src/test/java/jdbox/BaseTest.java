@@ -2,13 +2,14 @@ package jdbox;
 
 import com.google.api.services.drive.Drive;
 import com.google.inject.Injector;
-import jdbox.openedfiles.OpenedFilesUtils;
+import jdbox.openedfiles.LocalStorage;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
@@ -18,6 +19,7 @@ import java.util.concurrent.TimeoutException;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class BaseTest {
 
@@ -72,8 +74,17 @@ public class BaseTest {
         injector.getInstance(Uploader.class).isDone().get(timeout, TimeUnit.SECONDS);
     }
 
-    public void waitUntilSharedFilesAreClosed() throws Exception {
-        OpenedFilesUtils.waitUntilSharedFilesAreClosed(injector);
+    public void waitUntilLocalStorageIsEmpty() throws Exception {
+        waitUntilLocalStorageIsEmpty(5000);
+    }
+
+    public void waitUntilLocalStorageIsEmpty(long timeout) throws Exception {
+        waitUntilUploaderIsDone();
+        Date start = new Date();
+        while (injector.getInstance(LocalStorage.class).getFilesCount() != 0) {
+            Thread.sleep(100);
+            assertThat(new Date().getTime() - start.getTime(), lessThan(timeout));
+        }
     }
 
     protected static InputStream getTestContent() {

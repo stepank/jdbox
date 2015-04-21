@@ -62,7 +62,7 @@ public class RollingReadOpenedFileFuzzyTest extends BaseRollingReadOpenedFileTes
                 }
             }
 
-            waitUntilSharedFilesAreClosed();
+            waitUntilLocalStorageIsEmpty();
         }
     }
 }
