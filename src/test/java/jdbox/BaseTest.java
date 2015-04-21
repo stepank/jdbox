@@ -1,7 +1,6 @@
 package jdbox;
 
 import com.google.api.services.drive.Drive;
-import com.google.common.util.concurrent.SettableFuture;
 import com.google.inject.Injector;
 import jdbox.openedfiles.OpenedFilesUtils;
 import org.junit.After;
@@ -70,14 +69,7 @@ public class BaseTest {
 
     public void waitUntilUploaderIsDone(long timeout)
             throws InterruptedException, ExecutionException, TimeoutException {
-        final SettableFuture<Object> future = SettableFuture.create();
-        injector.getInstance(Uploader.class).submit(new Runnable() {
-            @Override
-            public void run() {
-                future.set(null);
-            }
-        });
-        future.get(timeout, TimeUnit.SECONDS);
+        injector.getInstance(Uploader.class).isDone().get(timeout, TimeUnit.SECONDS);
     }
 
     public void waitUntilSharedFilesAreClosed() throws Exception {
