@@ -154,18 +154,15 @@ public class FileTree {
 
         logger.debug("[{}] creating {}", path, isDirectory ? "folder" : "file");
 
-        Path parentPath = path.getParent();
-        final String fileName = path.getFileName().toString();
-        final File parent = get(parentPath);
-
-        Map<String, File> siblings = getChildren(parentPath);
-
-        if (siblings.containsKey(fileName))
-            throw new FileAlreadyExistsException(path);
-
         readWriteLock.writeLock().lock();
 
         try {
+
+            if (getOrNullUnsafe(path) != null)
+                throw new FileAlreadyExistsException(path);
+
+            final String fileName = path.getFileName().toString();
+            final File parent = getUnsafe(path.getParent());
 
             final String tempId = UUID.randomUUID().toString();
             final File file = new File(tempId, fileName, parent.getId(), isDirectory);
@@ -236,23 +233,16 @@ public class FileTree {
 
         logger.debug("[{}] removing", path);
 
-        Path parentPath = path.getParent();
-        String fileName = path.getFileName().toString();
-        final File parent = get(parentPath);
-
-        Map<String, File> siblings = getChildren(parentPath);
-
-        final File file = siblings.get(fileName);
-
-        if (file == null)
-            throw new NoSuchFileException(path);
-
-        if (file.isDirectory() && getChildren(path).size() != 0)
-            throw new NonEmptyDirectoryException(path);
-
         readWriteLock.writeLock().lock();
 
         try {
+
+            final File file = getUnsafe(path);
+
+            if (file.isDirectory() && getChildrenUnsafe(path).size() != 0)
+                throw new NonEmptyDirectoryException(path);
+
+            final File parent = getUnsafe(path.getParent());
 
             knownFiles.remove(file, parent.getId());
 
@@ -284,66 +274,6 @@ public class FileTree {
         }
     }
 
-    private <T> T getOrFetch(Path path, String fileName, Getter<T> getter) throws Exception {
-
-        start.await();
-
-        if (syncError.isDone())
-            syncError.get();
-
-        KnownFile dir;
-
-        readWriteLock.readLock().lock();
-        try {
-
-            dir = knownFiles.getDir(path);
-
-            if (dir != null)
-                return getter.apply(fileName, dir.getChildren());
-
-        } finally {
-            readWriteLock.readLock().unlock();
-        }
-
-        File file = get(path);
-
-        if (!file.isDirectory())
-            throw new NotDirectoryException(path);
-
-        readWriteLock.writeLock().lock();
-
-        try {
-
-            dir = knownFiles.getDir(path);
-
-            if (dir != null)
-                return getter.apply(fileName, dir.getChildren());
-
-            dir = knownFiles.getFile(file.getId());
-
-            if (dir == null)
-                throw new NoSuchFileException(path);
-
-            Map<String, File> children;
-
-            if (!dir.self.isUploaded())
-                children = new HashMap<>();
-            else {
-                children = new HashMap<>();
-                for (File child : drive.getChildren(dir.self)) {
-                    children.put(child.getName(), child);
-                }
-            }
-
-            knownFiles.put(children, dir, path);
-
-            return getter.apply(fileName, children);
-
-        } finally {
-            readWriteLock.writeLock().unlock();
-        }
-    }
-
     public void move(String path, String newPath) throws Exception {
         move(Paths.get(path), Paths.get(newPath));
     }
@@ -355,24 +285,22 @@ public class FileTree {
         if (path.equals(newPath))
             return;
 
-        final Path parentPath = path.getParent();
-        final String fileName = path.getFileName().toString();
-        final File parent = get(parentPath);
-
-        final Path newParentPath = newPath.getParent();
-        final String newFileName = newPath.getFileName().toString();
-        final File newParent = get(newParentPath);
-
-        Map<String, File> siblings = getChildren(parentPath);
-
-        final File file = siblings.get(fileName);
-
-        if (file == null)
-            throw new NoSuchFileException(newPath);
-
         readWriteLock.writeLock().lock();
 
         try {
+
+            if (getOrNullUnsafe(newPath) != null)
+                throw new FileAlreadyExistsException(newPath);
+
+            final File file = getUnsafe(path);
+
+            final Path parentPath = path.getParent();
+            final String fileName = path.getFileName().toString();
+            final File parent = getUnsafe(parentPath);
+
+            final Path newParentPath = newPath.getParent();
+            final String newFileName = newPath.getFileName().toString();
+            final File newParent = getUnsafe(newParentPath);
 
             if (!parentPath.equals(newParentPath)) {
                 file.getParentIds().remove(parent.getId());
@@ -416,6 +344,91 @@ public class FileTree {
         } finally {
             readWriteLock.writeLock().unlock();
         }
+    }
+
+    private <T> T getOrFetch(Path path, String fileName, Getter<T> getter) throws Exception {
+
+        readWriteLock.readLock().lock();
+        try {
+
+            KnownFile dir = knownFiles.getDir(path);
+
+            if (dir != null)
+                return getter.apply(fileName, dir.getChildren());
+
+        } finally {
+            readWriteLock.readLock().unlock();
+        }
+
+        readWriteLock.writeLock().lock();
+        try {
+            return getOrFetchUnsafe(path, fileName, getter);
+        } finally {
+            readWriteLock.writeLock().unlock();
+        }
+    }
+
+    private File getUnsafe(Path path) throws Exception {
+
+        if (path.equals(rootPath))
+            return root;
+
+        File file = getOrFetchUnsafe(path.getParent(), path.getFileName().toString(), singleGetter);
+
+        if (file == null)
+            throw new NoSuchFileException(path);
+
+        return file;
+    }
+
+    private File getOrNullUnsafe(Path path) throws Exception {
+
+        if (path.equals(rootPath))
+            return root;
+
+        return getOrFetchUnsafe(path.getParent(), path.getFileName().toString(), singleGetter);
+    }
+
+    private Map<String, File> getChildrenUnsafe(Path path) throws Exception {
+        return getOrFetchUnsafe(path, null, immutabler);
+    }
+
+    private <T> T getOrFetchUnsafe(Path path, String fileName, Getter<T> getter) throws Exception {
+
+        start.await();
+
+        if (syncError.isDone())
+            syncError.get();
+
+        File file = getUnsafe(path);
+
+        if (!file.isDirectory())
+            throw new NotDirectoryException(path);
+
+        KnownFile dir = knownFiles.getDir(path);
+
+        if (dir != null)
+            return getter.apply(fileName, dir.getChildren());
+
+        dir = knownFiles.getFile(file.getId());
+
+        if (dir == null)
+            throw new NoSuchFileException(path);
+
+        Map<String, File> children;
+
+        if (!dir.self.isUploaded())
+            children = new HashMap<>();
+        else {
+            children = new HashMap<>();
+            for (File child : drive.getChildren(dir.self)) {
+                children.put(child.getName(), child);
+            }
+        }
+
+        knownFiles.put(children, dir, path);
+
+        return getter.apply(fileName, children);
     }
 
     private void retrieveAndApplyChanges() {
