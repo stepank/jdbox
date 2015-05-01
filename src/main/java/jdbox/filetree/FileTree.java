@@ -1,6 +1,9 @@
 package jdbox.filetree;
 
+import com.google.common.base.Function;
+import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.inject.Inject;
 import jdbox.DriveAdapter;
@@ -8,6 +11,7 @@ import jdbox.Uploader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nullable;
 import java.io.ByteArrayInputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -20,6 +24,13 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class FileTree {
+
+    private static ImmutableMap<String, String> extensions = ImmutableMap.copyOf(new HashMap<String, String>() {{
+        put("application/pdf", "pdf");
+        put("image/png", "png");
+        put("image/git", "gif");
+        put("image/jpeg", "jpg");
+    }});
 
     private static final Logger logger = LoggerFactory.getLogger(FileTree.class);
     private static final Path rootPath = Paths.get("/");
@@ -39,15 +50,45 @@ public class FileTree {
 
     private final static Getter<List<String>> namesGetter = new Getter<List<String>>() {
         @Override
-        public List<String> apply(String fileName, Map<String, File> files) {
-            return ImmutableList.copyOf(files.keySet());
+        public List<String> apply(String fileName, final Map<String, File> files) {
+            return ImmutableList.copyOf(
+                    Collections2.transform(files.entrySet(), new Function<Map.Entry<String, File>, String>() {
+                        @Nullable
+                        @Override
+                        public String apply(Map.Entry<String, File> entry) {
+
+                            String fileName = entry.getKey();
+                            File file = entry.getValue();
+
+                            String extension = extensions.get(file.getMimeType());
+
+                            if (extension == null || fileName.endsWith(extension))
+                                return fileName;
+
+                            String newFileName = fileName + "." + extension;
+                            return files.containsKey(newFileName) ? fileName : newFileName;
+                        }
+                    }));
         }
     };
 
     private final static Getter<File> singleGetter = new Getter<File>() {
         @Override
         public File apply(String fileName, Map<String, File> files) {
-            return files.get(fileName);
+
+            File file = files.get(fileName);
+            if (file != null)
+                return file;
+
+            int i = fileName.lastIndexOf('.');
+            if (i < 0)
+                return null;
+
+            file = files.get(fileName.substring(0, i));
+            if (file == null)
+                return null;
+
+            return fileName.substring(i + 1).equals(extensions.get(file.getMimeType())) ? file : null;
         }
     };
 
@@ -135,6 +176,14 @@ public class FileTree {
             throw new NoSuchFileException(path);
 
         return file;
+    }
+
+    public File getOrNull(Path path) throws Exception {
+
+        if (path.equals(rootPath))
+            return root;
+
+        return getOrFetch(path.getParent(), path.getFileName().toString(), singleGetter);
     }
 
     public List<String> getChildren(String path) throws Exception {

@@ -62,7 +62,6 @@ public class BaseFileTreeTest extends BaseTest {
         private final LinkedList<Assert> asserts = new LinkedList<>();
         private final FileTree fileTree;
         private Path path = BaseFileTreeTest.this.testDirPath;
-        private Integer count = null;
 
         public AssertCollection() {
             this(BaseFileTreeTest.this.fileTree);
@@ -74,13 +73,8 @@ public class BaseFileTreeTest extends BaseTest {
         }
 
         public void nothing() throws Exception {
-            count = 0;
-            check();
-        }
-
-        public void only() throws Exception {
-            count = 1;
-            check();
+            asserts.clear();
+            only();
         }
 
         public AssertCollection file() {
@@ -135,6 +129,13 @@ public class BaseFileTreeTest extends BaseTest {
             return this;
         }
 
+        public AssertCollection withRealName(String name) {
+            if (name == null)
+                throw new IllegalArgumentException("name");
+            asserts.getLast().realName = name;
+            return this;
+        }
+
         public AssertCollection withSize(int size) {
             asserts.getLast().size = size;
             return this;
@@ -150,26 +151,22 @@ public class BaseFileTreeTest extends BaseTest {
             return this;
         }
 
-        public void check() throws Exception {
+        public void only() throws Exception {
 
             List<String> children = fileTree.getChildren(path);
 
-            if (count != null) {
-                if (count.equals(0)) {
-                    assertThat(children.size(), equalTo(0));
-                    return;
-                } else
-                    assertThat(children.size(), equalTo(count));
-            }
+            assertThat(children.size(), equalTo(asserts.size()));
 
             for (Assert a : asserts) {
-                a.check(fileTree.get(path.resolve(a.name)));
+                children.contains(a.name);
+                a.check(fileTree.getOrNull(path.resolve(a.name)));
             }
         }
 
         public class Assert {
 
             public String name;
+            public String realName;
             public Integer size;
             public Boolean isDirectory;
             public Date accessedDate;
@@ -179,7 +176,10 @@ public class BaseFileTreeTest extends BaseTest {
 
                 assertThat(String.format("file %s does not exist", name), file, notNullValue());
 
-                assertThat(String.format("%s has wrong name", file), file.getName(), equalTo(name));
+                if (realName == null)
+                    assertThat(String.format("%s has wrong name", file), file.getName(), equalTo(name));
+                else
+                    assertThat(String.format("%s has wrong real name", file), file.getName(), equalTo(realName));
 
                 if (size != null)
                     assertThat(String.format("%s has wrong size", file), file.getSize(), equalTo((long) size));

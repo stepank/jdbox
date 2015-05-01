@@ -5,7 +5,7 @@ clean:
 	rm -rf package
 
 run:
-	mvn compile exec:java -Dexec.mainClass="jdbox.JdBox" -Dexec.args="mnt"
+	mvn compile exec:java -Dexec.mainClass="jdbox.JdBox"
 
 DATA_DIR_SUFFIX ?= .jdbox
 DATA_DIR = $(HOME)/$(DATA_DIR_SUFFIX)

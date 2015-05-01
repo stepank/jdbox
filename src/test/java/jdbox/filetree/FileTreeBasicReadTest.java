@@ -1,5 +1,6 @@
 package jdbox.filetree;
 
+import jdbox.JdBox;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -16,7 +17,7 @@ public class FileTreeBasicReadTest extends BaseFileTreeTest {
         File testFolder = drive.createFolder(testFolderName, testDir);
         drive.createFile(testFileName, testFolder, getTestContent());
 
-        assertFileTreeContains().defaultTestFile().and().defaultTestFolder().check();
+        assertFileTreeContains().defaultTestFile().and().defaultTestFolder().only();
         assertFileTreeContains().in(testFolderName).defaultTestFile().only();
 
         assertCounts(4, 2);
@@ -46,5 +47,75 @@ public class FileTreeBasicReadTest extends BaseFileTreeTest {
         fileTree.update();
         assertFileTreeContains().defaultTestFile().withName("test_file_2").only();
         assertCounts(2, 1);
+    }
+
+    /**
+     * List all files, make sure that a typed file w/o extension is listed with extension.
+     */
+    @Test
+    public void extensionIsAdded() throws Exception {
+
+        assertFileTreeContains().nothing();
+
+        drive.createFile(
+                new File(testFileName, testDir, false).setMimeType("application/pdf"),
+                JdBox.class.getResource("/test.pdf").openStream());
+
+        assertFileTreeContains().nothing();
+
+        fileTree.update();
+
+        assertFileTreeContains().file()
+                .withName(testFileName + ".pdf")
+                .withRealName(testFileName)
+                .only();
+
+        assertCounts(2, 1);
+    }
+
+    /**
+     * List all files, make sure that a typed file with extension is listed with extension.
+     */
+    @Test
+    public void extensionIsPreserved() throws Exception {
+
+        assertFileTreeContains().nothing();
+
+        drive.createFile(
+                new File(testFileName + ".pdf", testDir, false).setMimeType("application/pdf"),
+                JdBox.class.getResource("/test.pdf").openStream());
+
+        assertFileTreeContains().nothing();
+
+        fileTree.update();
+
+        assertFileTreeContains().file().withName(testFileName + ".pdf").only();
+
+        assertCounts(2, 1);
+    }
+
+    /**
+     * List all files, make sure that a typed file w/o extension is listed w/o extension
+     * (because there is already a file with this name).
+     */
+    @Test
+    public void extensionIsNotAdded() throws Exception {
+
+        assertFileTreeContains().nothing();
+
+        drive.createFile(testFileName + ".pdf", testDir, getTestContent());
+        drive.createFile(
+                new File(testFileName, testDir, false).setMimeType("application/pdf"),
+                JdBox.class.getResource("/test.pdf").openStream());
+
+        assertFileTreeContains().nothing();
+
+        fileTree.update();
+
+        assertFileTreeContains()
+                .file().withName(testFileName).and()
+                .file().defaultTestFile().withName(testFileName + ".pdf").only();
+
+        assertCounts(3, 1);
     }
 }

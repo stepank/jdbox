@@ -28,10 +28,15 @@ public class File {
     private volatile Date createdDate;
     private volatile Date modifiedDate;
     private volatile Date accessedDate;
+    private volatile String mimeType;
     private volatile Collection<String> parentIds;
     private volatile long size;
 
-    public File(String id, String name, final String parentId, boolean isDirectory) {
+    public File(String name, File parent, boolean isDirectory) {
+        this(null, name, parent.getId(), isDirectory, false);
+    }
+
+    public File(String id, String name, String parentId, boolean isDirectory) {
         this(id, name, parentId, isDirectory, false);
     }
 
@@ -61,6 +66,7 @@ public class File {
         createdDate = file.getCreatedDate() != null ? new Date(file.getCreatedDate().getValue()) : null;
         modifiedDate = file.getModifiedDate() != null ? new Date(file.getModifiedDate().getValue()) : null;
         accessedDate = file.getLastViewedByMeDate() != null ? new Date(file.getLastViewedByMeDate().getValue()) : null;
+        mimeType = file.getMimeType();
 
         parentIds = new ConcurrentLinkedQueue<>(
                 Collections2.transform(file.getParents(), new Function<ParentReference, String>() {
@@ -102,6 +108,7 @@ public class File {
         createdDate = file.getCreatedDate();
         modifiedDate = file.getModifiedDate();
         accessedDate = file.getAccessedDate();
+        mimeType = file.getMimeType();
     }
 
     public boolean isUploaded() {
@@ -154,6 +161,15 @@ public class File {
         return this;
     }
 
+    public Date getModifiedDate() {
+        return modifiedDate;
+    }
+
+    public File setModifiedDate(Date date) {
+        modifiedDate = date;
+        return this;
+    }
+
     public Date getAccessedDate() {
         return accessedDate;
     }
@@ -163,12 +179,12 @@ public class File {
         return this;
     }
 
-    public Date getModifiedDate() {
-        return modifiedDate;
+    public String getMimeType() {
+        return mimeType;
     }
 
-    public File setModifiedDate(Date date) {
-        modifiedDate = date;
+    public File setMimeType(String mimeType) {
+        this.mimeType = mimeType;
         return this;
     }
 

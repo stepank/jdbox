@@ -254,7 +254,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
         } catch (FileTree.NoSuchFileException e) {
             return -ErrorCodes.ENOENT();
         } catch (Exception e) {
-            logger.error("[{}] an error occured while removing file", path, e);
+            logger.error("[{}] an error occured while moving file", path, e);
             return -ErrorCodes.EPIPE();
         }
     }

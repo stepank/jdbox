@@ -122,7 +122,7 @@ public class DriveAdapter {
     }
 
     public File createFile(String name, File parent, InputStream content) throws IOException {
-        return createFile(new File(null, name, parent.getId(), false), content);
+        return createFile(new File(name, parent, false), content);
     }
 
     public File createFile(File file, InputStream content) throws IOException {
@@ -148,6 +148,8 @@ public class DriveAdapter {
 
         if (file.isDirectory())
             gdFile.setMimeType("application/vnd.google-apps.folder");
+        else if (file.getMimeType() != null)
+            gdFile.setMimeType(file.getMimeType());
 
         Drive.Files.Insert request;
         if (file.isDirectory()) {
@@ -156,6 +158,7 @@ public class DriveAdapter {
             request = drive.files().insert(gdFile, new InputStreamContent("text/plain", content));
             request.getMediaHttpUploader().setDirectUploadEnabled(true);
         }
+
         return new File(request.execute());
     }
 
