@@ -1,6 +1,6 @@
 package jdbox.filetree;
 
-import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.inject.Inject;
 import jdbox.DriveAdapter;
@@ -37,10 +37,10 @@ public class FileTree {
     private volatile long largestChangeId;
     private volatile File root;
 
-    private final static Getter<Map<String, File>> immutabler = new Getter<Map<String, File>>() {
+    private final static Getter<List<String>> namesGetter = new Getter<List<String>>() {
         @Override
-        public Map<String, File> apply(String fileName, Map<String, File> files) {
-            return ImmutableMap.copyOf(files);
+        public List<String> apply(String fileName, Map<String, File> files) {
+            return ImmutableList.copyOf(files.keySet());
         }
     };
 
@@ -137,13 +137,13 @@ public class FileTree {
         return file;
     }
 
-    public Map<String, File> getChildren(String path) throws Exception {
+    public List<String> getChildren(String path) throws Exception {
         return getChildren(Paths.get(path));
     }
 
-    public Map<String, File> getChildren(Path path) throws Exception {
+    public List<String> getChildren(Path path) throws Exception {
         logger.debug("[{}] getting children", path);
-        return getOrFetch(path, null, immutabler);
+        return getOrFetch(path, null, namesGetter);
     }
 
     public File create(String path, boolean isDirectory) throws Exception {
@@ -389,8 +389,8 @@ public class FileTree {
         return getOrFetchUnsafe(path.getParent(), path.getFileName().toString(), singleGetter);
     }
 
-    private Map<String, File> getChildrenUnsafe(Path path) throws Exception {
-        return getOrFetchUnsafe(path, null, immutabler);
+    private List<String> getChildrenUnsafe(Path path) throws Exception {
+        return getOrFetchUnsafe(path, null, namesGetter);
     }
 
     private <T> T getOrFetchUnsafe(Path path, String fileName, Getter<T> getter) throws Exception {

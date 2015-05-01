@@ -73,9 +73,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
 
         try {
 
-            for (File file : fileTree.getChildren(path).values()) {
-                filler.add(file.getName());
-            }
+            filler.add(fileTree.getChildren(path));
 
             return 0;
 

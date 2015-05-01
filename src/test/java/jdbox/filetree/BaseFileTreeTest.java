@@ -7,7 +7,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Date;
 import java.util.LinkedList;
-import java.util.Map;
+import java.util.List;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -152,7 +152,7 @@ public class BaseFileTreeTest extends BaseTest {
 
         public void check() throws Exception {
 
-            Map<String, jdbox.filetree.File> children = fileTree.getChildren(path);
+            List<String> children = fileTree.getChildren(path);
 
             if (count != null) {
                 if (count.equals(0)) {
@@ -163,7 +163,7 @@ public class BaseFileTreeTest extends BaseTest {
             }
 
             for (Assert a : asserts) {
-                a.check(children.get(a.name));
+                a.check(fileTree.get(path.resolve(a.name)));
             }
         }
 
