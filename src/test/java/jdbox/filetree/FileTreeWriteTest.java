@@ -177,7 +177,7 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
         assertFileTreeContains().nothing();
 
         drive.createFile(
-                new File(testFileName, testDir, false).setMimeType("application/pdf"),
+                new File(testFileName, testDir, false),
                 JdBox.class.getResource("/test.pdf").openStream());
 
         assertFileTreeContains().nothing();

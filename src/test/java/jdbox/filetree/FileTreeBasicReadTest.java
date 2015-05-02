@@ -68,7 +68,7 @@ public class FileTreeBasicReadTest extends BaseFileTreeTest {
         assertFileTreeContains().nothing();
 
         drive.createFile(
-                new File(testFileName, testDir, false).setMimeType("application/pdf"),
+                new File(testFileName, testDir, false),
                 JdBox.class.getResource("/test.pdf").openStream());
 
         assertFileTreeContains().nothing();
@@ -92,7 +92,7 @@ public class FileTreeBasicReadTest extends BaseFileTreeTest {
         assertFileTreeContains().nothing();
 
         drive.createFile(
-                new File(testFileName + ".pdf", testDir, false).setMimeType("application/pdf"),
+                new File(testFileName + ".pdf", testDir, false),
                 JdBox.class.getResource("/test.pdf").openStream());
 
         assertFileTreeContains().nothing();
@@ -115,7 +115,7 @@ public class FileTreeBasicReadTest extends BaseFileTreeTest {
 
         drive.createFile(testFileName + ".pdf", testDir, getTestContent());
         drive.createFile(
-                new File(testFileName, testDir, false).setMimeType("application/pdf"),
+                new File(testFileName, testDir, false),
                 JdBox.class.getResource("/test.pdf").openStream());
 
         assertFileTreeContains().nothing();

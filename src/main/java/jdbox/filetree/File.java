@@ -181,11 +181,6 @@ public class File {
         return mimeType;
     }
 
-    public File setMimeType(String mimeType) {
-        this.mimeType = mimeType;
-        return this;
-    }
-
     public Collection<String> getParentIds() {
         return parentIds;
     }

@@ -148,14 +148,12 @@ public class DriveAdapter {
 
         if (file.isDirectory())
             gdFile.setMimeType("application/vnd.google-apps.folder");
-        else if (file.getMimeType() != null)
-            gdFile.setMimeType(file.getMimeType());
 
         Drive.Files.Insert request;
         if (file.isDirectory()) {
             request = drive.files().insert(gdFile);
         } else {
-            request = drive.files().insert(gdFile, new InputStreamContent("text/plain", content));
+            request = drive.files().insert(gdFile, new InputStreamContent(null, content));
             request.getMediaHttpUploader().setDirectUploadEnabled(true);
         }
 
@@ -261,7 +259,7 @@ public class DriveAdapter {
 
         Drive.Files.Update request = drive.files().update(
                 file.getId(), new com.google.api.services.drive.model.File(),
-                new InputStreamContent("text/plain", content));
+                new InputStreamContent(null, content));
         request.getMediaHttpUploader().setDirectUploadEnabled(true);
         return new File(request.execute());
     }
