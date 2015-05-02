@@ -3,6 +3,7 @@ package jdbox.filetree;
 import com.google.api.services.drive.model.ParentReference;
 import com.google.common.base.Function;
 import com.google.common.collect.Collections2;
+import jdbox.openedfiles.NonDownloadableOpenedFile;
 
 import javax.annotation.Nullable;
 import java.util.Collection;
@@ -14,9 +15,6 @@ public class File {
     public static String fields =
             "items(id,title,mimeType,downloadUrl,fileSize,alternateLink,parents,labels,createdDate,modifiedDate,lastViewedByMeDate)";
 
-    private static String alternateLinkText =
-            "This file cannot be donloaded directly, you can open it in browser using the following link:\n  ";
-
     private volatile boolean uploaded;
     private volatile String id;
     private volatile String name;
@@ -24,7 +22,7 @@ public class File {
     private volatile boolean isReal;
     private volatile boolean isTrashed;
     private volatile String downloadUrl;
-    private volatile String exportInfo;
+    private volatile String alternateLink;
     private volatile Date createdDate;
     private volatile Date modifiedDate;
     private volatile Date accessedDate;
@@ -62,7 +60,7 @@ public class File {
         isReal = file.getDownloadUrl() != null && file.getDownloadUrl().length() != 0;
         isTrashed = file.getLabels().getTrashed();
         downloadUrl = file.getDownloadUrl();
-        exportInfo = alternateLinkText + file.getAlternateLink() + "\n";
+        alternateLink = file.getAlternateLink();
         createdDate = file.getCreatedDate() != null ? new Date(file.getCreatedDate().getValue()) : null;
         modifiedDate = file.getModifiedDate() != null ? new Date(file.getModifiedDate().getValue()) : null;
         accessedDate = file.getLastViewedByMeDate() != null ? new Date(file.getLastViewedByMeDate().getValue()) : null;
@@ -80,7 +78,7 @@ public class File {
         if (isDirectory)
             size = 0;
         else if (!isReal())
-            size = getExportInfo().length();
+            size = NonDownloadableOpenedFile.getContent(this).length();
         else
             size = file.getFileSize() == null ? 0 : file.getFileSize();
     }
@@ -102,7 +100,7 @@ public class File {
         isReal = file.isReal();
         isTrashed = file.isTrashed();
         downloadUrl = file.getDownloadUrl();
-        exportInfo = file.getExportInfo();
+        alternateLink = file.getAlternateLink();
         parentIds = file.getParentIds();
         size = file.getSize();
         createdDate = file.getCreatedDate();
@@ -148,8 +146,8 @@ public class File {
         this.downloadUrl = downloadUrl;
     }
 
-    public String getExportInfo() {
-        return exportInfo;
+    public String getAlternateLink() {
+        return alternateLink;
     }
 
     public Date getCreatedDate() {

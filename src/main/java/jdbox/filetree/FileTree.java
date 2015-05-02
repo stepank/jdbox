@@ -30,6 +30,10 @@ public class FileTree {
         put("image/png", "png");
         put("image/git", "gif");
         put("image/jpeg", "jpg");
+        put("application/vnd.google-apps.drawing", "desktop");
+        put("application/vnd.google-apps.document", "desktop");
+        put("application/vnd.google-apps.presentation", "desktop");
+        put("application/vnd.google-apps.spreadsheet", "desktop");
     }});
 
     private static final Logger logger = LoggerFactory.getLogger(FileTree.class);
