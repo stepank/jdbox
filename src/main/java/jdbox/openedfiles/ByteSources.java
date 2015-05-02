@@ -7,8 +7,10 @@ import java.nio.ByteBuffer;
 public class ByteSources {
 
     public static void copy(ByteSource source, ByteStore destination) throws IOException {
+        copy(source, destination, 16 * 1024);
+    }
 
-        final int bufferSize = 16 * 1024;
+    public static void copy(ByteSource source, ByteStore destination, int bufferSize) throws IOException {
 
         ByteBuffer buffer = ByteBuffer.allocate(bufferSize);
 
@@ -16,6 +18,7 @@ public class ByteSources {
         int read;
 
         do {
+            buffer.rewind();
             read = source.read(buffer, offset, bufferSize);
             buffer.rewind();
             destination.write(buffer, offset, read);
