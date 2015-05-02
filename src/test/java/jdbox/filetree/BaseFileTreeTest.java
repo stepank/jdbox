@@ -155,7 +155,9 @@ public class BaseFileTreeTest extends BaseTest {
 
             List<String> children = fileTree.getChildren(path);
 
-            assertThat(children.size(), equalTo(asserts.size()));
+            assertThat(
+                    "the actual number of files does not match the expected",
+                    children.size(), equalTo(asserts.size()));
 
             for (Assert a : asserts) {
                 children.contains(a.name);

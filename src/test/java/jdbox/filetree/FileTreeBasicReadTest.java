@@ -41,11 +41,21 @@ public class FileTreeBasicReadTest extends BaseFileTreeTest {
      */
     @Test
     public void rename() throws Exception {
+
         File testFile = createTestFileAndUpdate();
+
         drive.renameFile(testFile, "test_file_2");
         assertFileTreeContains().defaultTestFile().only();
+
         fileTree.update();
         assertFileTreeContains().defaultTestFile().withName("test_file_2").only();
+
+        drive.renameFile(testFile, testFileName);
+        assertFileTreeContains().defaultTestFile().withName("test_file_2").only();
+
+        fileTree.update();
+        assertFileTreeContains().defaultTestFile().only();
+
         assertCounts(2, 1);
     }
 

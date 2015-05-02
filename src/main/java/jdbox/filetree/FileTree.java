@@ -344,7 +344,7 @@ public class FileTree {
             final File file = getUnsafe(path);
 
             final Path parentPath = path.getParent();
-            final String fileName = path.getFileName().toString();
+            final String fileName = file.getName();
             final File parent = getUnsafe(parentPath);
 
             final Path newParentPath = newPath.getParent();
@@ -358,10 +358,8 @@ public class FileTree {
                 knownFiles.put(file, newParent.getId());
             }
 
-            if (!fileName.equals(newFileName)) {
-                file.setName(newFileName);
-                knownFiles.rename(knownFiles.getFile(file), fileName, file);
-            }
+            if (!fileName.equals(newFileName))
+                knownFiles.rename(knownFiles.getFile(file), newFileName);
 
             uploader.submit(new Runnable() {
                 @Override
@@ -521,8 +519,8 @@ public class FileTree {
             } else if (currentFile != null) {
 
                 if (changedFile != null && !currentFile.self.getName().equals(changedFile.getName())) {
-                    logger.debug("renaming {} to {}", currentFile, changedFile);
-                    knownFiles.rename(currentFile, currentFile.self.getName(), changedFile);
+                    logger.debug("renaming {} to {}", currentFile.self.getName(), changedFile);
+                    knownFiles.rename(currentFile, changedFile.getName());
                 }
 
                 if (changedFile == null || changedFile.isTrashed()) {
@@ -662,13 +660,14 @@ class KnownFiles {
         }
     }
 
-    public void rename(KnownFile currentFile, String currentName, File changedFile) {
+    public void rename(KnownFile currentFile, String newName) {
         for (String parentId : currentFile.self.getParentIds()) {
             KnownFile kf = getFile(parentId);
             if (kf == null)
                 continue;
-            kf.renameChild(currentName, changedFile);
+            kf.renameChild(currentFile.self.getName(), newName);
         }
+        currentFile.self.setName(newName);
     }
 
     public void updateId(File file, String id) {
@@ -747,9 +746,8 @@ class KnownFile {
         return true;
     }
 
-    public void renameChild(String currentName, File changedFile) {
-        children.remove(currentName);
-        children.put(changedFile.getName(), changedFile);
+    public void renameChild(String currentName, String newName) {
+        children.put(newName, children.remove(currentName));
     }
 
     public boolean removeChild(File file) {

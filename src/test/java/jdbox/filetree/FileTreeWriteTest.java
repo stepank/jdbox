@@ -1,6 +1,7 @@
 package jdbox.filetree;
 
 import com.google.inject.Injector;
+import jdbox.JdBox;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -164,5 +165,49 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
         fileTree2.update();
         assertFileTreeContains(fileTree2).in(source).nothing();
         assertFileTreeContains(fileTree2).in(destination).file().withName("test_file_2").only();
+    }
+
+    /**
+     * Rename a file that has a certain MIME type, but lacks extension,
+     * make sure it is renamed and represented correctly.
+     */
+    @Test
+    public void renameTyped() throws Exception {
+
+        assertFileTreeContains().nothing();
+
+        drive.createFile(
+                new File(testFileName, testDir, false).setMimeType("application/pdf"),
+                JdBox.class.getResource("/test.pdf").openStream());
+
+        assertFileTreeContains().nothing();
+
+        fileTree.update();
+
+        assertFileTreeContains().file()
+                .withName(testFileName + ".pdf")
+                .withRealName(testFileName)
+                .only();
+
+        fileTree.move(
+                testDirPath.resolve(testFileName + ".pdf"),
+                testDirPath.resolve("test_file_2.pdf"));
+
+        assertFileTreeContains()
+                .file()
+                .withName("test_file_2.pdf")
+                .withRealName("test_file_2.pdf")
+                .only();
+
+        waitUntilUploaderIsDone();
+        fileTree.update();
+
+        assertFileTreeContains()
+                .file()
+                .withName("test_file_2.pdf")
+                .withRealName("test_file_2.pdf")
+                .only();
+
+        assertCounts(2, 1);
     }
 }
