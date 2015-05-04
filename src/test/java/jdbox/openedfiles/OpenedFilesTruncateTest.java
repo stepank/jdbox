@@ -20,7 +20,7 @@ public class OpenedFilesTruncateTest extends BaseOpenedFilesTest {
 
     @Parameterized.Parameters
     public static Collection<Object[]> data() {
-        return Arrays.asList(new Object[][]{{2}, {4}, {6}, {8}, {22}, {24}});
+        return Arrays.asList(new Object[][]{{0}, {2}, {4}, {6}, {8}, {22}, {24}});
     }
 
     @Parameterized.Parameter

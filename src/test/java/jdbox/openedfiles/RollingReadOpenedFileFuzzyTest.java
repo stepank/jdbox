@@ -16,7 +16,7 @@ import static org.hamcrest.Matchers.equalTo;
 @Category(RollingReadOpenedFile.class)
 public class RollingReadOpenedFileFuzzyTest extends BaseRollingReadOpenedFileTest {
 
-    private static final Logger logger = LoggerFactory.getLogger(RollingReadOpenedFile.class);
+    private static final Logger logger = LoggerFactory.getLogger(RollingReadOpenedFileFuzzyTest.class);
 
     @Test
     public void fuzzyRead() throws Exception {

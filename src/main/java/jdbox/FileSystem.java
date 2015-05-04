@@ -188,11 +188,12 @@ public class FileSystem extends FuseFilesystemAdapterFull {
 
         logger.debug("[{}] truncating, offset {}", path, offset);
 
-        long fileHandler = 0;
         try {
             try (OpenedFiles.OpenedFile openedFile =
                          openedFiles.open(fileTree.get(path), OpenedFiles.OpenMode.WRITE_ONLY)) {
-                logger.debug("[{}] opened file, fh {}, mode {}", path, fileHandler, OpenedFiles.OpenMode.WRITE_ONLY);
+                logger.debug(
+                        "[{}] opened file for truncate, fh {}, mode {}",
+                        path, openedFile.handler, OpenedFiles.OpenMode.WRITE_ONLY);
                 openedFile.truncate(offset);
             }
             return 0;

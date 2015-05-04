@@ -13,7 +13,7 @@ import java.util.concurrent.Future;
 
 class FullAccessOpenedFile implements ByteStore {
 
-    private static final Logger logger = LoggerFactory.getLogger(InMemoryByteStore.class);
+    private static final Logger logger = LoggerFactory.getLogger(FullAccessOpenedFile.class);
 
     private final ByteBuffer oneByteBuffer = ByteBuffer.wrap(new byte[1]);
 
@@ -84,7 +84,7 @@ class FullAccessOpenedFile implements ByteStore {
     }
 
     private void ensureContentIsRead(long offset) throws IOException {
-        if (reader != null) {
+        if (reader != null && offset > 0) {
             oneByteBuffer.rewind();
             reader.read(oneByteBuffer, offset - 1, 1);
         }
