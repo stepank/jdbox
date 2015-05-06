@@ -1,23 +1,29 @@
 package jdbox;
 
+import com.google.common.collect.ImmutableList;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.UUID;
+import java.util.*;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 public class FuzzyMountTest extends BaseMountFileSystemTest {
 
     private Path tempDirPath;
+
+    private final List<ActionFactory> actionFactories = ImmutableList.of(
+            new CreateFileActionFactory(),
+            new CreateDirActionFactory()
+    );
 
     @Before
     public void setUp() throws Exception {
@@ -39,14 +45,17 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
 
         Path cloudRoot = mountPoint.resolve(testDir.getName());
 
+        List<Path> dirs = new ArrayList<Path>() {{
+            add(Paths.get("."));
+        }};
+        List<Path> files = new ArrayList<>();
+
         for (int i = 0; i < 3; i++) {
 
-            Path relativePath = Paths.get(UUID.randomUUID().toString());
-            Path cloudPath = cloudRoot.resolve(relativePath);
-            Path localPath = tempDirPath.resolve(relativePath);
+            Action action = getNextAction(dirs, files);
 
-            new java.io.File(cloudPath.toUri()).createNewFile();
-            new java.io.File(localPath.toUri()).createNewFile();
+            action.run(cloudRoot);
+            action.run(tempDirPath);
         }
 
         assertThat(dumpDir(cloudRoot), equalTo(dumpDir(tempDirPath)));
@@ -59,6 +68,19 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
         fs.mount(new java.io.File(mountPoint.toString()), false);
 
         assertThat(dumpDir(cloudRoot), equalTo(dumpDir(tempDirPath)));
+    }
+
+    private Action getNextAction(final List<Path> dirs, final List<Path> files) throws Exception {
+
+        List<ActionFactory> candidates = new ArrayList<>();
+
+        for (ActionFactory af : actionFactories) {
+            if (af.canCreateAction(dirs, files)) {
+                candidates.add(af);
+            }
+        }
+
+        return candidates.get(new Random().nextInt(candidates.size())).createAction(dirs, files);
     }
 
     private static void deleteDir(Path path) {
@@ -108,6 +130,56 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
             for (java.io.File f : files) {
                 dumpDir(root, root.relativize(f.toPath()), sb);
             }
+        }
+    }
+
+    private interface Action {
+        void run(Path root) throws IOException;
+    }
+
+    private interface ActionFactory {
+        boolean canCreateAction(List<Path> dirs, List<Path> files);
+
+        Action createAction(List<Path> dirs, List<Path> files);
+    }
+
+    private class CreateFileActionFactory implements ActionFactory {
+
+        @Override
+        public boolean canCreateAction(List<Path> dirs, List<Path> files) {
+            return true;
+        }
+
+        @Override
+        public Action createAction(final List<Path> dirs, final List<Path> files) {
+            final Path path = dirs.get(new Random().nextInt(dirs.size())).resolve(UUID.randomUUID().toString());
+            files.add(path);
+            return new Action() {
+                @Override
+                public void run(Path root) throws IOException {
+                    assertThat(new File(root.resolve(path).toUri()).createNewFile(), is(true));
+                }
+            };
+        }
+    }
+
+    private class CreateDirActionFactory implements ActionFactory {
+
+        @Override
+        public boolean canCreateAction(List<Path> dirs, List<Path> files) {
+            return true;
+        }
+
+        @Override
+        public Action createAction(List<Path> dirs, List<Path> files) {
+            final Path path = dirs.get(new Random().nextInt(dirs.size())).resolve(UUID.randomUUID().toString());
+            dirs.add(path);
+            return new Action() {
+                @Override
+                public void run(Path root) throws IOException {
+                    assertThat(new java.io.File(root.resolve(path).toUri()).mkdir(), is(true));
+                }
+            };
         }
     }
 }

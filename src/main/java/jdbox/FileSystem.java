@@ -169,9 +169,6 @@ public class FileSystem extends FuseFilesystemAdapterFull {
 
         logger.debug("[{}] creating directory", path);
 
-        if (mode.type() != TypeMode.NodeType.DIRECTORY)
-            return -ErrorCodes.ENOSYS();
-
         try {
             fileTree.create(path, true);
             return 0;
