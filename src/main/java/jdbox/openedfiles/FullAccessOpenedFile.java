@@ -109,7 +109,7 @@ class FullAccessOpenedFileFactory implements OpenedFileFactory {
     @Override
     public synchronized ByteStore create(File file) {
         Future<InputStream> stream =
-                file.isUploaded() ? drive.downloadFileRangeAsync(file, 0, file.getSize()) : null;
+                file.getId().isSet() ? drive.downloadFileRangeAsync(file, 0, file.getSize()) : null;
         return new FullAccessOpenedFile(tempStoreFactory.create(), stream, readerFactory);
     }
 }

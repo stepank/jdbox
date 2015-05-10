@@ -15,13 +15,12 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class BaseFileTreeTest extends BaseTest {
 
-    protected Path testDirPath;
+    protected Path testDirPath = Paths.get("/");
     protected FileTree fileTree;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        testDirPath = Paths.get("/");
         fileTree = injector.getInstance(FileTree.class);
         fileTree.setRoot(testDir);
     }
@@ -40,13 +39,13 @@ public class BaseFileTreeTest extends BaseTest {
         return file;
     }
 
-    protected void assertCounts(int knownFilesCount, int trackedDirsCount) {
-        assertCounts(fileTree, knownFilesCount, trackedDirsCount);
+    protected void assertCounts(int knownFileCount, int trackedDirCount) {
+        assertCounts(fileTree, knownFileCount, trackedDirCount);
     }
 
-    protected void assertCounts(FileTree fileTree, int knownFilesCount, int trackedDirsCount) {
-        assertThat(fileTree.getKnownFilesCount(), equalTo(knownFilesCount));
-        assertThat(fileTree.getTrackedDirsCount(), equalTo(trackedDirsCount));
+    protected void assertCounts(FileTree fileTree, int knownFileCount, int trackedDirCount) {
+        assertThat(fileTree.getKnownFileCount(), equalTo(knownFileCount));
+        assertThat(fileTree.getTrackedDirCount(), equalTo(trackedDirCount));
     }
 
     protected AssertCollection assertFileTreeContains() throws Exception {
@@ -156,7 +155,7 @@ public class BaseFileTreeTest extends BaseTest {
             List<String> children = fileTree.getChildren(path);
 
             assertThat(
-                    "the actual number of files does not match the expected",
+                    "the actual number of files does not match the expected number",
                     children.size(), equalTo(asserts.size()));
 
             for (Assert a : asserts) {

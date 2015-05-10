@@ -15,8 +15,8 @@ public class File {
     public static String fields =
             "items(id,title,mimeType,downloadUrl,fileSize,alternateLink,parents,labels,createdDate,modifiedDate,lastViewedByMeDate)";
 
-    private volatile boolean uploaded;
-    private volatile String id;
+    private final FileId id;
+
     private volatile String name;
     private volatile boolean isDirectory;
     private volatile boolean isReal;
@@ -27,34 +27,31 @@ public class File {
     private volatile Date modifiedDate;
     private volatile Date accessedDate;
     private volatile String mimeType;
-    private volatile Collection<String> parentIds;
+    private volatile Collection<FileId> parentIds;
     private volatile long size;
 
+    public static File getRoot(String id) {
+        return new File(new FileId(id), "/", null, true);
+    }
+
     public File(String name, File parent, boolean isDirectory) {
-        this(null, name, parent.getId(), isDirectory, false);
+        this(new FileId(), name, parent, isDirectory);
     }
 
-    public File(String id, String name, String parentId, boolean isDirectory) {
-        this(id, name, parentId, isDirectory, false);
-    }
-
-    private File(String id, String name, final String parentId, boolean isDirectory, boolean uploaded) {
+    private File(FileId id, String name, final File parent, boolean isDirectory) {
         isReal = true;
-        this.uploaded = uploaded;
         this.id = id;
         this.name = name;
         this.isDirectory = isDirectory;
-        if (parentId != null)
-            this.parentIds = new ConcurrentLinkedQueue<String>() {{
-                add(parentId);
+        if (parent != null)
+            this.parentIds = new ConcurrentLinkedQueue<FileId>() {{
+                add(parent.getId());
             }};
     }
 
     public File(com.google.api.services.drive.model.File file) {
 
-        uploaded = true;
-
-        id = file.getId();
+        id = new FileId(file.getId());
         name = file.getTitle();
         isDirectory = file.getMimeType().equals("application/vnd.google-apps.folder");
         isReal = file.getDownloadUrl() != null && file.getDownloadUrl().length() != 0;
@@ -67,11 +64,11 @@ public class File {
         mimeType = file.getMimeType();
 
         parentIds = new ConcurrentLinkedQueue<>(
-                Collections2.transform(file.getParents(), new Function<ParentReference, String>() {
+                Collections2.transform(file.getParents(), new Function<ParentReference, FileId>() {
                     @Nullable
                     @Override
-                    public String apply(ParentReference parentReference) {
-                        return parentReference.getId();
+                    public FileId apply(ParentReference parentReference) {
+                        return new FileId(parentReference.getId());
                     }
                 }));
 
@@ -83,19 +80,18 @@ public class File {
             size = file.getFileSize() == null ? 0 : file.getFileSize();
     }
 
-    public static File getRoot(String id) {
-        return new File(id, "/", null, true, true);
-    }
-
-    public void updateId(String id) {
-        assert !uploaded : "file is already uploaded and has id";
-        this.id = id;
-        uploaded = true;
+    public void setUploaded(File file) {
+        this.id.set(file.getId().get());
+        this.downloadUrl = file.getDownloadUrl();
     }
 
     public void update(File file) {
 
-        assert file.getId().equals(id) : "new file id is not equal the original one";
+        try {
+            assert file.getId().get().equals(id.get()) : "new file id is not equal the original one";
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
 
         isReal = file.isReal();
         isTrashed = file.isTrashed();
@@ -109,11 +105,7 @@ public class File {
         mimeType = file.getMimeType();
     }
 
-    public boolean isUploaded() {
-        return uploaded;
-    }
-
-    public String getId() {
+    public FileId getId() {
         return id;
     }
 
@@ -140,10 +132,6 @@ public class File {
 
     public String getDownloadUrl() {
         return downloadUrl;
-    }
-
-    public void setDownloadUrl(String downloadUrl) {
-        this.downloadUrl = downloadUrl;
     }
 
     public String getAlternateLink() {
@@ -181,7 +169,7 @@ public class File {
         return mimeType;
     }
 
-    public Collection<String> getParentIds() {
+    public Collection<FileId> getParentIds() {
         return parentIds;
     }
 

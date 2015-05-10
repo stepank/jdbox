@@ -16,6 +16,7 @@ import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.inject.Inject;
 import jdbox.filetree.File;
+import jdbox.filetree.FileId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,7 +56,7 @@ public class DriveAdapter {
 
         return Lists.transform(
                 drive.files().list()
-                        .setQ("'" + file.getId() + "' in parents and trashed = false")
+                        .setQ("'" + file.getId().get() + "' in parents and trashed = false")
                         .setFields(File.fields).setMaxResults(1000).execute().getItems(),
                 new Function<com.google.api.services.drive.model.File, File>() {
                     @Nullable
@@ -82,7 +83,7 @@ public class DriveAdapter {
 
     public InputStream downloadFileRange(File file, long offset, long length) throws IOException {
 
-        if (!file.isReal() || !file.isUploaded())
+        if (!file.isReal() || !file.getId().isSet())
             throw new IllegalArgumentException("request for a stream of a file that has not been uploaded yet");
 
         logger.debug("downloading {}, offset {}, length {}", file, offset, length);
@@ -95,7 +96,7 @@ public class DriveAdapter {
 
     public Future<InputStream> downloadFileRangeAsync(final File file, final long offset, final long length) {
 
-        if (!file.isReal() || !file.isUploaded())
+        if (!file.isReal() || !file.getId().isSet())
             throw new IllegalArgumentException("request for a stream of a file that has not been uploaded yet");
 
         logger.debug("requesting a stream of {}, offset {}, length {}", file, offset, length);
@@ -125,6 +126,14 @@ public class DriveAdapter {
         return createFile(new File(name, parent, false), content);
     }
 
+    public File createFolder(String name) throws IOException {
+        return createFile(new File(name, null, true), null);
+    }
+
+    public File createFolder(String name, File parent) throws IOException {
+        return createFile(new File(name, parent, true), null);
+    }
+
     public File createFile(File file, InputStream content) throws IOException {
 
         logger.debug("creating {}", file);
@@ -135,11 +144,12 @@ public class DriveAdapter {
 
         if (file.getParentIds() != null && file.getParentIds().size() > 0)
             gdFile.setParents(Lists.newLinkedList(
-                    Collections2.transform(file.getParentIds(), new Function<String, ParentReference>() {
-                        @Nullable
+                    Collections2.transform(file.getParentIds(), new Function<FileId, ParentReference>() {
                         @Override
-                        public ParentReference apply(@Nullable String parentId) {
-                            return new ParentReference().setId(parentId);
+                        public ParentReference apply(FileId parentId) {
+                            if (!parentId.isSet())
+                                throw new UnsupportedOperationException("parent id is null");
+                            return new ParentReference().setId(parentId.get());
                         }
                     })));
 
@@ -160,26 +170,18 @@ public class DriveAdapter {
         return new File(request.execute());
     }
 
-    public File createFolder(String name) throws IOException {
-        return createFile(new File(null, name, null, true), null);
-    }
-
-    public File createFolder(String name, File parent) throws IOException {
-        return createFile(new File(null, name, parent.getId(), true), null);
-    }
-
     public void deleteFile(File file) throws IOException {
 
         logger.debug("deleting {}", file);
 
-        drive.files().delete(file.getId()).execute();
+        drive.files().delete(file.getId().get()).execute();
     }
 
     public void trashFile(File file) throws IOException {
 
         logger.debug("trashing {}", file);
 
-        drive.files().trash(file.getId()).execute();
+        drive.files().trash(file.getId().get()).execute();
     }
 
     public void updateFile(File file, Field update) throws IOException {
@@ -212,17 +214,18 @@ public class DriveAdapter {
         if (update.contains(Field.PARENT_IDS)) {
             fields.add("parents");
             newFile.setParents(Lists.newLinkedList(
-                    Collections2.transform(file.getParentIds(), new Function<String, ParentReference>() {
-                        @Nullable
+                    Collections2.transform(file.getParentIds(), new Function<FileId, ParentReference>() {
                         @Override
-                        public ParentReference apply(@Nullable String parentId) {
-                            return new ParentReference().setId(parentId);
+                        public ParentReference apply(FileId parentId) {
+                            if (!parentId.isSet())
+                                throw new UnsupportedOperationException("file id is null");
+                            return new ParentReference().setId(parentId.get());
                         }
                     })));
         }
 
         Drive.Files.Patch request =
-                drive.files().patch(file.getId(), newFile).setFields(Joiner.on(",").join(fields));
+                drive.files().patch(file.getId().get(), newFile).setFields(Joiner.on(",").join(fields));
         if (update.contains(Field.MODIFIED_DATE))
             request.setSetModifiedDate(true);
         request.execute();
@@ -258,7 +261,7 @@ public class DriveAdapter {
         logger.debug("updating {}", file);
 
         Drive.Files.Update request = drive.files().update(
-                file.getId(), new com.google.api.services.drive.model.File(),
+                file.getId().get(), new com.google.api.services.drive.model.File(),
                 new InputStreamContent(null, content));
         request.getMediaHttpUploader().setDirectUploadEnabled(true);
         return new File(request.execute());
