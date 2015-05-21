@@ -2,6 +2,9 @@ package jdbox;
 
 import com.google.api.services.drive.Drive;
 import com.google.inject.Injector;
+import jdbox.driveadapter.DriveAdapter;
+import jdbox.driveadapter.File;
+import jdbox.models.fileids.FileIdStore;
 import jdbox.openedfiles.LocalStorage;
 import org.junit.After;
 import org.junit.Before;
@@ -33,7 +36,8 @@ public class BaseTest {
     protected Injector injector;
 
     protected DriveAdapter drive;
-    protected jdbox.filetree.File testDir;
+    protected FileIdStore fileIdStore;
+    protected File testDir;
 
     @BeforeClass
     public static void setUpClass() throws Exception {
@@ -45,7 +49,8 @@ public class BaseTest {
     public void setUp() throws Exception {
         injector = createInjector();
         drive = injector.getInstance(DriveAdapter.class);
-        testDir = drive.createFolder(UUID.randomUUID().toString());
+        fileIdStore = injector.getInstance(FileIdStore.class);
+        testDir = drive.createFolder(UUID.randomUUID().toString(), null);
     }
 
     @After

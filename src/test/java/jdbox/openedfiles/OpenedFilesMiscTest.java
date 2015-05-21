@@ -1,6 +1,6 @@
 package jdbox.openedfiles;
 
-import jdbox.filetree.File;
+import jdbox.models.File;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -16,7 +16,7 @@ public class OpenedFilesMiscTest extends BaseOpenedFilesTest {
     @Test
     public void partialReadWrite() throws Exception {
 
-        File file = drive.createFile(testFileName, testDir, getTestContent());
+        File file = new File(fileIdStore, drive.createFile(testFileName, testDir, getTestContent()));
 
         String replacement = "abcd";
         int offset = 3;
@@ -52,7 +52,7 @@ public class OpenedFilesMiscTest extends BaseOpenedFilesTest {
 
         openedFiles.setConfig(new OpenedFiles.Config(testContentString.length() + 4));
 
-        File file = drive.createFile(testFileName, testDir, getTestContent());
+        File file = new File(fileIdStore, drive.createFile(testFileName, testDir, getTestContent()));
 
         try (ByteStore openedFile = openedFiles.open(file, OpenedFiles.OpenMode.READ_WRITE)) {
 

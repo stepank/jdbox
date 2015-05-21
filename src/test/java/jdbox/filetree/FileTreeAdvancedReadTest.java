@@ -1,5 +1,6 @@
 package jdbox.filetree;
 
+import jdbox.driveadapter.File;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
@@ -30,8 +31,10 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
 
         File testFile = createTestFileAndUpdate();
 
-        if (rename)
-            drive.renameFile(testFile, "test_file_2");
+        if (rename) {
+            testFile.setName("test_file_2");
+            drive.updateFile(testFile);
+        }
 
         String newContent = "hello beautiful world";
         drive.updateFileContent(testFile, new ByteArrayInputStream(newContent.getBytes()));
@@ -53,8 +56,10 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
     @Test
     public void trash() throws Exception {
         File testFile = createTestFileAndUpdate();
-        if (rename)
-            drive.renameFile(testFile, "test_file_2");
+        if (rename) {
+            testFile.setName("test_file_2");
+            drive.updateFile(testFile);
+        }
         drive.trashFile(testFile);
         assertFileTreeContains().defaultTestFile().only();
         fileTree.update();
@@ -68,8 +73,10 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
     @Test
     public void delete() throws Exception {
         File testFile = createTestFileAndUpdate();
-        if (rename)
-            drive.renameFile(testFile, "test_file_2");
+        if (rename) {
+            testFile.setName("test_file_2");
+            drive.updateFile(testFile);
+        }
         drive.deleteFile(testFile);
         assertFileTreeContains().defaultTestFile().only();
         fileTree.update();
@@ -89,8 +96,10 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
 
         assertCounts(3, 2);
 
-        if (rename)
-            drive.renameFile(folder, testFolderName + "_2");
+        if (rename) {
+            folder.setName(testFolderName + "_2");
+            drive.updateFile(folder);
+        }
         drive.deleteFile(folder);
         assertFileTreeContains().defaultTestFolder().only();
 
@@ -101,7 +110,7 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
     }
 
     /**
-     * Move a file from one directory into another one, make sure the file disappears from one directory and appears in the other.
+     * Move a file from one directory into another, make sure the file disappears from one directory and appears in the other.
      */
     @Test
     public void move() throws Exception {
@@ -117,8 +126,9 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
         fileTree.getChildren(destinationPath);
 
         if (rename)
-            drive.renameFile(testFile, "test_file_2");
-        drive.moveFile(testFile, destination);
+            testFile.setName("test_file_2");
+        testFile.setParentId(destination.getId());
+        drive.updateFile(testFile);
         assertFileTreeContains().in(sourcePath).defaultTestFile().only();
         assertFileTreeContains().in(destinationPath).nothing();
 
@@ -145,8 +155,9 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
         fileTree.getChildren(sourcePath);
 
         if (rename)
-            drive.renameFile(testFile, "test_file_2");
-        drive.moveFile(testFile, destination);
+            testFile.setName("test_file_2");
+        testFile.setParentId(destination.getId());
+        drive.updateFile(testFile);
         assertFileTreeContains().in(sourcePath).defaultTestFile().only();
 
         fileTree.update();
@@ -170,8 +181,9 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
         fileTree.getChildren(destinationPath);
 
         if (rename)
-            drive.renameFile(testFile, "test_file_2");
-        drive.moveFile(testFile, destination);
+            testFile.setName("test_file_2");
+        testFile.setParentId(destination.getId());
+        drive.updateFile(testFile);
         assertFileTreeContains().in(destinationPath).nothing();
 
         fileTree.update();

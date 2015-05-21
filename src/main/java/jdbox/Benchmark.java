@@ -6,7 +6,7 @@ import com.google.api.client.http.HttpResponse;
 import com.google.api.client.util.ByteStreams;
 import com.google.api.services.drive.Drive;
 import com.google.inject.Injector;
-import jdbox.filetree.File;
+import jdbox.models.File;
 import jdbox.filetree.FileTree;
 import net.fusejna.DirectoryFiller;
 

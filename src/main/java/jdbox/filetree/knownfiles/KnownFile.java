@@ -1,6 +1,7 @@
 package jdbox.filetree.knownfiles;
 
-import jdbox.filetree.File;
+import jdbox.models.File;
+import jdbox.models.fileids.FileId;
 
 import java.util.*;
 
@@ -9,13 +10,70 @@ import java.util.*;
  */
 public class KnownFile {
 
-    public final File self;
+    private File self;
 
     private Map<String, KnownFile> children;
     private final Set<KnownFile> parents = new HashSet<>();
 
-    public KnownFile(File file) {
-        this.self = file;
+    private final KnownFiles knownFiles;
+
+    KnownFile(FileId fileId, boolean isDirectory, KnownFiles knownFiles) {
+
+        self = new File(fileId);
+        self.setIsDirectory(isDirectory);
+
+        this.knownFiles = knownFiles;
+    }
+
+    KnownFile(FileId fileId, String name, boolean isDirectory, Date createdDate, KnownFiles knownFiles) {
+
+        self = new File(fileId);
+        self.setName(name);
+        self.setIsDirectory(isDirectory);
+        self.setCreatedDate(createdDate);
+        self.setParentIds(new HashSet<FileId>());
+
+        this.knownFiles = knownFiles;
+    }
+
+    KnownFile(File file, KnownFiles knownFiles) {
+        self = file.clone();
+        this.knownFiles = knownFiles;
+    }
+
+    public FileId getId() {
+        return self.getId();
+    }
+
+    public String getName() {
+        return self.getName();
+    }
+
+    public boolean isDirectory() {
+        return self.isDirectory();
+    }
+
+    public String getMimeType() {
+        return self.getMimeType();
+    }
+
+    public Set<KnownFile> getParents() {
+        return Collections.unmodifiableSet(parents);
+    }
+
+    public void setUploaded(String id, String downloadUrl) {
+        self.getId().set(id);
+        self.setDownloadUrl(downloadUrl);
+        knownFiles.put(this);
+    }
+
+    public void setDates(Date modifiedDate, Date accessedDate) {
+        self.setModifiedDate(modifiedDate);
+        self.setAccessedDate(accessedDate);
+    }
+
+    public void setSize(long size) {
+        self.setSize(size);
     }
 
     public void setTracked() {
@@ -28,41 +86,90 @@ public class KnownFile {
         return Collections.unmodifiableMap(children);
     }
 
-    boolean tryAddChild(KnownFile file) {
-        if (children == null)
-            return false;
-        addChild(file);
-        return true;
-    }
+    public void tryAddChild(KnownFile child) {
 
-    void addChild(KnownFile child) {
+        child.self.getParentIds().add(getId());
+
         if (children == null)
-            throw new NullPointerException("children");
+            return;
+
         children.put(child.self.getName(), child);
+        child.parents.add(this);
+
+        if (child.getId().isSet()) {
+            KnownFile previous = knownFiles.put(child);
+            if (previous != null && previous != child)
+                throw new IllegalStateException("two different KnownFile's with the same id must not exist");
+        }
     }
 
-    boolean tryRemoveChild(KnownFile child) {
-        if (children == null)
-            return false;
-        removeChild(child);
-        return true;
+    public void tryRemoveChild(KnownFile child) {
+        tryRemoveChild(child, true);
     }
 
-    void removeChild(KnownFile child) {
+    public void rename(String name) {
+
+        Set<KnownFile> parents = new HashSet<>(this.parents);
+
+        for (KnownFile parent : parents)
+            parent.tryRemoveChild(this, false);
+
+        self.setName(name);
+
+        for (KnownFile parent : parents)
+            parent.tryAddChild(this);
+    }
+
+    public void update(File file) {
+        EnumSet<File.Field> fields = EnumSet.allOf(File.Field.class);
+        fields.remove(File.Field.NAME);
+        fields.remove(File.Field.PARENT_IDS);
+        self.update(file, fields);
+    }
+
+    public File toFile() {
+        return self.clone();
+    }
+
+    public File toFile(EnumSet<File.Field> fields) {
+        return self.clone(fields);
+    }
+
+    private void tryRemoveChild(KnownFile child, boolean cleanUp) {
+
+        child.self.getParentIds().remove(getId());
+
         if (children == null)
-            throw new NullPointerException("children");
+            return;
+
         children.remove(child.self.getName());
+        child.parents.remove(this);
+
+        if (cleanUp)
+            child.tryRemove();
     }
 
-    public Set<KnownFile> getParents() {
-        return Collections.unmodifiableSet(parents);
+    private void tryRemove() {
+
+        if (parents.size() != 0)
+            return;
+
+        knownFiles.remove(this);
+
+        Map<String, KnownFile> children = getChildrenOrNull();
+        if (children != null) {
+            for (KnownFile child : new LinkedList<>(children.values()))
+                tryRemoveChild(child);
+        }
     }
 
-    void addParent(KnownFile parent) {
-        parents.add(parent);
-    }
-
-    void removeParent(KnownFile parent) {
-        parents.remove(parent);
+    @Override
+    public String toString() {
+        return "KnownFile{" +
+                "id=" + self.getId() +
+                ", name='" + self.getName() + '\'' +
+                ", isDirectory=" + self.isDirectory() +
+                ", size=" + self.getSize() +
+                '}';
     }
 }

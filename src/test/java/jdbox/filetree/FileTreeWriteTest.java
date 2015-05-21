@@ -21,7 +21,7 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
         Injector injector2 = createInjector();
 
         fileTree2 = injector2.getInstance(FileTree.class);
-        fileTree2.setRoot(testDir);
+        fileTree2.setRoot(testDir.getId());
 
         assertFileTreeContains(fileTree2).nothing();
     }
@@ -87,11 +87,11 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
         Date newModifiedDate = new Date(new Date().getTime() + 7200 * 1000);
 
         fileTree.create(testDirPath.resolve(testFileName), false);
-        fileTree.setDates(testDirPath.resolve(testFileName), newAccessedDate, newModifiedDate);
+        fileTree.setDates(testDirPath.resolve(testFileName), newModifiedDate, newAccessedDate);
         assertFileTreeContains()
                 .defaultEmptyTestFile()
-                .withAccessedDate(newAccessedDate)
                 .withModifiedDate(newModifiedDate)
+                .withAccessedDate(newAccessedDate)
                 .only();
 
         waitUntilUploaderIsDone();
@@ -100,8 +100,8 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
         fileTree2.update();
         assertFileTreeContains(fileTree2)
                 .defaultEmptyTestFile()
-                .withAccessedDate(newAccessedDate)
                 .withModifiedDate(newModifiedDate)
+                .withAccessedDate(newAccessedDate)
                 .only();
     }
 

@@ -1,9 +1,10 @@
 package jdbox.openedfiles;
 
 import com.google.inject.Inject;
-import jdbox.DriveAdapter;
 import jdbox.Uploader;
-import jdbox.filetree.File;
+import jdbox.driveadapter.DriveAdapter;
+import jdbox.models.File;
+import jdbox.models.fileids.FileId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,7 +20,7 @@ public class LocalStorage {
     private final DriveAdapter drive;
     private final InMemoryByteStoreFactory tempStoreFactory;
     private final Uploader uploader;
-    private final Map<File, SharedOpenedFile> files = new HashMap<>();
+    private final Map<FileId, SharedOpenedFile> files = new HashMap<>();
 
     @Inject
     LocalStorage(DriveAdapter drive, InMemoryByteStoreFactory tempStoreFactory, Uploader uploader) {
@@ -32,25 +33,32 @@ public class LocalStorage {
         return files.size();
     }
 
-    public synchronized ByteStore getContent(File file) {
+    public synchronized Long getSize(File file) {
+        SharedOpenedFile shared = files.get(file.getId());
+        if (shared == null)
+            return null;
+        return files.get(file.getId()).file.getSize();
+    }
 
-        SharedOpenedFile shared = files.get(file);
+    public synchronized OpenedFile getContent(File file) {
+
+        SharedOpenedFile shared = files.get(file.getId());
 
         if (shared == null)
             return null;
 
         shared.refCount++;
 
-        return new ProxyByteStore(shared);
+        return new ProxyOpenedFile(shared);
     }
 
-    public synchronized ByteStore putContent(File file, ByteStore content) {
+    public synchronized OpenedFile putContent(File file, ByteStore content) {
 
         SharedOpenedFile shared = new SharedOpenedFile(file, content);
 
-        files.put(file, shared);
+        files.put(file.getId(), shared);
 
-        return new ProxyByteStore(shared);
+        return new ProxyOpenedFile(shared);
     }
 
     private class SharedOpenedFile {
@@ -66,12 +74,12 @@ public class LocalStorage {
         }
     }
 
-    private class ProxyByteStore implements ByteStore {
+    private class ProxyOpenedFile extends OpenedFile {
 
         private final SharedOpenedFile shared;
         private boolean closed = false;
 
-        public ProxyByteStore(SharedOpenedFile shared) {
+        public ProxyOpenedFile(SharedOpenedFile shared) {
             this.shared = shared;
         }
 
@@ -123,7 +131,7 @@ public class LocalStorage {
         }
 
         @Override
-        public void close() throws IOException {
+        public File release() throws IOException {
 
             logger.debug(
                     "closing a proxy for {}, has changed {}, ref count {}",
@@ -132,7 +140,7 @@ public class LocalStorage {
             synchronized (shared) {
 
                 if (closed)
-                    return;
+                    return null;
 
                 if (!shared.hasChanged) {
 
@@ -140,28 +148,32 @@ public class LocalStorage {
 
                     shared.refCount--;
                     if (shared.refCount == 0)
-                        files.remove(shared.file).content.close();
+                        synchronized (LocalStorage.this) {
+                            files.remove(shared.file.getId()).content.close();
+                        }
 
-                    return;
+                    return null;
                 }
 
                 final ByteStore capturedContent = tempStoreFactory.create();
-                ByteSources.copy(shared.content, capturedContent);
+                int size = ByteSources.copy(shared.content, capturedContent);
 
                 uploader.submit(new Runnable() {
                     @Override
                     public void run() {
                         try {
 
-                            shared.file.update(
-                                    drive.updateFileContent(shared.file, ByteSources.toInputStream(capturedContent)));
+                            drive.updateFileContent(
+                                    shared.file.toDaFile(), ByteSources.toInputStream(capturedContent));
 
                             capturedContent.close();
 
                             synchronized (shared) {
                                 shared.refCount--;
                                 if (shared.refCount == 0)
-                                    files.remove(shared.file).content.close();
+                                    synchronized (LocalStorage.this) {
+                                        files.remove(shared.file.getId()).content.close();
+                                    }
                             }
 
                         } catch (Exception e) {
@@ -169,6 +181,10 @@ public class LocalStorage {
                         }
                     }
                 });
+
+                shared.file.setSize(size);
+
+                return shared.file;
             }
         }
     }

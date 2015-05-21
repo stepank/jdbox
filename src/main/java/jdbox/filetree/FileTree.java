@@ -6,10 +6,13 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.inject.Inject;
-import jdbox.DriveAdapter;
 import jdbox.Uploader;
+import jdbox.driveadapter.DriveAdapter;
 import jdbox.filetree.knownfiles.KnownFile;
 import jdbox.filetree.knownfiles.KnownFiles;
+import jdbox.models.File;
+import jdbox.models.fileids.FileId;
+import jdbox.models.fileids.FileIdStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,6 +51,7 @@ public class FileTree {
     private final CountDownLatch start = new CountDownLatch(1);
     private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
     private final Semaphore applyChangesSemaphore = new Semaphore(1);
+    private final FileIdStore fileIdStore;
     private final Uploader uploader;
     private final boolean autoUpdate;
 
@@ -62,8 +66,8 @@ public class FileTree {
                         @Override
                         public String apply(Map.Entry<String, KnownFile> entry) {
 
-                            String fileName = entry.getKey();
-                            File file = entry.getValue().self;
+                            String fileName = entry.getValue().getName();
+                            KnownFile file = entry.getValue();
 
                             String extension = extensions.get(file.getMimeType());
 
@@ -81,7 +85,9 @@ public class FileTree {
         @Override
         public File apply(String fileName, Map<String, KnownFile> files) {
             KnownFile kf = singleKnownFileGetter.apply(fileName, files);
-            return kf != null ? kf.self : null;
+            File file = kf != null ? kf.toFile() : null;
+            logger.debug(fileName + " " + (file != null ? file.getSize() : ""));
+            return file;
         }
     };
 
@@ -101,14 +107,16 @@ public class FileTree {
             if (kf == null)
                 return null;
 
-            return fileName.substring(i + 1).equals(extensions.get(kf.self.getMimeType())) ? kf : null;
+            return fileName.substring(i + 1).equals(extensions.get(kf.getMimeType())) ? kf : null;
         }
     };
 
     @Inject
     public FileTree(
-            DriveAdapter drive, Uploader uploader, ScheduledExecutorService executor, boolean autoUpdate) {
+            DriveAdapter drive, FileIdStore fileIdStore, Uploader uploader,
+            ScheduledExecutorService executor, boolean autoUpdate) {
         this.drive = drive;
+        this.fileIdStore = fileIdStore;
         this.uploader = uploader;
         this.executor = executor;
         this.autoUpdate = autoUpdate;
@@ -143,7 +151,7 @@ public class FileTree {
 
         readWriteLock.writeLock().lock();
         try {
-            knownFiles.setRoot(new KnownFile(File.getRoot(info.rootFolderId)));
+            knownFiles.setRoot(fileIdStore.get(info.rootFolderId));
         } finally {
             readWriteLock.writeLock().unlock();
         }
@@ -159,13 +167,13 @@ public class FileTree {
             }, 0, 5, TimeUnit.SECONDS);
     }
 
-    public void setRoot(File file) throws InterruptedException {
+    public void setRoot(String id) throws InterruptedException {
 
         start.await();
 
         readWriteLock.writeLock().lock();
         try {
-            knownFiles.setRoot(new KnownFile(file));
+            knownFiles.setRoot(fileIdStore.get(id));
         } finally {
             readWriteLock.writeLock().unlock();
         }
@@ -196,7 +204,7 @@ public class FileTree {
     public File getOrNull(Path path) throws Exception {
 
         if (isRoot(path))
-            return knownFiles.getRoot().self;
+            return knownFiles.getRoot().toFile();
 
         return getOrFetch(path.getParent(), path.getFileName().toString(), singleFileGetter);
     }
@@ -229,25 +237,32 @@ public class FileTree {
                 throw new FileAlreadyExistsException(path);
 
             final KnownFile file =
-                    new KnownFile(new File(fileName.toString(), parent.self, isDirectory));
-            file.self.setCreatedDate(new Date());
+                    knownFiles.create(fileIdStore.create(), fileName.toString(), isDirectory, new Date());
 
-            knownFiles.tryAddChild(parent, file);
+            parent.tryAddChild(file);
 
             uploader.submit(new Runnable() {
                 @Override
                 public void run() {
+
                     applyChangesSemaphore.acquireUninterruptibly();
+
                     try {
-                        File createdFile = drive.createFile(file.self, new ByteArrayInputStream(new byte[0]));
-                        logger.debug("created {}", file);
+
                         readWriteLock.writeLock().lock();
                         try {
-                            file.self.setUploaded(createdFile);
-                            knownFiles.put(file);
+
+                            jdbox.driveadapter.File createdFile =
+                                    drive.createFile(file.toFile().toDaFile(), new ByteArrayInputStream(new byte[0]));
+
+                            logger.debug("created {}", file);
+
+                            file.setUploaded(createdFile.getId(), createdFile.getDownloadUrl());
+
                         } finally {
                             readWriteLock.writeLock().unlock();
                         }
+
                     } catch (Exception e) {
                         logger.error("an error occured while creating file", e);
                     } finally {
@@ -256,37 +271,44 @@ public class FileTree {
                 }
             });
 
-            return file.self;
+            return file.toFile();
 
         } finally {
             readWriteLock.writeLock().unlock();
         }
     }
 
-    public void setDates(String path, Date accessedDate, Date modifiedDate) throws Exception {
-        setDates(Paths.get(path), accessedDate, modifiedDate);
+    public void setDates(String path, Date modifiedDate, Date accessedDate) throws Exception {
+        setDates(Paths.get(path), modifiedDate, accessedDate);
     }
 
-    public void setDates(Path path, final Date accessedDate, final Date modifiedDate) throws Exception {
+    public void setDates(Path path, final Date modifiedDate, final Date accessedDate) throws Exception {
 
         logger.debug("[{}] setting dates", path);
 
-        final File file = get(path);
+        readWriteLock.writeLock().lock();
 
-        file.setAccessedDate(accessedDate);
-        file.setModifiedDate(modifiedDate);
+        try {
 
-        uploader.submit(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    drive.touchFile(file, true);
-                    logger.debug("set dates for {}", file);
-                } catch (Exception e) {
-                    logger.error("an error occured while setting dates", e);
+            KnownFile existing = getUnsafe(knownFiles.getRoot(), path);
+            existing.setDates(modifiedDate, accessedDate);
+
+            final File file = existing.toFile(EnumSet.of(File.Field.MODIFIED_DATE, File.Field.ACCESSED_DATE));
+
+            uploader.submit(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        drive.updateFile(file.toDaFile());
+                        logger.debug("set dates for {}", file);
+                    } catch (Exception e) {
+                        logger.error("an error occured while setting dates", e);
+                    }
                 }
-            }
-        });
+            });
+        } finally {
+            readWriteLock.writeLock().unlock();
+        }
     }
 
     public void remove(String path) throws Exception {
@@ -301,27 +323,31 @@ public class FileTree {
 
         try {
 
-            final KnownFile parent = getUnsafe(knownFiles.getRoot(), path.getParent());
-            final KnownFile file = getUnsafe(parent, path.getFileName());
+            KnownFile parent = getUnsafe(knownFiles.getRoot(), path.getParent());
+            KnownFile existing = getUnsafe(parent, path.getFileName());
 
-            if (file.self.isDirectory() && getChildrenUnsafe(file, null).size() != 0)
+            if (existing.isDirectory() && getChildrenUnsafe(existing, null).size() != 0)
                 throw new NonEmptyDirectoryException(path);
 
-            knownFiles.remove(file);
+            parent.tryRemoveChild(existing);
+
+            final File file = existing.toFile(EnumSet.of(File.Field.PARENT_IDS));
 
             uploader.submit(new Runnable() {
                 @Override
                 public void run() {
+
                     applyChangesSemaphore.acquireUninterruptibly();
+
                     try {
-                        Collection<FileId> parentIds = file.self.getParentIds();
-                        if (parentIds.size() == 1)
-                            drive.trashFile(file.self);
-                        else {
-                            parentIds.remove(parent.self.getId());
-                            drive.updateParentIds(file.self);
-                        }
+
+                        if (file.getParentIds().size() == 0)
+                            drive.trashFile(file.toDaFile());
+                        else
+                            drive.updateFile(file.toDaFile());
+
                         logger.debug("removed {}", file);
+
                     } catch (Exception e) {
                         logger.error("an error occured while removing file", e);
                     } finally {
@@ -350,16 +376,16 @@ public class FileTree {
 
         try {
 
-            final Path parentPath = path.getParent();
-            final Path fileName = path.getFileName();
-            final KnownFile parent = getUnsafe(knownFiles.getRoot(), parentPath);
+            Path parentPath = path.getParent();
+            Path fileName = path.getFileName();
+            KnownFile parent = getUnsafe(knownFiles.getRoot(), parentPath);
 
-            final KnownFile file = getUnsafe(parent, fileName);
+            KnownFile existing = getUnsafe(parent, fileName);
 
-            final Path newParentPath = newPath.getParent();
-            final Path newFileName = newPath.getFileName();
+            Path newParentPath = newPath.getParent();
+            Path newFileName = newPath.getFileName();
 
-            final KnownFile newParent;
+            KnownFile newParent;
             if (newParentPath.equals(parentPath))
                 newParent = parent;
             else
@@ -368,18 +394,22 @@ public class FileTree {
             if (getOrNullUnsafe(newParent, newFileName) != null)
                 throw new FileAlreadyExistsException(newPath);
 
-            knownFiles.tryRemoveChild(parent, file);
-
-            if (!fileName.equals(newFileName)) {
-                file.self.setName(newFileName.toString());
-            }
-
-            knownFiles.tryAddChild(newParent, file);
+            EnumSet<File.Field> fields = EnumSet.noneOf(File.Field.class);
 
             if (!parentPath.equals(newParentPath)) {
-                file.self.getParentIds().remove(parent.self.getId());
-                file.self.getParentIds().add(newParent.self.getId());
+
+                fields.add(File.Field.PARENT_IDS);
+
+                newParent.tryAddChild(existing);
+                parent.tryRemoveChild(existing);
             }
+
+            if (!fileName.equals(newFileName)) {
+                fields.add(File.Field.NAME);
+                existing.rename(newFileName.toString());
+            }
+
+            final File file = existing.toFile(fields);
 
             uploader.submit(new Runnable() {
                 @Override
@@ -389,15 +419,8 @@ public class FileTree {
 
                     try {
 
-                        EnumSet<DriveAdapter.Field> fields = EnumSet.noneOf(DriveAdapter.Field.class);
+                        drive.updateFile(file.toDaFile());
 
-                        if (!parentPath.equals(newParentPath))
-                            fields.add(DriveAdapter.Field.PARENT_IDS);
-
-                        if (!fileName.equals(newFileName))
-                            fields.add(DriveAdapter.Field.NAME);
-
-                        drive.updateFile(file.self, fields);
                         logger.debug("moved {}", file);
 
                     } catch (Exception e) {
@@ -413,6 +436,15 @@ public class FileTree {
         }
     }
 
+    public void updateFileSize(File file) {
+        readWriteLock.writeLock().lock();
+        try {
+            knownFiles.get(file.getId()).setSize(file.getSize());
+        } finally {
+            readWriteLock.writeLock().unlock();
+        }
+    }
+
     private <T> T getOrFetch(Path path, String fileName, Getter<T> getter) throws Exception {
 
         readWriteLock.readLock().lock();
@@ -422,7 +454,7 @@ public class FileTree {
 
             if (dir != null) {
 
-                if (!dir.self.isDirectory())
+                if (!dir.isDirectory())
                     throw new NotDirectoryException(path);
 
                 Map<String, KnownFile> children = dir.getChildrenOrNull();
@@ -488,7 +520,7 @@ public class FileTree {
 
         KnownFile dir = getUnsafe(root, path);
 
-        if (!dir.self.isDirectory())
+        if (!dir.isDirectory())
             throw new NotDirectoryException(path);
 
         Map<String, KnownFile> children = dir.getChildrenOrNull();
@@ -497,11 +529,14 @@ public class FileTree {
 
         dir.setTracked();
 
-        if (dir.self.getId().isSet()) {
-            for (File child : drive.getChildren(dir.self)) {
-                KnownFile file = new KnownFile(child);
-                knownFiles.tryAddChild(dir, file);
-                knownFiles.put(file);
+        if (dir.getId().isSet()) {
+            for (jdbox.driveadapter.File child : drive.getChildren(dir.toFile().toDaFile())) {
+                File file = new File(fileIdStore, child);
+                KnownFile existing = knownFiles.get(file.getId());
+                if (existing != null)
+                    dir.tryAddChild(existing);
+                else
+                    dir.tryAddChild(knownFiles.create(file));
             }
         }
 
@@ -537,71 +572,50 @@ public class FileTree {
         try {
 
             String changedFileId = change.fileId;
-            File changedFile = change.file;
+            File changedFile = change.file != null ? new File(fileIdStore, change.file) : null;
 
-            KnownFile currentFile = knownFiles.get(new FileId(changedFileId));
+            KnownFile currentFile = knownFiles.get(fileIdStore.get(changedFileId));
 
             if (currentFile == null && changedFile != null && !changedFile.isTrashed()) {
 
                 logger.debug("adding {} to tree", changedFile);
 
-                KnownFile file = new KnownFile(changedFile);
+                KnownFile file = knownFiles.create(changedFile);
 
-                boolean added = false;
                 for (FileId parentId : changedFile.getParentIds()) {
                     KnownFile parent = knownFiles.get(parentId);
-                    if (parent != null && knownFiles.tryAddChild(parent, file))
-                        added = true;
+                    if (parent != null)
+                        parent.tryAddChild(file);
                 }
-
-                if (added)
-                    knownFiles.put(file);
 
             } else if (currentFile != null) {
 
                 if (changedFile == null || changedFile.isTrashed()) {
 
-                    logger.debug("removing {} from tree", changedFile);
-                    knownFiles.remove(currentFile);
+                    logger.debug("removing {} from tree", currentFile);
+
+                    for (KnownFile parent : currentFile.getParents())
+                        parent.tryRemoveChild(currentFile);
 
                 } else {
 
+                    logger.debug("updating existing file with {}", change);
+
+                    currentFile.rename(changedFile.getName());
+                    currentFile.update(changedFile);
+
                     logger.debug("ensuring that {} is correctly placed in tree", changedFile);
 
-                    boolean renamed = !currentFile.self.getName().equals(changedFile.getName());
-
-                    Set<KnownFile> currentParents = currentFile.getParents();
-
-                    Set<KnownFile> parentsToRemoveFrom = new HashSet<>(currentParents);
-                    if (!renamed) {
-                        for (FileId parentId : changedFile.getParentIds()) {
-                            KnownFile parent = knownFiles.get(parentId);
-                            if (parent != null)
-                                parentsToRemoveFrom.remove(parent);
-                        }
-                    }
-
-                    for (KnownFile parent : parentsToRemoveFrom) {
-                        knownFiles.tryRemoveChild(parent, currentFile);
-                    }
-
-                    currentFile.self.setName(changedFile.getName());
-
-                    Set<FileId> parentsToAddTo = new TreeSet<>(changedFile.getParentIds());
-                    if (!renamed) {
-                        for (KnownFile parent : currentParents) {
-                            parentsToAddTo.remove(parent.self.getId());
-                        }
-                    }
-
-                    for (FileId parentId : parentsToAddTo) {
+                    for (FileId parentId : changedFile.getParentIds()) {
                         KnownFile parent = knownFiles.get(parentId);
                         if (parent != null)
-                            knownFiles.tryAddChild(parent, currentFile);
+                            parent.tryAddChild(currentFile);
                     }
 
-                    if (!knownFiles.removeIfHasNoParents(currentFile))
-                        currentFile.self.update(changedFile);
+                    for (KnownFile parent : new HashSet<>(currentFile.getParents())) {
+                        if (!changedFile.getParentIds().contains(parent.getId()))
+                            parent.tryRemoveChild(currentFile);
+                    }
                 }
             }
         } finally {

@@ -1,8 +1,8 @@
 package jdbox.openedfiles;
 
 import com.google.inject.Inject;
-import jdbox.DriveAdapter;
-import jdbox.filetree.File;
+import jdbox.driveadapter.DriveAdapter;
+import jdbox.models.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -91,7 +91,7 @@ class FullAccessOpenedFile implements ByteStore {
     }
 }
 
-class FullAccessOpenedFileFactory implements OpenedFileFactory {
+class FullAccessOpenedFileFactory implements ByteStoreFactory {
 
     private final DriveAdapter drive;
     private final InMemoryByteStoreFactory tempStoreFactory;
@@ -108,8 +108,8 @@ class FullAccessOpenedFileFactory implements OpenedFileFactory {
 
     @Override
     public synchronized ByteStore create(File file) {
-        Future<InputStream> stream =
-                file.getId().isSet() ? drive.downloadFileRangeAsync(file, 0, file.getSize()) : null;
+        Future<InputStream> stream = file.getId().isSet() && file.getSize() > 0 ?
+                drive.downloadFileRangeAsync(file.toDaFile(), 0, file.getSize()) : null;
         return new FullAccessOpenedFile(tempStoreFactory.create(), stream, readerFactory);
     }
 }

@@ -1,6 +1,6 @@
 package jdbox.openedfiles;
 
-import jdbox.filetree.File;
+import jdbox.models.File;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
@@ -41,9 +41,8 @@ public class RollingReadOpenedFileStableTest extends BaseRollingReadOpenedFileTe
         byte[] content = new byte[contentLength];
         random.nextBytes(content);
 
-        File file = drive.createFile(testFileName, testDir, new ByteArrayInputStream(content));
-
-        try (ByteStore openedFile = factory.create(file)) {
+        try (ByteStore openedFile = factory.create(
+                new File(fileIdStore, drive.createFile(testFileName, testDir, new ByteArrayInputStream(content))))) {
 
             byte[] bytes = new byte[content.length];
 

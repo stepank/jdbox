@@ -9,7 +9,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-public class InMemoryByteStore implements ByteStore {
+class InMemoryByteStore implements ByteStore {
 
     private static final Logger logger = LoggerFactory.getLogger(InMemoryByteStore.class);
 

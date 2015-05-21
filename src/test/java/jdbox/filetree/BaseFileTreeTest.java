@@ -1,6 +1,7 @@
 package jdbox.filetree;
 
 import jdbox.BaseTest;
+import jdbox.driveadapter.File;
 import org.junit.Before;
 
 import java.nio.file.Path;
@@ -22,18 +23,18 @@ public class BaseFileTreeTest extends BaseTest {
     public void setUp() throws Exception {
         super.setUp();
         fileTree = injector.getInstance(FileTree.class);
-        fileTree.setRoot(testDir);
+        fileTree.setRoot(testDir.getId());
     }
 
-    protected jdbox.filetree.File createTestFile(jdbox.filetree.File parent) throws Exception {
+    protected File createTestFile(File parent) throws Exception {
         return drive.createFile(testFileName, parent, getTestContent());
     }
 
-    protected jdbox.filetree.File createTestFileAndUpdate() throws Exception {
+    protected File createTestFileAndUpdate() throws Exception {
         return createTestFileAndUpdate(testDir, testDirPath);
     }
 
-    protected jdbox.filetree.File createTestFileAndUpdate(jdbox.filetree.File parent, Path parentPath) throws Exception {
+    protected File createTestFileAndUpdate(File parent, Path parentPath) throws Exception {
         File file = createTestFile(parent);
         fileTree.getChildren(parentPath);
         return file;
@@ -173,7 +174,7 @@ public class BaseFileTreeTest extends BaseTest {
             public Date accessedDate;
             public Date modifiedDate;
 
-            public void check(File file) {
+            public void check(jdbox.models.File file) {
 
                 assertThat(String.format("file %s does not exist", name), file, notNullValue());
 

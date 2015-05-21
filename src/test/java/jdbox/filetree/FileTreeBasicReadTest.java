@@ -1,8 +1,11 @@
 package jdbox.filetree;
 
 import jdbox.JdBox;
+import jdbox.driveadapter.File;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+
+import java.nio.file.Path;
 
 @Category(FileTree.class)
 public class FileTreeBasicReadTest extends BaseFileTreeTest {
@@ -44,19 +47,45 @@ public class FileTreeBasicReadTest extends BaseFileTreeTest {
 
         File testFile = createTestFileAndUpdate();
 
-        drive.renameFile(testFile, "test_file_2");
+        testFile.setName("test_file_2");
+        drive.updateFile(testFile);
         assertFileTreeContains().defaultTestFile().only();
 
         fileTree.update();
         assertFileTreeContains().defaultTestFile().withName("test_file_2").only();
 
-        drive.renameFile(testFile, testFileName);
+        testFile.setName(testFileName);
+        drive.updateFile(testFile);
         assertFileTreeContains().defaultTestFile().withName("test_file_2").only();
 
         fileTree.update();
         assertFileTreeContains().defaultTestFile().only();
 
         assertCounts(2, 1);
+    }
+
+    /**
+     * Rename a directory, make sure it has the new name and its contents are still known.
+     */
+    @Test
+    public void renameDir() throws Exception {
+
+        Path testFolderPath = testDirPath.resolve(testFolderName);
+        File testFolder = drive.createFolder(testFolderName, testDir);
+        createTestFile(testFolder);
+
+        fileTree.getChildren(testFolderPath);
+        assertCounts(3, 2);
+
+        testFolder.setName("test_folder_2");
+        drive.updateFile(testFolder);
+        assertFileTreeContains().defaultTestFolder().only();
+        assertFileTreeContains().in(testFolderPath).defaultTestFile().only();
+
+        fileTree.update();
+        assertCounts(3, 2);
+        assertFileTreeContains().defaultTestFolder().withName("test_folder_2").only();
+        assertFileTreeContains().in(testDirPath.resolve("test_folder_2")).defaultTestFile().only();
     }
 
     /**

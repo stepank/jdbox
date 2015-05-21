@@ -1,8 +1,9 @@
 package jdbox;
 
 import com.google.inject.Inject;
-import jdbox.filetree.File;
 import jdbox.filetree.FileTree;
+import jdbox.models.File;
+import jdbox.openedfiles.OpenedFile;
 import jdbox.openedfiles.OpenedFiles;
 import net.fusejna.*;
 import net.fusejna.types.TypeMode;
@@ -44,11 +45,13 @@ public class FileSystem extends FuseFilesystemAdapterFull {
             else
                 stat.setMode(
                         TypeMode.NodeType.FILE,
-                        true, file.isReal(), false,
+                        true, openedFiles.isWritable(file), false,
                         true, false, false,
-                        true, false, false).size(file.getSize());
+                        true, false, false);
 
-            stat.size(file.getSize());
+            Long size = openedFiles.getSize(file);
+            stat.size(size != null ? size : file.getSize());
+
             if (file.getCreatedDate() != null)
                 stat.ctime(file.getCreatedDate().getTime() / 1000);
             if (file.getModifiedDate() != null)
@@ -110,8 +113,16 @@ public class FileSystem extends FuseFilesystemAdapterFull {
         logger.debug("[{}] releasing, fh {}", path, info.fh_old());
 
         try {
-            openedFiles.get(info.fh()).close();
+
+            OpenedFile openedFile = openedFiles.get(info.fh());
+
+            File file = openedFile.release();
+
+            if (file != null)
+                fileTree.updateFileSize(file);
+
             return 0;
+
         } catch (Exception e) {
             logger.error("[{}] an error occured while releasig file", path, e);
             return -ErrorCodes.EPIPE();
@@ -186,7 +197,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
         logger.debug("[{}] truncating, offset {}", path, offset);
 
         try {
-            try (OpenedFiles.OpenedFile openedFile =
+            try (OpenedFiles.ProxyOpenedFile openedFile =
                          openedFiles.open(fileTree.get(path), OpenedFiles.OpenMode.WRITE_ONLY)) {
                 logger.debug(
                         "[{}] opened file for truncate, fh {}, mode {}",
@@ -208,7 +219,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
         logger.debug("[{}] setting times", path);
 
         try {
-            fileTree.setDates(path, new Date(wrapper.ac_sec() * 1000), new Date(wrapper.mod_sec() * 1000));
+            fileTree.setDates(path, new Date(wrapper.mod_sec() * 1000), new Date(wrapper.ac_sec() * 1000));
             return 0;
         } catch (FileTree.NoSuchFileException e) {
             return -ErrorCodes.ENOENT();

@@ -1,8 +1,8 @@
 package jdbox.openedfiles;
 
 import com.google.inject.Inject;
-import jdbox.DriveAdapter;
-import jdbox.filetree.File;
+import jdbox.driveadapter.DriveAdapter;
+import jdbox.models.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -12,7 +12,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
-public class RollingReadOpenedFile implements ByteStore {
+class RollingReadOpenedFile implements ByteStore {
 
     private static final int PAGES_NUMBER = 3;
     private static final double MAX_STRETCH_FACTOR = 1.5;
@@ -20,6 +20,7 @@ public class RollingReadOpenedFile implements ByteStore {
     private static final Logger logger = LoggerFactory.getLogger(RollingReadOpenedFile.class);
 
     private final File file;
+    private final jdbox.driveadapter.File daFile;
     private final DriveAdapter drive;
     private final StreamCachingByteSourceFactory readerFactory;
     private final int minPageSize;
@@ -32,6 +33,7 @@ public class RollingReadOpenedFile implements ByteStore {
             File file, DriveAdapter drive, StreamCachingByteSourceFactory readerFactory,
             int minPageSize, int maxPageSize) {
         this.file = file;
+        this.daFile = file.toDaFile();
         this.drive = drive;
         this.readerFactory = readerFactory;
         this.minPageSize = minPageSize;
@@ -163,7 +165,7 @@ public class RollingReadOpenedFile implements ByteStore {
         public Entry create(long offset, int length) {
 
             Entry result = new Entry(
-                    readerFactory.create(drive.downloadFileRangeAsync(file, offset, length)),
+                    readerFactory.create(drive.downloadFileRangeAsync(daFile, offset, length)),
                     offset, length, current++);
 
             entries.add(result);
@@ -234,7 +236,7 @@ public class RollingReadOpenedFile implements ByteStore {
     }
 }
 
-class RollingReadOpenedFileFactory implements OpenedFileFactory {
+class RollingReadOpenedFileFactory implements ByteStoreFactory {
 
     public static Config defaultConfig = new Config();
 

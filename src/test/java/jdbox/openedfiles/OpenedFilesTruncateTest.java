@@ -1,6 +1,6 @@
 package jdbox.openedfiles;
 
-import jdbox.filetree.File;
+import jdbox.models.File;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -31,7 +31,7 @@ public class OpenedFilesTruncateTest extends BaseOpenedFilesTest {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        file = drive.createFile(testFileName, testDir, getTestContent());
+        file = new jdbox.models.File(fileIdStore, drive.createFile(testFileName, testDir, getTestContent()));
     }
 
     @Test

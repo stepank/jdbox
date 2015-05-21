@@ -8,7 +8,7 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
-public class StreamCachingByteSource implements ByteSource {
+class StreamCachingByteSource implements ByteSource {
 
     private final byte[] buffer;
 

@@ -4,13 +4,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 
-public class ByteSources {
+class ByteSources {
 
-    public static void copy(ByteSource source, ByteStore destination) throws IOException {
-        copy(source, destination, 16 * 1024);
+    public static int copy(ByteSource source, ByteStore destination) throws IOException {
+        return copy(source, destination, 16 * 1024);
     }
 
-    public static void copy(ByteSource source, ByteStore destination, int bufferSize) throws IOException {
+    public static int copy(ByteSource source, ByteStore destination, int bufferSize) throws IOException {
 
         ByteBuffer buffer = ByteBuffer.allocate(bufferSize);
 
@@ -24,6 +24,8 @@ public class ByteSources {
             destination.write(buffer, offset, read);
             offset += read;
         } while (read == bufferSize);
+
+        return offset;
     }
 
     public static ByteSourceInputStream toInputStream(ByteSource source) {

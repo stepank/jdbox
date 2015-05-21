@@ -1,7 +1,7 @@
 package jdbox.openedfiles;
 
 import com.google.inject.Inject;
-import jdbox.filetree.File;
+import jdbox.models.File;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -21,11 +21,12 @@ public class OpenedFiles {
     private final OpenedFileFactory nonDownloadableOpenedFileFactory;
     private final OpenedFileFactory fullAccessOpenedFileFactory;
     private final OpenedFileFactory rollingReadOpenedFileFactory;
+
     private final LocalStorage localStorage;
 
     private volatile Config config;
 
-    private final Map<Long, OpenedFile> fileHandlers = new HashMap<>();
+    private final Map<Long, ProxyOpenedFile> fileHandlers = new HashMap<>();
     private long currentFileHandler = 1;
 
     @Inject
@@ -35,50 +36,57 @@ public class OpenedFiles {
             RollingReadOpenedFileFactory rollingReadOpenedFileFactory,
             final LocalStorage localStorage, Config config) {
 
-        this.nonDownloadableOpenedFileFactory = nonDownloadableOpenedFileFactory;
-        this.rollingReadOpenedFileFactory = rollingReadOpenedFileFactory;
+        this.nonDownloadableOpenedFileFactory = new ByteStoreFactoryWrapper(nonDownloadableOpenedFileFactory);
+        this.fullAccessOpenedFileFactory = new LocalStorageOpenedFileFactory(fullAccessOpenedFileFactory);
+        this.rollingReadOpenedFileFactory = new ByteStoreFactoryWrapper(rollingReadOpenedFileFactory);
+
         this.localStorage = localStorage;
         this.config = config;
-
-        this.fullAccessOpenedFileFactory = new OpenedFileFactory() {
-            @Override
-            public ByteStore create(File file) {
-                return localStorage.putContent(file, fullAccessOpenedFileFactory.create(file));
-            }
-        };
     }
 
     public void setConfig(Config config) {
         this.config = config;
     }
 
-    public synchronized OpenedFile open(File file, OpenMode openMode) {
+    public synchronized ProxyOpenedFile open(File file, OpenMode openMode) {
 
         currentFileHandler++;
 
-        ByteStore openedFile = localStorage.getContent(file);
+        OpenedFile openedFile = localStorage.getContent(file);
         if (openedFile == null)
             openedFile = getOpenedFileFactory(file, openMode).create(file);
 
-        OpenedFile openedFileHandler = new OpenedFile(currentFileHandler, openedFile);
+        ProxyOpenedFile openedFileHandler = new ProxyOpenedFile(currentFileHandler, openedFile);
 
         fileHandlers.put(currentFileHandler, openedFileHandler);
 
         return openedFileHandler;
     }
 
-    public synchronized OpenedFile get(long fileHandler) {
+    public synchronized ProxyOpenedFile get(long fileHandler) {
         return fileHandlers.get(fileHandler);
     }
 
+    public Long getSize(File file) {
+        return localStorage.getSize(file);
+    }
+
+    public boolean isWritable(File file) {
+        return isReal(file) && !isLargeFile(file);
+    }
+
     private OpenedFileFactory getOpenedFileFactory(File file, OpenMode openMode) {
-        if (!file.isReal() && openMode.equals(OpenMode.READ_ONLY))
+        if (!isReal(file) && openMode.equals(OpenMode.READ_ONLY))
             return nonDownloadableOpenedFileFactory;
-        if (file.isReal() && !isLargeFile(file))
+        if (isWritable(file))
             return fullAccessOpenedFileFactory;
-        if (file.isReal() && isLargeFile(file))
+        if (isReal(file))
             return rollingReadOpenedFileFactory;
         throw new UnsupportedOperationException();
+    }
+
+    private boolean isReal(File file) {
+        return !file.getId().isSet() || file.getDownloadUrl() != null && file.getDownloadUrl().length() != 0;
     }
 
     private boolean isLargeFile(File file) {
@@ -98,12 +106,12 @@ public class OpenedFiles {
         }
     }
 
-    public class OpenedFile implements ByteStore {
+    public class ProxyOpenedFile extends OpenedFile {
 
         public final long handler;
-        private final ByteStore content;
+        private final OpenedFile content;
 
-        public OpenedFile(long handler, ByteStore content) {
+        public ProxyOpenedFile(long handler, OpenedFile content) {
             this.handler = handler;
             this.content = content;
         }
@@ -124,15 +132,73 @@ public class OpenedFiles {
         }
 
         @Override
-        public void close() throws IOException {
+        public File release() throws IOException {
             synchronized (OpenedFiles.this) {
                 fileHandlers.remove(handler);
             }
-            content.close();
+            return content.release();
         }
     }
-}
 
-interface OpenedFileFactory {
-    ByteStore create(File file);
+    interface OpenedFileFactory {
+        OpenedFile create(File file);
+    }
+
+    class ByteStoreFactoryWrapper implements OpenedFileFactory {
+
+        private final ByteStoreFactory factory;
+
+        ByteStoreFactoryWrapper(ByteStoreFactory factory) {
+            this.factory = factory;
+        }
+
+        @Override
+        public OpenedFile create(File file) {
+            return new ByteStoreWrapper(factory.create(file));
+        }
+
+        public class ByteStoreWrapper extends OpenedFile {
+
+            private final ByteStore origin;
+
+            public ByteStoreWrapper(ByteStore origin) {
+                this.origin = origin;
+            }
+
+            @Override
+            public int read(ByteBuffer buffer, long offset, int count) throws IOException {
+                return origin.read(buffer, offset, count);
+            }
+
+            @Override
+            public int write(ByteBuffer buffer, long offset, int count) throws IOException {
+                return origin.write(buffer, offset, count);
+            }
+
+            @Override
+            public void truncate(long offset) throws IOException {
+                origin.truncate(offset);
+            }
+
+            @Override
+            public File release() throws IOException {
+                origin.close();
+                return null;
+            }
+        }
+    }
+
+    class LocalStorageOpenedFileFactory implements OpenedFileFactory {
+
+        private final ByteStoreFactory factory;
+
+        LocalStorageOpenedFileFactory(ByteStoreFactory factory) {
+            this.factory = factory;
+        }
+
+        @Override
+        public OpenedFile create(File file) {
+            return localStorage.putContent(file, factory.create(file));
+        }
+    }
 }

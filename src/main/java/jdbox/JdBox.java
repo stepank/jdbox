@@ -15,7 +15,9 @@ import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.inject.*;
+import jdbox.driveadapter.DriveAdapter;
 import jdbox.filetree.FileTree;
+import jdbox.models.fileids.FileIdStore;
 import jdbox.openedfiles.OpenedFilesModule;
 import org.ini4j.Ini;
 
@@ -123,14 +125,16 @@ public class JdBox {
             bind(ScheduledExecutorService.class).toInstance(executor);
             bind(ListeningScheduledExecutorService.class).toInstance(executor);
 
+            bind(FileIdStore.class).in(Singleton.class);
             bind(DriveAdapter.class).in(Singleton.class);
             bind(Uploader.class).in(Singleton.class);
         }
 
         @Provides
         public FileTree createFileTree(
-                DriveAdapter drive, ScheduledExecutorService executor, Uploader uploader) throws Exception {
-            FileTree ft = new FileTree(drive, uploader, executor, autoUpdateFileTree);
+                DriveAdapter drive, FileIdStore fileIdStore, Uploader uploader,
+                ScheduledExecutorService executor) throws Exception {
+            FileTree ft = new FileTree(drive, fileIdStore, uploader, executor, autoUpdateFileTree);
             ft.start();
             return ft;
         }

@@ -1,0 +1,189 @@
+package jdbox.driveadapter;
+
+import com.google.api.client.util.DateTime;
+import com.google.api.services.drive.model.ParentReference;
+import com.google.common.base.Function;
+import com.google.common.collect.Collections2;
+
+import java.util.Date;
+import java.util.LinkedList;
+import java.util.Set;
+import java.util.TreeSet;
+
+public class File implements Cloneable {
+
+    public static String fields =
+            "items(id,title,mimeType,downloadUrl,fileSize,alternateLink,parents,labels,createdDate,modifiedDate,lastViewedByMeDate)";
+
+    private String id;
+    private String name;
+    private boolean isDirectory;
+    private long size;
+    private String downloadUrl;
+    private String alternateLink;
+    private Date createdDate;
+    private Date modifiedDate;
+    private Date accessedDate;
+    private String mimeType;
+    private Set<String> parentIds;
+
+    private boolean isTrashed;
+
+    public File() {
+        this.id = null;
+    }
+
+    public File(com.google.api.services.drive.model.File file) {
+
+        id = file.getId();
+        name = file.getTitle();
+        size = file.getFileSize() != null ? file.getFileSize() : 0;
+        isDirectory = file.getMimeType().equals("application/vnd.google-apps.folder");
+        downloadUrl = file.getDownloadUrl();
+        alternateLink = file.getAlternateLink();
+        createdDate = file.getCreatedDate() != null ? new Date(file.getCreatedDate().getValue()) : null;
+        modifiedDate = file.getModifiedDate() != null ? new Date(file.getModifiedDate().getValue()) : null;
+        accessedDate = file.getLastViewedByMeDate() != null ? new Date(file.getLastViewedByMeDate().getValue()) : null;
+        mimeType = file.getMimeType();
+
+        parentIds = new TreeSet<>(
+                Collections2.transform(file.getParents(), new Function<ParentReference, String>() {
+                    @Override
+                    public String apply(ParentReference parentReference) {
+                        return parentReference.getId();
+                    }
+                }));
+
+        isTrashed = file.getLabels().getTrashed();
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public boolean isDirectory() {
+        return isDirectory;
+    }
+
+    public void setIsDirectory(boolean isDirectory) {
+        this.isDirectory = isDirectory;
+    }
+
+    public long getSize() {
+        return size;
+    }
+
+    public void setSize(long size) {
+        this.size = size;
+    }
+
+    public String getDownloadUrl() {
+        return downloadUrl;
+    }
+
+    public void setDownloadUrl(String downloadUrl) {
+        this.downloadUrl = downloadUrl;
+    }
+
+    public String getAlternateLink() {
+        return alternateLink;
+    }
+
+    public Date getCreatedDate() {
+        return createdDate;
+    }
+
+    public void setCreatedDate(Date date) {
+        createdDate = date;
+    }
+
+    public Date getModifiedDate() {
+        return modifiedDate;
+    }
+
+    public void setModifiedDate(Date date) {
+        modifiedDate = date;
+    }
+
+    public Date getAccessedDate() {
+        return accessedDate;
+    }
+
+    public void setAccessedDate(Date date) {
+        accessedDate = date;
+    }
+
+    public String getMimeType() {
+        return mimeType;
+    }
+
+    public Set<String> getParentIds() {
+        return parentIds;
+    }
+
+    public void setParentId(String parentId) {
+        this.parentIds = new TreeSet<>();
+        this.parentIds.add(parentId);
+    }
+
+    public void setParentIds(Set<String> parentIds) {
+        this.parentIds = parentIds;
+    }
+
+    public boolean isTrashed() {
+        return isTrashed;
+    }
+
+    public com.google.api.services.drive.model.File toGdFile() {
+
+        com.google.api.services.drive.model.File file =
+                new com.google.api.services.drive.model.File().setTitle(getName());
+
+        if (isDirectory())
+            file.setMimeType("application/vnd.google-apps.folder");
+
+        if (getCreatedDate() != null)
+            file.setCreatedDate(new DateTime(getCreatedDate()));
+
+        if (getModifiedDate() != null) {
+            file.setModifiedDate(new DateTime(getModifiedDate()));
+            file.setModifiedByMeDate(new DateTime(getModifiedDate()));
+        }
+
+        if (getAccessedDate() != null)
+            file.setLastViewedByMeDate(new DateTime(getAccessedDate()));
+
+        if (getParentIds() != null && getParentIds().size() > 0)
+            file.setParents(new LinkedList<>(
+                    Collections2.transform(getParentIds(), new Function<String, ParentReference>() {
+                        @Override
+                        public ParentReference apply(String parentId) {
+                            return new ParentReference().setId(parentId);
+                        }
+                    })));
+
+        return file;
+    }
+
+    @Override
+    public String toString() {
+        return "j.d.File{" +
+                "id=" + id +
+                ", name='" + name + '\'' +
+                ", isDirectory=" + isDirectory +
+                ", size=" + size +
+                '}';
+    }
+}

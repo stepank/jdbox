@@ -1,6 +1,6 @@
 package jdbox.openedfiles;
 
-import jdbox.filetree.File;
+import jdbox.models.File;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.slf4j.Logger;
@@ -32,7 +32,7 @@ public class FullAccessOpenedFileMiscTest extends BaseFullAccessOpenedFileTest {
         byte[] content = new byte[contentLength];
         random.nextBytes(content);
 
-        File file = drive.createFile(testFileName, testDir, new ByteArrayInputStream(content));
+        File file = new File(fileIdStore, drive.createFile(testFileName, testDir, new ByteArrayInputStream(content)));
 
         for (int maxReadChunkSize : maxReadChunkSizes) {
 

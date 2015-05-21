@@ -1,12 +1,12 @@
 package jdbox.openedfiles;
 
-import jdbox.filetree.File;
+import jdbox.models.File;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
-public class NonDownloadableOpenedFile implements ByteStore {
+class NonDownloadableOpenedFile implements ByteStore {
 
     private static String contentTemplate =
             "[Desktop Entry]\n" +
@@ -51,7 +51,7 @@ public class NonDownloadableOpenedFile implements ByteStore {
     }
 }
 
-class NonDownloadableOpenedFileFactory implements OpenedFileFactory {
+class NonDownloadableOpenedFileFactory implements ByteStoreFactory {
 
     @Override
     public NonDownloadableOpenedFile create(File file) {
