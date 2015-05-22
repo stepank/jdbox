@@ -236,10 +236,12 @@ public class FileTree {
             if (getOrNullUnsafe(parent, fileName) != null)
                 throw new FileAlreadyExistsException(path);
 
-            final KnownFile file =
+            final KnownFile newFile =
                     knownFiles.create(fileIdStore.create(), fileName.toString(), isDirectory, new Date());
 
-            parent.tryAddChild(file);
+            parent.tryAddChild(newFile);
+
+            final File file = newFile.toFile();
 
             uploader.submit(new Runnable() {
                 @Override
@@ -253,11 +255,11 @@ public class FileTree {
                         try {
 
                             jdbox.driveadapter.File createdFile =
-                                    drive.createFile(file.toFile().toDaFile(), new ByteArrayInputStream(new byte[0]));
+                                    drive.createFile(file.toDaFile(), new ByteArrayInputStream(new byte[0]));
 
-                            logger.debug("created {}", file);
+                            logger.debug("created {}", newFile);
 
-                            file.setUploaded(createdFile.getId(), createdFile.getDownloadUrl());
+                            newFile.setUploaded(createdFile.getId(), createdFile.getDownloadUrl());
 
                         } finally {
                             readWriteLock.writeLock().unlock();
@@ -271,7 +273,7 @@ public class FileTree {
                 }
             });
 
-            return file.toFile();
+            return newFile.toFile();
 
         } finally {
             readWriteLock.writeLock().unlock();

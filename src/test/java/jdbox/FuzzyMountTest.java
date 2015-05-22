@@ -1,15 +1,21 @@
 package jdbox;
 
 import com.google.common.collect.ImmutableList;
+import jdbox.utils.Repeat;
+import jdbox.utils.RepeatRule;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -18,29 +24,39 @@ import static org.hamcrest.MatcherAssert.assertThat;
 
 public class FuzzyMountTest extends BaseMountFileSystemTest {
 
+    @Rule
+    public RepeatRule repeatRule = new RepeatRule();
+
+    private static final Logger logger = LoggerFactory.getLogger(FuzzyMountTest.class);
+    private static final Random random = new Random();
+
     private Path tempDirPath;
 
     private final List<ActionFactory> actionFactories = ImmutableList.of(
             new CreateFileActionFactory(),
-            new CreateDirActionFactory()
+            new CreateDirActionFactory(),
+            new MoveFileActionFactory()
     );
 
     @Before
     public void setUp() throws Exception {
+        logger.debug("entering set up");
         super.setUp();
         tempDirPath = Files.createTempDirectory("jdbox");
+        logger.debug("leaving set up");
     }
 
     @After
     public void tearDown() throws Exception {
-        try {
-            super.tearDown();
-        } finally {
-            deleteDir(tempDirPath);
-        }
+        logger.debug("entering tear down");
+        waitUntilUploaderIsDone();
+        deleteDir(tempDirPath);
+        super.tearDown();
+        logger.debug("leaving tear down");
     }
 
     @Test
+    @Repeat(2)
     public void run() throws Exception {
 
         Path cloudRoot = mountPoint.resolve(testDir.getName());
@@ -50,12 +66,26 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
         }};
         List<Path> files = new ArrayList<>();
 
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 10; i++) {
 
             Action action = getNextAction(dirs, files);
 
-            action.run(cloudRoot);
-            action.run(tempDirPath);
+            try {
+                action.run(cloudRoot);
+            } catch (IOException e) {
+                logger.error(
+                        "an error occured while running an action in cloud, cloud directory structure is {}",
+                        dumpDir(cloudRoot), e);
+                throw e;
+            }
+            try {
+                action.run(tempDirPath);
+            } catch (IOException e) {
+                logger.error(
+                        "an error occured while running an action locally, local directory structure is {}",
+                        dumpDir(tempDirPath), e);
+                throw e;
+            }
         }
 
         assertThat(dumpDir(cloudRoot), equalTo(dumpDir(tempDirPath)));
@@ -110,7 +140,7 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
 
         java.io.File file = fullPath.toFile();
 
-        sb.append(relative.toString());
+        sb.append("/").append(relative.toString());
 
         if (!file.isDirectory()) {
             sb.append(" ").append(file.length()).append("\n");
@@ -133,6 +163,10 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
         }
     }
 
+    private static <T> T getRandomElement(List<T> list) {
+        return list.get(random.nextInt(list.size()));
+    }
+
     private interface Action {
         void run(Path root) throws IOException;
     }
@@ -152,7 +186,8 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
 
         @Override
         public Action createAction(final List<Path> dirs, final List<Path> files) {
-            final Path path = dirs.get(new Random().nextInt(dirs.size())).resolve(UUID.randomUUID().toString());
+            final Path path = getRandomElement(dirs).resolve(UUID.randomUUID().toString().substring(0, 8));
+            logger.debug("creating file {}", path);
             files.add(path);
             return new Action() {
                 @Override
@@ -172,12 +207,36 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
 
         @Override
         public Action createAction(List<Path> dirs, List<Path> files) {
-            final Path path = dirs.get(new Random().nextInt(dirs.size())).resolve(UUID.randomUUID().toString());
+            final Path path = getRandomElement(dirs).resolve(UUID.randomUUID().toString().substring(0, 8));
+            logger.debug("creating dir {}", path);
             dirs.add(path);
             return new Action() {
                 @Override
                 public void run(Path root) throws IOException {
                     assertThat(new java.io.File(root.resolve(path).toUri()).mkdir(), is(true));
+                }
+            };
+        }
+    }
+
+    private class MoveFileActionFactory implements ActionFactory {
+
+        @Override
+        public boolean canCreateAction(List<Path> dirs, List<Path> files) {
+            return dirs.size() > 1 && files.size() > 1;
+        }
+
+        @Override
+        public Action createAction(List<Path> dirs, List<Path> files) {
+            final Path source = getRandomElement(files);
+            final Path target = getRandomElement(dirs).resolve(source.getFileName());
+            logger.debug("moving file {} to {}", source, target);
+            files.remove(source);
+            files.add(target);
+            return new Action() {
+                @Override
+                public void run(Path root) throws IOException {
+                    Files.move(root.resolve(source), root.resolve(target), StandardCopyOption.ATOMIC_MOVE);
                 }
             };
         }
