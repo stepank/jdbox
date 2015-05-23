@@ -34,8 +34,11 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
 
     private final List<ActionFactory> actionFactories = ImmutableList.of(
             new CreateFileActionFactory(),
+            new CreateFileActionFactory(),
             new CreateDirActionFactory(),
-            new MoveFileActionFactory()
+            new MoveFileActionFactory(),
+            new MoveFileActionFactory(),
+            new RemoveFileActionFactory()
     );
 
     @Before
@@ -66,7 +69,7 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
         }};
         List<Path> files = new ArrayList<>();
 
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 20; i++) {
 
             Action action = getNextAction(dirs, files);
 
@@ -173,7 +176,6 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
 
     private interface ActionFactory {
         boolean canCreateAction(List<Path> dirs, List<Path> files);
-
         Action createAction(List<Path> dirs, List<Path> files);
     }
 
@@ -237,6 +239,27 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
                 @Override
                 public void run(Path root) throws IOException {
                     Files.move(root.resolve(source), root.resolve(target), StandardCopyOption.ATOMIC_MOVE);
+                }
+            };
+        }
+    }
+
+    private class RemoveFileActionFactory implements ActionFactory {
+
+        @Override
+        public boolean canCreateAction(List<Path> dirs, List<Path> files) {
+            return files.size() > 1;
+        }
+
+        @Override
+        public Action createAction(List<Path> dirs, List<Path> files) {
+            final Path path = getRandomElement(files);
+            logger.debug("removing file {}", path);
+            files.remove(path);
+            return new Action() {
+                @Override
+                public void run(Path root) throws IOException {
+                    Files.delete(root.resolve(path));
                 }
             };
         }
