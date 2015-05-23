@@ -68,6 +68,10 @@ public class OpenedFiles {
     }
 
     public Long getSize(File file) {
+        if (file.isDirectory())
+            return null;
+        if (!isReal(file))
+            return (long) (NonDownloadableOpenedFile.getContent(file).length());
         return localStorage.getSize(file);
     }
 
