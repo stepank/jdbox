@@ -1,7 +1,6 @@
 package jdbox;
 
 import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFutureTask;
 import com.google.inject.Inject;
 
 import java.util.Queue;
@@ -23,9 +22,7 @@ public class Uploader {
         this.executor = executor;
     }
 
-    public void submit(Runnable task) {
-
-        ListenableFutureTask t = ListenableFutureTask.create(task, null);
+    public void submit(Runnable t) {
 
         if (!idle.compareAndSet(true, false)) {
             queue.add(t);

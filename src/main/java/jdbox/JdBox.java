@@ -11,9 +11,6 @@ import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.client.util.store.FileDataStoreFactory;
 import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.DriveScopes;
-import com.google.common.util.concurrent.ListeningExecutorService;
-import com.google.common.util.concurrent.ListeningScheduledExecutorService;
-import com.google.common.util.concurrent.MoreExecutors;
 import com.google.inject.*;
 import jdbox.driveadapter.DriveAdapter;
 import jdbox.filetree.FileTree;
@@ -111,19 +108,16 @@ public class JdBox {
         @Override
         protected void configure() {
 
-            ScheduledThreadPoolExecutor threadPoolExecutor = new ScheduledThreadPoolExecutor(8);
-            threadPoolExecutor.setRemoveOnCancelPolicy(true);
-            ListeningScheduledExecutorService executor = MoreExecutors.listeningDecorator(threadPoolExecutor);
+            ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(8);
+            executor.setRemoveOnCancelPolicy(true);
 
             bind(Environment.class).toInstance(env);
             bind(Drive.class).toInstance(drive);
             bind(Ini.class).toInstance(config);
 
-            bind(ScheduledThreadPoolExecutor.class).toInstance(threadPoolExecutor);
+            bind(ScheduledThreadPoolExecutor.class).toInstance(executor);
             bind(ExecutorService.class).toInstance(executor);
-            bind(ListeningExecutorService.class).toInstance(executor);
             bind(ScheduledExecutorService.class).toInstance(executor);
-            bind(ListeningScheduledExecutorService.class).toInstance(executor);
 
             bind(FileIdStore.class).in(Singleton.class);
             bind(DriveAdapter.class).in(Singleton.class);
@@ -131,6 +125,7 @@ public class JdBox {
         }
 
         @Provides
+        @Singleton
         public FileTree createFileTree(
                 DriveAdapter drive, FileIdStore fileIdStore, Uploader uploader,
                 ScheduledExecutorService executor) throws Exception {
