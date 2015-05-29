@@ -21,6 +21,7 @@ public class BaseFileTreeTest extends BaseTest {
 
     @Before
     public void setUp() throws Exception {
+        autoUpdateFileTree = false;
         super.setUp();
         fileTree = injector.getInstance(FileTree.class);
         fileTree.setRoot(testDir.getId());

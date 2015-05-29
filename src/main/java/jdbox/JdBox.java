@@ -23,8 +23,9 @@ import java.io.File;
 import java.io.InputStreamReader;
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 public class JdBox {
 
@@ -108,28 +109,26 @@ public class JdBox {
         @Override
         protected void configure() {
 
-            ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(8);
-            executor.setRemoveOnCancelPolicy(true);
-
             bind(Environment.class).toInstance(env);
             bind(Drive.class).toInstance(drive);
             bind(Ini.class).toInstance(config);
 
-            bind(ScheduledThreadPoolExecutor.class).toInstance(executor);
-            bind(ExecutorService.class).toInstance(executor);
-            bind(ScheduledExecutorService.class).toInstance(executor);
-
             bind(FileIdStore.class).in(Singleton.class);
             bind(DriveAdapter.class).in(Singleton.class);
             bind(Uploader.class).in(Singleton.class);
+
+            ThreadPoolExecutor executor =
+                    new ThreadPoolExecutor(1, 8, 60, TimeUnit.SECONDS, new LinkedBlockingDeque<Runnable>());
+
+            bind(ExecutorService.class).toInstance(executor);
+            bind(ThreadPoolExecutor.class).toInstance(executor);
         }
 
         @Provides
         @Singleton
         public FileTree createFileTree(
-                DriveAdapter drive, FileIdStore fileIdStore, Uploader uploader,
-                ScheduledExecutorService executor) throws Exception {
-            FileTree ft = new FileTree(drive, fileIdStore, uploader, executor, autoUpdateFileTree);
+                DriveAdapter drive, FileIdStore fileIdStore, Uploader uploader) throws Exception {
+            FileTree ft = new FileTree(drive, fileIdStore, uploader, autoUpdateFileTree);
             ft.start();
             return ft;
         }

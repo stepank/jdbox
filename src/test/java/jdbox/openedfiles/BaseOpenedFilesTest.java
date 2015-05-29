@@ -15,6 +15,7 @@ public class BaseOpenedFilesTest extends BaseTest {
 
     @Before
     public void setUp() throws Exception {
+        autoUpdateFileTree = false;
         super.setUp();
         tempStoreFactory = injector.getInstance(InMemoryByteStoreFactory.class);
         tempStoreFactory.setConfig(new InMemoryByteStoreFactory.Config(4));

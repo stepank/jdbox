@@ -21,10 +21,7 @@ import java.io.ByteArrayInputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -45,7 +42,7 @@ public class FileTree {
     private static final Path rootPath = Paths.get("/");
 
     private final DriveAdapter drive;
-    private final ScheduledExecutorService executor;
+    private final ScheduledExecutorService scheduler;
     private final KnownFiles knownFiles = new KnownFiles();
     private final SettableFuture syncError = SettableFuture.create();
     private final CountDownLatch start = new CountDownLatch(1);
@@ -112,14 +109,14 @@ public class FileTree {
     };
 
     @Inject
-    public FileTree(
-            DriveAdapter drive, FileIdStore fileIdStore, Uploader uploader,
-            ScheduledExecutorService executor, boolean autoUpdate) {
+    public FileTree(DriveAdapter drive, FileIdStore fileIdStore, Uploader uploader, boolean autoUpdate) {
+
         this.drive = drive;
         this.fileIdStore = fileIdStore;
         this.uploader = uploader;
-        this.executor = executor;
         this.autoUpdate = autoUpdate;
+
+        this.scheduler = Executors.newSingleThreadScheduledExecutor();
     }
 
     public int getKnownFileCount() {
@@ -159,12 +156,21 @@ public class FileTree {
         start.countDown();
 
         if (autoUpdate)
-            executor.scheduleAtFixedRate(new Runnable() {
+            scheduler.scheduleAtFixedRate(new Runnable() {
                 @Override
                 public void run() {
                     FileTree.this.retrieveAndApplyChanges();
                 }
             }, 0, 5, TimeUnit.SECONDS);
+    }
+
+    public void stopAndWait(int timeout) throws InterruptedException {
+
+        if (!autoUpdate)
+            return;
+
+        scheduler.shutdown();
+        scheduler.awaitTermination(timeout, TimeUnit.SECONDS);
     }
 
     public void setRoot(String id) throws InterruptedException {

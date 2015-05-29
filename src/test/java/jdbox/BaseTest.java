@@ -4,6 +4,7 @@ import com.google.api.services.drive.Drive;
 import com.google.inject.Injector;
 import jdbox.driveadapter.DriveAdapter;
 import jdbox.driveadapter.File;
+import jdbox.filetree.FileTree;
 import jdbox.models.fileids.FileIdStore;
 import jdbox.openedfiles.LocalStorage;
 import org.junit.After;
@@ -16,7 +17,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -38,6 +39,7 @@ public class BaseTest {
     protected DriveAdapter drive;
     protected FileIdStore fileIdStore;
     protected File testDir;
+    protected boolean autoUpdateFileTree = true;
 
     @BeforeClass
     public static void setUpClass() throws Exception {
@@ -56,7 +58,8 @@ public class BaseTest {
     @After
     public void tearDown() throws Exception {
         try {
-            ScheduledThreadPoolExecutor executor = injector.getInstance(ScheduledThreadPoolExecutor.class);
+            injector.getInstance(FileTree.class).stopAndWait(5000);
+            ThreadPoolExecutor executor = injector.getInstance(ThreadPoolExecutor.class);
             List<Runnable> tasks = executor.shutdownNow();
             assertThat(tasks.size(), equalTo(0));
             assertThat(executor.getActiveCount(), equalTo(0));
@@ -67,7 +70,7 @@ public class BaseTest {
     }
 
     protected Injector createInjector() throws Exception {
-        return JdBox.createInjector(env, driveService, false);
+        return JdBox.createInjector(env, driveService, autoUpdateFileTree);
     }
 
     public void waitUntilUploaderIsDone() throws InterruptedException, ExecutionException, TimeoutException {
