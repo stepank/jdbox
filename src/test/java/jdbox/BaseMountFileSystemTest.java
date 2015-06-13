@@ -1,5 +1,6 @@
 package jdbox;
 
+import jdbox.filetree.FileTree;
 import org.ini4j.Ini;
 import org.junit.After;
 import org.junit.Before;
@@ -26,5 +27,9 @@ public class BaseMountFileSystemTest extends BaseFileSystemTest {
         } finally {
             super.tearDown();
         }
+    }
+
+    protected void resetFileTree() throws InterruptedException {
+        injector.getInstance(FileTree.class).reset();
     }
 }

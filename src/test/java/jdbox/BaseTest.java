@@ -39,6 +39,7 @@ public class BaseTest {
 
     protected DriveAdapter drive;
     protected FileIdStore fileIdStore;
+
     protected File testDir;
     protected boolean autoUpdateFileTree = true;
 
@@ -50,21 +51,21 @@ public class BaseTest {
 
     @Before
     public void setUp() throws Exception {
+
         injector = createInjector();
+
         drive = injector.getInstance(DriveAdapter.class);
         fileIdStore = injector.getInstance(FileIdStore.class);
+
         testDir = drive.createFolder(UUID.randomUUID().toString(), null);
+
+        injector.getInstance(FileTree.class).setRoot(testDir.getId());
     }
 
     @After
     public void tearDown() throws Exception {
         try {
-            injector.getInstance(FileTree.class).stopAndWait(5000);
-            ThreadPoolExecutor executor = injector.getInstance(ThreadPoolExecutor.class);
-            List<Runnable> tasks = executor.shutdownNow();
-            assertThat(tasks.size(), equalTo(0));
-            assertThat(executor.getActiveCount(), equalTo(0));
-            executor.awaitTermination(5, TimeUnit.SECONDS);
+            destroyInjector(injector);
         } finally {
             drive.deleteFile(testDir);
         }
@@ -72,6 +73,15 @@ public class BaseTest {
 
     protected Injector createInjector() throws Exception {
         return JdBox.createInjector(env, driveService, autoUpdateFileTree);
+    }
+
+    protected void destroyInjector(Injector injector) throws InterruptedException {
+        injector.getInstance(FileTree.class).stopAndWait(5000);
+        ThreadPoolExecutor executor = injector.getInstance(ThreadPoolExecutor.class);
+        List<Runnable> tasks = executor.shutdownNow();
+        assertThat(tasks.size(), equalTo(0));
+        assertThat(executor.getActiveCount(), equalTo(0));
+        executor.awaitTermination(5, TimeUnit.SECONDS);
     }
 
     public void waitUntilUploaderIsDone() throws InterruptedException, ExecutionException, TimeoutException {

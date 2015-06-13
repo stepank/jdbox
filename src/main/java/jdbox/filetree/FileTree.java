@@ -185,6 +185,10 @@ public class FileTree {
         }
     }
 
+    public void reset() throws InterruptedException {
+        setRoot(knownFiles.getRoot().getId().get());
+    }
+
     public void update() {
 
         if (autoUpdate)

@@ -22,7 +22,7 @@ public class GetAttrTest extends BaseFileSystemTest {
     public void file() throws Exception {
         drive.createFile(testFileName, testDir, getTestContent());
         StatHolder stat = Export.createStatHolder();
-        String path = Paths.get("/").resolve(testDir.getName()).resolve(testFileName).toString();
+        String path = Paths.get("/").resolve(testFileName).toString();
         assertThat(fs.getattr(path, stat.wrapper), equalTo(0));
         assertThat(stat.size(), equalTo(testContentString.length()));
         assertThat(stat.type(), equalTo(TypeMode.NodeType.FILE));
@@ -32,7 +32,7 @@ public class GetAttrTest extends BaseFileSystemTest {
     public void directory() throws Exception {
         drive.createFolder(testFolderName, testDir);
         StatHolder stat = Export.createStatHolder();
-        String path = Paths.get("/").resolve(testDir.getName()).resolve(testFolderName).toString();
+        String path = Paths.get("/").resolve(testFolderName).toString();
         assertThat(fs.getattr(path, stat.wrapper), equalTo(0));
         assertThat(stat.size(), equalTo(0));
         assertThat(stat.type(), equalTo(TypeMode.NodeType.DIRECTORY));

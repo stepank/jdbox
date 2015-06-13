@@ -28,6 +28,12 @@ public class FileSystem extends FuseFilesystemAdapterFull {
     }
 
     @Override
+    public void beforeMount(java.io.File mountPoint) {
+        logger.debug("mounting to {}", mountPoint);
+        super.beforeMount(mountPoint);
+    }
+
+    @Override
     public int getattr(final String path, final StructStat.StatWrapper stat) {
 
         logger.debug("[{}] getting attrs", path);

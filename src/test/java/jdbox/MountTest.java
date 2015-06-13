@@ -1,6 +1,7 @@
 package jdbox;
 
 import jdbox.driveadapter.File;
+import jdbox.filetree.FileTree;
 import org.junit.Test;
 
 import java.io.FileOutputStream;
@@ -18,29 +19,30 @@ public class MountTest extends BaseMountFileSystemTest {
     @Test
     public void read() throws Exception {
         drive.createFile("test.txt", testDir, getTestContent());
-        String actual = new String(Files.readAllBytes(mountPoint.resolve(testDir.getName()).resolve("test.txt")));
+        resetFileTree();
+        String actual = new String(Files.readAllBytes(mountPoint.resolve("test.txt")));
         assertThat(actual, equalTo(testContentString));
     }
 
     @Test
     public void writeAndRead() throws Exception {
-        Files.write(mountPoint.resolve(testDir.getName()).resolve("test.txt"), testContentString.getBytes());
-        String actual = new String(Files.readAllBytes(mountPoint.resolve(testDir.getName()).resolve("test.txt")));
+        Files.write(mountPoint.resolve("test.txt"), testContentString.getBytes());
+        String actual = new String(Files.readAllBytes(mountPoint.resolve("test.txt")));
         assertThat(actual, equalTo(testContentString));
     }
 
     @Test
     public void writeAndReadAfterClose() throws Exception {
-        Files.write(mountPoint.resolve(testDir.getName()).resolve("test.txt"), testContentString.getBytes());
+        Files.write(mountPoint.resolve("test.txt"), testContentString.getBytes());
         waitUntilLocalStorageIsEmpty();
-        String actual = new String(Files.readAllBytes(mountPoint.resolve(testDir.getName()).resolve("test.txt")));
+        String actual = new String(Files.readAllBytes(mountPoint.resolve("test.txt")));
         assertThat(actual, equalTo(testContentString));
     }
 
     @Test
     public void writeAndTrackSize() throws Exception {
 
-        Path path = mountPoint.resolve(testDir.getName()).resolve("test.txt");
+        Path path = mountPoint.resolve("test.txt");
 
         try (OutputStream stream = Files.newOutputStream(path)) {
             stream.write(testContentString.substring(0, 6).getBytes());
@@ -54,7 +56,7 @@ public class MountTest extends BaseMountFileSystemTest {
 
     @Test
     public void truncate() throws Exception {
-        Path path = mountPoint.resolve(testDir.getName()).resolve("test.txt");
+        Path path = mountPoint.resolve("test.txt");
         Files.write(path, testContentString.getBytes());
         waitUntilLocalStorageIsEmpty();
         new FileOutputStream(path.toFile(), true).getChannel().truncate(5).close();
@@ -67,7 +69,9 @@ public class MountTest extends BaseMountFileSystemTest {
         File folder = drive.createFolder("test", testDir);
         drive.createFile("test.txt", folder, getTestContent());
 
-        Path dirPath = mountPoint.resolve(testDir.getName()).resolve("test");
+        resetFileTree();
+
+        Path dirPath = mountPoint.resolve("test");
         Path filePath = dirPath.resolve("test.txt");
 
         assertThat(Files.exists(filePath), is(true));
@@ -94,8 +98,10 @@ public class MountTest extends BaseMountFileSystemTest {
         drive.createFolder("destination", testDir);
         drive.createFile("test.txt", source, getTestContent());
 
-        Path sourcePath = mountPoint.resolve(testDir.getName()).resolve("source").resolve("test.txt");
-        Path destinationPath = mountPoint.resolve(testDir.getName()).resolve("destination").resolve("test_2.txt");
+        resetFileTree();
+
+        Path sourcePath = mountPoint.resolve("source").resolve("test.txt");
+        Path destinationPath = mountPoint.resolve("destination").resolve("test_2.txt");
 
         assertThat(Files.exists(sourcePath), is(true));
         assertThat(Files.exists(destinationPath), is(false));

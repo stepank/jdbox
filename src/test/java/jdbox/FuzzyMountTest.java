@@ -1,6 +1,7 @@
 package jdbox;
 
 import com.google.common.collect.ImmutableList;
+import jdbox.filetree.FileTree;
 import jdbox.utils.Repeat;
 import jdbox.utils.RepeatRule;
 import org.junit.After;
@@ -62,8 +63,6 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
     @Repeat(2)
     public void run() throws Exception {
 
-        Path cloudRoot = mountPoint.resolve(testDir.getName());
-
         List<Path> dirs = new ArrayList<Path>() {{
             add(Paths.get("."));
         }};
@@ -74,11 +73,11 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
             Action action = getNextAction(dirs, files);
 
             try {
-                action.run(cloudRoot);
+                action.run(mountPoint);
             } catch (IOException e) {
                 logger.error(
                         "an error occured while running an action in cloud, cloud directory structure is {}",
-                        dumpDir(cloudRoot), e);
+                        dumpDir(mountPoint), e);
                 throw e;
             }
             try {
@@ -91,16 +90,18 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
             }
         }
 
-        assertThat(dumpDir(cloudRoot), equalTo(dumpDir(tempDirPath)));
+        assertThat(dumpDir(mountPoint), equalTo(dumpDir(tempDirPath)));
 
         waitUntilUploaderIsDone();
-
         fs.unmount();
+        destroyInjector(injector);
 
-        fs = createInjector().getInstance(FileSystem.class);
+        injector = createInjector();
+        injector.getInstance(FileTree.class).setRoot(testDir.getId());
+        fs = injector.getInstance(FileSystem.class);
         fs.mount(new java.io.File(mountPoint.toString()), false);
 
-        assertThat(dumpDir(cloudRoot), equalTo(dumpDir(tempDirPath)));
+        assertThat(dumpDir(mountPoint), equalTo(dumpDir(tempDirPath)));
     }
 
     private Action getNextAction(final List<Path> dirs, final List<Path> files) throws Exception {
@@ -176,6 +177,7 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
 
     private interface ActionFactory {
         boolean canCreateAction(List<Path> dirs, List<Path> files);
+
         Action createAction(List<Path> dirs, List<Path> files);
     }
 

@@ -110,6 +110,8 @@ public class JdBox {
         @Override
         protected void configure() {
 
+            bind(FileSystem.class).in(Singleton.class);
+
             bind(Environment.class).toInstance(env);
             bind(Drive.class).toInstance(drive);
             bind(Ini.class).toInstance(config);
