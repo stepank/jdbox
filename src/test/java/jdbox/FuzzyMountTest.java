@@ -117,21 +117,6 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
         return candidates.get(new Random().nextInt(candidates.size())).createAction(dirs, files);
     }
 
-    private static void deleteDir(Path path) {
-        java.io.File[] files = path.toFile().listFiles();
-        if (files != null) {
-            for (java.io.File f : files) {
-                if (f.isDirectory())
-                    deleteDir(f.toPath());
-                else
-                    //noinspection ResultOfMethodCallIgnored
-                    f.delete();
-            }
-        }
-        //noinspection ResultOfMethodCallIgnored
-        path.toFile().delete();
-    }
-
     private static String dumpDir(Path path) {
         StringBuilder sb = new StringBuilder();
         dumpDir(path, Paths.get(""), sb);
