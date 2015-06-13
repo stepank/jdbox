@@ -1,8 +1,6 @@
 package jdbox.openedfiles;
 
 import com.google.inject.Inject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -10,8 +8,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 class InMemoryByteStore implements ByteStore {
-
-    private static final Logger logger = LoggerFactory.getLogger(InMemoryByteStore.class);
 
     private final int bufferSize;
 
@@ -28,8 +24,6 @@ class InMemoryByteStore implements ByteStore {
 
     @Override
     public synchronized int read(ByteBuffer buffer, long offset, int count) throws IOException {
-
-        logger.debug("read, offset {}, count {}, current length {}", offset, count, length);
 
         if (buffers == null)
             throw new IOException("read on a closed ByteStore");
@@ -60,8 +54,6 @@ class InMemoryByteStore implements ByteStore {
 
     @Override
     public synchronized int write(ByteBuffer buffer, long offset, int count) throws IOException {
-
-        logger.debug("write, offset {}, count {}, current length {}", offset, count, length);
 
         if (buffers == null)
             throw new IOException("write on a closed ByteStore");
@@ -99,8 +91,6 @@ class InMemoryByteStore implements ByteStore {
     @Override
     public synchronized void truncate(long length) throws IOException {
 
-        logger.debug("truncate, length {}, current length {}", length, this.length);
-
         if (buffers == null)
             throw new IOException("truncate on a closed ByteStore");
 
@@ -120,8 +110,6 @@ class InMemoryByteStore implements ByteStore {
 
     @Override
     public synchronized void close() throws IOException {
-
-        logger.debug("close");
 
         if (buffers == null)
             return;
