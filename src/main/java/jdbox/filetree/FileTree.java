@@ -22,10 +22,7 @@ import java.io.ByteArrayInputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -535,7 +532,7 @@ public class FileTree {
             largestChangeId = changes.largestChangeId;
 
             for (DriveAdapter.Change change : changes.items) {
-                FileTree.this.applyChange(change);
+                FileTree.this.tryApplyChange(change);
             }
         } catch (Exception e) {
             logger.error("an error occured retrieving a list of changes", e);
@@ -543,16 +540,20 @@ public class FileTree {
         }
     }
 
-    private void applyChange(DriveAdapter.Change change) throws Exception {
+    private void tryApplyChange(DriveAdapter.Change change) throws Exception {
 
         readWriteLock.writeLock().lock();
 
         try {
 
-            String changedFileId = change.fileId;
+            FileId changedFileId = fileIdStore.get(change.fileId);
+
+            if (uploader.fileIsQueued(changedFileId))
+                return;
+
             File changedFile = change.file != null ? new File(fileIdStore, change.file) : null;
 
-            KnownFile currentFile = knownFiles.get(fileIdStore.get(changedFileId));
+            KnownFile currentFile = knownFiles.get(changedFileId);
 
             if (currentFile == null && changedFile != null && !changedFile.isTrashed()) {
 

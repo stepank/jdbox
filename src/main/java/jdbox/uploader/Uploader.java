@@ -30,6 +30,10 @@ public class Uploader {
         return queues.size();
     }
 
+    public synchronized boolean fileIsQueued(FileId fileId) {
+        return queues.get(fileId) != null;
+    }
+
     /**
      * TODO Strictly speaking, when a task to delete a directory is submitted, this task must depend on ALL tasks
      * related to files in this directory. However, since deletion just moves files/directories to trash, this will
