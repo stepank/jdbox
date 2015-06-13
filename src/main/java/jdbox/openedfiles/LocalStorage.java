@@ -1,10 +1,11 @@
 package jdbox.openedfiles;
 
 import com.google.inject.Inject;
-import jdbox.Uploader;
 import jdbox.driveadapter.DriveAdapter;
 import jdbox.models.File;
 import jdbox.models.fileids.FileId;
+import jdbox.uploader.Task;
+import jdbox.uploader.Uploader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -158,26 +159,20 @@ public class LocalStorage {
                 final ByteStore capturedContent = tempStoreFactory.create();
                 int size = ByteSources.copy(shared.content, capturedContent);
 
-                uploader.submit(new Runnable() {
+                uploader.submit(new Task("update file content", shared.file.getId()) {
                     @Override
-                    public void run() {
-                        try {
+                    public void run() throws Exception {
 
-                            drive.updateFileContent(
-                                    shared.file.toDaFile(), ByteSources.toInputStream(capturedContent));
+                        drive.updateFileContent(shared.file.toDaFile(), ByteSources.toInputStream(capturedContent));
 
-                            capturedContent.close();
+                        capturedContent.close();
 
-                            synchronized (shared) {
-                                shared.refCount--;
-                                if (shared.refCount == 0)
-                                    synchronized (LocalStorage.this) {
-                                        files.remove(shared.file.getId()).content.close();
-                                    }
-                            }
-
-                        } catch (Exception e) {
-                            logger.error("an error ocured while updating file content", e);
+                        synchronized (shared) {
+                            shared.refCount--;
+                            if (shared.refCount == 0)
+                                synchronized (LocalStorage.this) {
+                                    files.remove(shared.file.getId()).content.close();
+                                }
                         }
                     }
                 });

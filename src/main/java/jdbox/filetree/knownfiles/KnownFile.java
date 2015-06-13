@@ -64,7 +64,6 @@ public class KnownFile {
     public void setUploaded(String id, String downloadUrl) {
         self.getId().set(id);
         self.setDownloadUrl(downloadUrl);
-        knownFiles.put(this);
     }
 
     public void setDates(Date modifiedDate, Date accessedDate) {
@@ -96,11 +95,9 @@ public class KnownFile {
         children.put(child.self.getName(), child);
         child.parents.add(this);
 
-        if (child.getId().isSet()) {
-            KnownFile previous = knownFiles.put(child);
-            if (previous != null && previous != child)
-                throw new IllegalStateException("two different KnownFile's with the same id must not exist");
-        }
+        KnownFile previous = knownFiles.put(child);
+        if (previous != null && previous != child)
+            throw new IllegalStateException("two different KnownFile's with the same id must not exist");
     }
 
     public void tryRemoveChild(KnownFile child) {

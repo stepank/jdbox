@@ -16,6 +16,7 @@ import jdbox.driveadapter.DriveAdapter;
 import jdbox.filetree.FileTree;
 import jdbox.models.fileids.FileIdStore;
 import jdbox.openedfiles.OpenedFilesModule;
+import jdbox.uploader.Uploader;
 import org.ini4j.Ini;
 
 import java.io.BufferedReader;

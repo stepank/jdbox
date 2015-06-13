@@ -7,6 +7,7 @@ import jdbox.driveadapter.File;
 import jdbox.filetree.FileTree;
 import jdbox.models.fileids.FileIdStore;
 import jdbox.openedfiles.LocalStorage;
+import jdbox.uploader.Uploader;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -74,12 +75,7 @@ public class BaseTest {
     }
 
     public void waitUntilUploaderIsDone() throws InterruptedException, ExecutionException, TimeoutException {
-        waitUntilUploaderIsDone(5000);
-    }
-
-    public void waitUntilUploaderIsDone(long timeout)
-            throws InterruptedException, ExecutionException, TimeoutException {
-        injector.getInstance(Uploader.class).isDone().get(timeout, TimeUnit.SECONDS);
+        injector.getInstance(Uploader.class).waitUntilIsDone();
     }
 
     public void waitUntilLocalStorageIsEmpty() throws Exception {

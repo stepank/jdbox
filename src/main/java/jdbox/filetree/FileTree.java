@@ -6,13 +6,14 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.inject.Inject;
-import jdbox.Uploader;
 import jdbox.driveadapter.DriveAdapter;
 import jdbox.filetree.knownfiles.KnownFile;
 import jdbox.filetree.knownfiles.KnownFiles;
 import jdbox.models.File;
 import jdbox.models.fileids.FileId;
 import jdbox.models.fileids.FileIdStore;
+import jdbox.uploader.Task;
+import jdbox.uploader.Uploader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,7 +22,10 @@ import java.io.ByteArrayInputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -47,7 +51,6 @@ public class FileTree {
     private final SettableFuture syncError = SettableFuture.create();
     private final CountDownLatch start = new CountDownLatch(1);
     private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
-    private final Semaphore applyChangesSemaphore = new Semaphore(1);
     private final FileIdStore fileIdStore;
     private final Uploader uploader;
     private final boolean autoUpdate;
@@ -247,39 +250,37 @@ public class FileTree {
 
             parent.tryAddChild(newFile);
 
+            // While with other types of tasks this conversion may not be important, with create file/dir tasks it is.
+            // By performing this conversion, we capture this file's current parent. Therefore, if the parent changes
+            // to another directory, we will still create this file in the original directory and only then move it to
+            // the new one. Not doing so can lead to a race, consider the following scenario:
+            // 1. Make uplader busy with a lot of work.
+            // 2. Create file F in some dir.
+            // 3. Create dir D.
+            // 4. Move file F to dir D.
+            // Now, if uploader starts working on creation of file F before creation of dir D (which is likely),
+            // the operation will fail because D's id is not known yet.
             final File file = newFile.toFile();
 
-            uploader.submit(new Runnable() {
+            uploader.submit(new Task("create file/dir", file.getId(), parent.getId(), true) {
                 @Override
-                public void run() {
+                public void run() throws Exception {
 
-                    applyChangesSemaphore.acquireUninterruptibly();
-
+                    readWriteLock.writeLock().lock();
                     try {
 
-                        readWriteLock.writeLock().lock();
-                        try {
+                        jdbox.driveadapter.File createdFile =
+                                drive.createFile(file.toDaFile(), new ByteArrayInputStream(new byte[0]));
 
-                            jdbox.driveadapter.File createdFile =
-                                    drive.createFile(file.toDaFile(), new ByteArrayInputStream(new byte[0]));
+                        newFile.setUploaded(createdFile.getId(), createdFile.getDownloadUrl());
 
-                            logger.debug("created {}", newFile);
-
-                            newFile.setUploaded(createdFile.getId(), createdFile.getDownloadUrl());
-
-                        } finally {
-                            readWriteLock.writeLock().unlock();
-                        }
-
-                    } catch (Exception e) {
-                        logger.error("an error occured while creating file", e);
                     } finally {
-                        applyChangesSemaphore.release();
+                        readWriteLock.writeLock().unlock();
                     }
                 }
             });
 
-            return newFile.toFile();
+            return file;
 
         } finally {
             readWriteLock.writeLock().unlock();
@@ -303,17 +304,13 @@ public class FileTree {
 
             final File file = existing.toFile(EnumSet.of(File.Field.MODIFIED_DATE, File.Field.ACCESSED_DATE));
 
-            uploader.submit(new Runnable() {
+            uploader.submit(new Task("set dates", file.getId()) {
                 @Override
-                public void run() {
-                    try {
-                        drive.updateFile(file.toDaFile());
-                        logger.debug("set dates for {}", file);
-                    } catch (Exception e) {
-                        logger.error("an error occured while setting dates", e);
-                    }
+                public void run() throws Exception {
+                    drive.updateFile(file.toDaFile());
                 }
             });
+
         } finally {
             readWriteLock.writeLock().unlock();
         }
@@ -341,26 +338,13 @@ public class FileTree {
 
             final File file = existing.toFile(EnumSet.of(File.Field.PARENT_IDS));
 
-            uploader.submit(new Runnable() {
+            uploader.submit(new Task("remove file/dir", file.getId()) {
                 @Override
-                public void run() {
-
-                    applyChangesSemaphore.acquireUninterruptibly();
-
-                    try {
-
-                        if (file.getParentIds().size() == 0)
-                            drive.trashFile(file.toDaFile());
-                        else
-                            drive.updateFile(file.toDaFile());
-
-                        logger.debug("removed {}", file);
-
-                    } catch (Exception e) {
-                        logger.error("an error occured while removing file", e);
-                    } finally {
-                        applyChangesSemaphore.release();
-                    }
+                public void run() throws Exception {
+                    if (file.getParentIds().size() == 0)
+                        drive.trashFile(file.toDaFile());
+                    else
+                        drive.updateFile(file.toDaFile());
                 }
             });
 
@@ -404,12 +388,16 @@ public class FileTree {
 
             EnumSet<File.Field> fields = EnumSet.noneOf(File.Field.class);
 
+            FileId newParentId = null;
+
             if (!parentPath.equals(newParentPath)) {
 
                 fields.add(File.Field.PARENT_IDS);
 
                 newParent.tryAddChild(existing);
                 parent.tryRemoveChild(existing);
+
+                newParentId = newParent.getId();
             }
 
             if (!fileName.equals(newFileName)) {
@@ -419,23 +407,10 @@ public class FileTree {
 
             final File file = existing.toFile(fields);
 
-            uploader.submit(new Runnable() {
+            uploader.submit(new Task("set dates", file.getId(), newParentId) {
                 @Override
-                public void run() {
-
-                    applyChangesSemaphore.acquireUninterruptibly();
-
-                    try {
-
-                        drive.updateFile(file.toDaFile());
-
-                        logger.debug("moved {}", file);
-
-                    } catch (Exception e) {
-                        logger.error("an error occured while moving file", e);
-                    } finally {
-                        applyChangesSemaphore.release();
-                    }
+                public void run() throws Exception {
+                    drive.updateFile(file.toDaFile());
                 }
             });
 
@@ -553,9 +528,6 @@ public class FileTree {
 
     private void retrieveAndApplyChanges() {
 
-        if (!applyChangesSemaphore.tryAcquire())
-            return;
-
         try {
 
             DriveAdapter.Changes changes = drive.getChanges(largestChangeId + 1);
@@ -568,8 +540,6 @@ public class FileTree {
         } catch (Exception e) {
             logger.error("an error occured retrieving a list of changes", e);
             syncError.setException(e);
-        } finally {
-            applyChangesSemaphore.release();
         }
     }
 
