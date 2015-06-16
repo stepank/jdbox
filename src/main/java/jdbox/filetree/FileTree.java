@@ -22,7 +22,10 @@ import java.io.ByteArrayInputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -48,6 +51,7 @@ public class FileTree {
     private final SettableFuture syncError = SettableFuture.create();
     private final CountDownLatch start = new CountDownLatch(1);
     private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+    private final ReadWriteLock applyChangesReadWriteLock = new ReentrantReadWriteLock();
     private final FileIdStore fileIdStore;
     private final Uploader uploader;
     private final boolean autoUpdate;
@@ -82,9 +86,7 @@ public class FileTree {
         @Override
         public File apply(String fileName, Map<String, KnownFile> files) {
             KnownFile kf = singleKnownFileGetter.apply(fileName, files);
-            File file = kf != null ? kf.toFile() : null;
-            logger.debug(fileName + " " + (file != null ? file.getSize() : ""));
-            return file;
+            return kf != null ? kf.toFile() : null;
         }
     };
 
@@ -263,10 +265,11 @@ public class FileTree {
             // the operation will fail because D's id is not known yet.
             final File file = newFile.toFile();
 
-            uploader.submit(new Task("create file/dir", file.getId(), parent.getId(), true) {
+            uploader.submit(new Task("create file/dir", file.getId(), parent.getId(), file.isDirectory()) {
                 @Override
                 public void run() throws Exception {
 
+                    applyChangesReadWriteLock.readLock().lock();
                     readWriteLock.writeLock().lock();
                     try {
 
@@ -277,6 +280,7 @@ public class FileTree {
 
                     } finally {
                         readWriteLock.writeLock().unlock();
+                        applyChangesReadWriteLock.readLock().unlock();
                     }
                 }
             });
@@ -308,7 +312,12 @@ public class FileTree {
             uploader.submit(new Task("set dates", file.getId()) {
                 @Override
                 public void run() throws Exception {
-                    drive.updateFile(file.toDaFile());
+                    applyChangesReadWriteLock.readLock().lock();
+                    try {
+                        drive.updateFile(file.toDaFile());
+                    } finally {
+                        applyChangesReadWriteLock.readLock().unlock();
+                    }
                 }
             });
 
@@ -342,10 +351,15 @@ public class FileTree {
             uploader.submit(new Task("remove file/dir", file.getId()) {
                 @Override
                 public void run() throws Exception {
-                    if (file.getParentIds().size() == 0)
-                        drive.trashFile(file.toDaFile());
-                    else
-                        drive.updateFile(file.toDaFile());
+                    applyChangesReadWriteLock.readLock().lock();
+                    try {
+                        if (file.getParentIds().size() == 0)
+                            drive.trashFile(file.toDaFile());
+                        else
+                            drive.updateFile(file.toDaFile());
+                    } finally {
+                        applyChangesReadWriteLock.readLock().unlock();
+                    }
                 }
             });
 
@@ -411,7 +425,12 @@ public class FileTree {
             uploader.submit(new Task("set dates", file.getId(), newParentId) {
                 @Override
                 public void run() throws Exception {
-                    drive.updateFile(file.toDaFile());
+                    applyChangesReadWriteLock.readLock().lock();
+                    try {
+                        drive.updateFile(file.toDaFile());
+                    } finally {
+                        applyChangesReadWriteLock.readLock().unlock();
+                    }
                 }
             });
 
@@ -529,6 +548,9 @@ public class FileTree {
 
     private void retrieveAndApplyChanges() {
 
+        if (!applyChangesReadWriteLock.writeLock().tryLock())
+            return;
+
         try {
 
             DriveAdapter.Changes changes = drive.getChanges(largestChangeId + 1);
@@ -541,6 +563,8 @@ public class FileTree {
         } catch (Exception e) {
             logger.error("an error occured retrieving a list of changes", e);
             syncError.setException(e);
+        } finally {
+            applyChangesReadWriteLock.writeLock().unlock();
         }
     }
 
