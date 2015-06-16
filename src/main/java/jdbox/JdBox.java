@@ -24,9 +24,7 @@ import java.io.File;
 import java.io.InputStreamReader;
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Executors;
 
 public class JdBox {
 
@@ -56,6 +54,10 @@ public class JdBox {
 
     public static Injector createInjector(Environment env, Drive drive, boolean autoUpdateFileTree) throws Exception {
         return Guice.createInjector(new MainModule(env, drive, autoUpdateFileTree), new OpenedFilesModule());
+    }
+
+    public static ExecutorService createExecutor() {
+        return Executors.newCachedThreadPool();
     }
 
     public static Drive createDriveService(Environment env) throws Exception {
@@ -120,11 +122,7 @@ public class JdBox {
             bind(DriveAdapter.class).in(Singleton.class);
             bind(Uploader.class).in(Singleton.class);
 
-            ThreadPoolExecutor executor =
-                    new ThreadPoolExecutor(1, 8, 60, TimeUnit.SECONDS, new LinkedBlockingDeque<Runnable>());
-
-            bind(ExecutorService.class).toInstance(executor);
-            bind(ThreadPoolExecutor.class).toInstance(executor);
+            bind(ExecutorService.class).toInstance(createExecutor());
         }
 
         @Provides

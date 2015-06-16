@@ -18,7 +18,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -77,10 +77,9 @@ public class BaseTest {
 
     protected void destroyInjector(Injector injector) throws InterruptedException {
         injector.getInstance(FileTree.class).stopAndWait(5000);
-        ThreadPoolExecutor executor = injector.getInstance(ThreadPoolExecutor.class);
+        ExecutorService executor = injector.getInstance(ExecutorService.class);
         List<Runnable> tasks = executor.shutdownNow();
         assertThat(tasks.size(), equalTo(0));
-        assertThat(executor.getActiveCount(), equalTo(0));
         executor.awaitTermination(5, TimeUnit.SECONDS);
     }
 

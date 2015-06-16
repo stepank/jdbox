@@ -1,24 +1,27 @@
 package jdbox.uploader;
 
 import com.google.common.collect.Lists;
+import jdbox.JdBox;
 import jdbox.models.fileids.FileId;
 import jdbox.models.fileids.FileIdStore;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
-import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.*;
 
 public class UploaderTest {
 
-    private ThreadPoolExecutor executor;
+    private static final Logger logger = LoggerFactory.getLogger(UploaderTest.class);
+
+    private ExecutorService executor = JdBox.createExecutor();
     private Uploader uploader;
     private Collection<List<Integer>> expectedOrders;
     private TestTaskFactory taskFactory;
@@ -26,7 +29,6 @@ public class UploaderTest {
     @Before
     public void setUp() {
 
-        executor = new ThreadPoolExecutor(1, 8, 60, TimeUnit.SECONDS, new LinkedBlockingDeque<Runnable>());
         uploader = new Uploader(executor);
 
         expectedOrders = new LinkedList<>();
@@ -117,6 +119,33 @@ public class UploaderTest {
         expectedOrders.add(Lists.newArrayList(1, 2));
         expectedOrders.add(Lists.newArrayList(1, 3));
     }
+
+    @Test
+    public void concurrency() throws Exception {
+
+        Date start = new Date();
+
+        for (int i = 1; i <= 10; i++) {
+            uploader.submit(taskFactory.create(i, Integer.toString(i), null, false, new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }));
+        }
+
+        uploader.waitUntilIsDone();
+
+        int elapsed = (int) (new Date().getTime() - start.getTime());
+
+        logger.debug("time spent to run all the tasks is {} ms", elapsed);
+
+        assertThat(elapsed, lessThan(2000));
+    }
 }
 
 class TestTaskFactory {
@@ -142,22 +171,30 @@ class TestTaskFactory {
     }
 
     public Task create(Integer label, String fileId, String dependsOn, boolean blocksDependentTasks) {
+        return create(label, fileId, dependsOn, blocksDependentTasks, null);
+    }
+
+    public Task create(
+            Integer label, String fileId, String dependsOn, boolean blocksDependentTasks, Runnable runnable) {
         labels.add(label);
         return new TestTask(
                 label, fileIdStore.get(fileId), dependsOn != null ? fileIdStore.get(dependsOn) : null,
-                blocksDependentTasks, order);
+                blocksDependentTasks, runnable, order);
     }
 }
 
 class TestTask extends Task {
 
     private Integer label;
+    private final Runnable runnable;
     private final List<Integer> order;
 
     public TestTask(
-            Integer label, FileId fileId, FileId dependsOn, boolean blocksDependentTasks, List<Integer> order) {
+            Integer label, FileId fileId, FileId dependsOn,
+            boolean blocksDependentTasks, Runnable runnable, List<Integer> order) {
         super(label.toString(), fileId, dependsOn, blocksDependentTasks);
         this.label = label;
+        this.runnable = runnable;
         this.order = order;
     }
 
@@ -166,5 +203,7 @@ class TestTask extends Task {
         synchronized (order) {
             order.add(label);
         }
+        if (runnable != null)
+            runnable.run();
     }
 }
