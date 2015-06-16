@@ -40,7 +40,7 @@ public abstract class Task {
 
     @Override
     public String toString() {
-        return "BaseTask{" +
+        return "Task{" +
                 "label='" + label + '\'' +
                 ", fileId=" + fileId +
                 ", dependsOn=" + dependsOn +

@@ -61,8 +61,10 @@ public class Uploader {
                 item.addDependency(dependency.getHead());
         }
 
-        if (item.getDependencies().size() == 0)
+        if (item.getDependencies().size() == 0) {
+            logger.debug("submitting {}", task);
             futures.add(executor.submit(new TaskRunner(item)));
+        }
     }
 
     public void waitUntilIsDone() throws ExecutionException, InterruptedException {
@@ -111,8 +113,10 @@ public class Uploader {
                         queues.remove(item.getTask().getFileId());
 
                     for (Item dependent : new HashSet<>(item.getDependents())) {
-                        if (dependent.removeDependency(item))
+                        if (dependent.removeDependency(item)) {
+                            logger.debug("submitting {}", dependent.getTask());
                             futures.add(executor.submit(new TaskRunner(dependent)));
+                        }
                     }
                 }
 
