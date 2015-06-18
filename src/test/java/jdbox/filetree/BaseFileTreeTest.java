@@ -2,6 +2,8 @@ package jdbox.filetree;
 
 import jdbox.BaseTest;
 import jdbox.driveadapter.File;
+import org.hamcrest.Description;
+import org.hamcrest.TypeSafeMatcher;
 import org.junit.Before;
 
 import java.nio.file.Path;
@@ -12,11 +14,11 @@ import java.util.List;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class BaseFileTreeTest extends BaseTest {
 
-    protected Path testDirPath = Paths.get("/");
+    protected final static Path testDirPath = Paths.get("/");
+
     protected FileTree fileTree;
 
     @Before
@@ -49,72 +51,100 @@ public class BaseFileTreeTest extends BaseTest {
         assertThat(fileTree.getTrackedDirCount(), equalTo(trackedDirCount));
     }
 
-    protected AssertCollection assertFileTreeContains() throws Exception {
-        return new AssertCollection();
+    protected FileTreeMatcher contains() {
+        return new FileTreeMatcher().and();
     }
 
-    protected AssertCollection assertFileTreeContains(FileTree fileTree) throws Exception {
-        return new AssertCollection(fileTree);
-    }
-
-    public class AssertCollection {
+    protected class FileTreeMatcher extends TypeSafeMatcher<FileTree> {
 
         private final LinkedList<Assert> asserts = new LinkedList<>();
-        private final FileTree fileTree;
-        private Path path = BaseFileTreeTest.this.testDirPath;
+        private Path path = testDirPath;
+        private AssertResult result;
 
-        public AssertCollection() {
-            this(BaseFileTreeTest.this.fileTree);
+        @Override
+        public void describeTo(Description description) {
+            description.appendText(result.expected);
         }
 
-        public AssertCollection(FileTree fileTree) {
-            this.fileTree = fileTree;
-            and();
+        @Override
+        public void describeMismatchSafely(FileTree item, Description description) {
+            description.appendText(result.actual);
         }
 
-        public void nothing() throws Exception {
+        @Override
+        public boolean matchesSafely(FileTree fileTree) {
+
+            try {
+
+                List<String> children = fileTree.getChildren(path);
+
+                if (children.size() != asserts.size()) {
+                    result = new AssertResult(
+                            String.format("%s file(s) in %s", asserts.size(), path),
+                            String.format("%s file(s) were found", children.size()));
+                    return false;
+                }
+
+                for (Assert a : asserts) {
+                    result = a.check(fileTree.getOrNull(path.resolve(a.name)));
+                    if (result != null)
+                        return false;
+                }
+
+                return true;
+
+            } catch (Exception e) {
+                return false;
+            }
+        }
+
+        public FileTreeMatcher nothing() {
             asserts.clear();
-            only();
+            return this;
         }
 
-        public AssertCollection file() {
+        public FileTreeMatcher file() {
+            if (asserts.size() == 0)
+                throw new IllegalStateException("this matcher is set to check that a file tree contains nothing");
             asserts.getLast().isDirectory = false;
             return this;
         }
 
-        public AssertCollection folder() {
+        public FileTreeMatcher folder() {
+            if (asserts.size() == 0)
+                throw new IllegalStateException("this matcher is set to check that a file tree contains nothing");
             asserts.getLast().isDirectory = true;
             return this;
         }
 
-        public AssertCollection and() {
+        public FileTreeMatcher and() {
             asserts.add(new Assert());
             return this;
         }
 
-        public AssertCollection defaultTestFile() throws Exception {
+        public FileTreeMatcher defaultTestFile() throws Exception {
             return file()
                     .withName(testFileName)
                     .withSize(testContentString.length());
         }
 
-        public AssertCollection defaultEmptyTestFile() throws Exception {
+        public FileTreeMatcher defaultEmptyTestFile() throws Exception {
             return defaultTestFile().withSize(0);
         }
 
-        public AssertCollection defaultTestFolder() throws Exception {
+        public FileTreeMatcher defaultTestFolder() throws Exception {
             return folder()
                     .withName(testFolderName)
                     .withSize(0);
         }
 
-        public AssertCollection in(String path) {
+        public FileTreeMatcher in(String path) {
             return in(Paths.get(path));
         }
 
-        public AssertCollection in(Path path) {
+        public FileTreeMatcher in(Path path) {
             if (path == null)
-                throw new IllegalArgumentException("path");
+                throw new NullPointerException("path");
             if (path.isAbsolute())
                 this.path = path;
             else
@@ -122,47 +152,33 @@ public class BaseFileTreeTest extends BaseTest {
             return this;
         }
 
-        public AssertCollection withName(String name) {
+        public FileTreeMatcher withName(String name) {
             if (name == null)
                 throw new IllegalArgumentException("name");
             asserts.getLast().name = name;
             return this;
         }
 
-        public AssertCollection withRealName(String name) {
+        public FileTreeMatcher withRealName(String name) {
             if (name == null)
                 throw new IllegalArgumentException("name");
             asserts.getLast().realName = name;
             return this;
         }
 
-        public AssertCollection withSize(int size) {
+        public FileTreeMatcher withSize(int size) {
             asserts.getLast().size = size;
             return this;
         }
 
-        public AssertCollection withAccessedDate(Date date) {
+        public FileTreeMatcher withAccessedDate(Date date) {
             asserts.getLast().accessedDate = date;
             return this;
         }
 
-        public AssertCollection withModifiedDate(Date date) {
+        public FileTreeMatcher withModifiedDate(Date date) {
             asserts.getLast().modifiedDate = date;
             return this;
-        }
-
-        public void only() throws Exception {
-
-            List<String> children = fileTree.getChildren(path);
-
-            assertThat(
-                    "the actual number of files does not match the expected number",
-                    children.size(), equalTo(asserts.size()));
-
-            for (Assert a : asserts) {
-                children.contains(a.name);
-                a.check(fileTree.getOrNull(path.resolve(a.name)));
-            }
         }
 
         public class Assert {
@@ -174,28 +190,55 @@ public class BaseFileTreeTest extends BaseTest {
             public Date accessedDate;
             public Date modifiedDate;
 
-            public void check(jdbox.models.File file) {
+            public AssertResult check(jdbox.models.File file) {
 
-                assertThat(String.format("file %s does not exist", name), file, notNullValue());
+                if (file == null)
+                    return new AssertResult(
+                            String.format("file %s exists in %s", name, FileTreeMatcher.this.path),
+                            String.format("file %s does not exist", name));
 
-                if (realName == null)
-                    assertThat(String.format("%s has wrong name", file), file.getName(), equalTo(name));
-                else
-                    assertThat(String.format("%s has wrong real name", file), file.getName(), equalTo(realName));
+                if (realName == null && !file.getName().equals(name))
+                    return new AssertResult(
+                            String.format("%s has name %s", file, name),
+                            String.format("%s has name %s", file, name));
 
-                if (size != null)
-                    assertThat(String.format("%s has wrong size", file), file.getSize(), equalTo((long) size));
+                if (realName != null && !file.getName().equals(realName))
+                    return new AssertResult(
+                            String.format("%s has real name %s", file, realName),
+                            String.format("%s has real name %s", file, file.getName()));
 
-                if (isDirectory != null)
-                    assertThat(
-                            String.format("%s is not a %s", file, isDirectory ? "folder" : "file"),
-                            file.isDirectory(), equalTo(isDirectory));
+                if (size != null && file.getSize() != size)
+                    return new AssertResult(
+                            String.format("%s has size %s", file, size),
+                            String.format("%s has size %s", file, file.getSize()));
 
-                if (accessedDate != null)
-                    assertThat(String.format("%s has wrong accessed date", file), file.getAccessedDate(), equalTo(accessedDate));
+                if (isDirectory != null && file.isDirectory() != isDirectory)
+                    return new AssertResult(
+                            String.format("%s is a %s", file, isDirectory ? "folder" : "file"),
+                            String.format("%s is a %s", file, file.isDirectory() ? "folder" : "file"));
 
-                if (modifiedDate != null)
-                    assertThat(String.format("%s has wrong modified date", file), file.getModifiedDate(), equalTo(modifiedDate));
+                if (accessedDate != null && !file.getAccessedDate().equals(accessedDate))
+                    return new AssertResult(
+                            String.format("%s has accessed date %s", file, accessedDate),
+                            String.format("%s has accessed date %s", file, file.getAccessedDate()));
+
+                if (modifiedDate != null && !file.getModifiedDate().equals(modifiedDate))
+                    return new AssertResult(
+                            String.format("%s has modified date %s", file, modifiedDate),
+                            String.format("%s has modified date %s", file, file.getModifiedDate()));
+
+                return null;
+            }
+        }
+
+        private class AssertResult {
+
+            public final String expected;
+            public final String actual;
+
+            AssertResult(String expected, String actual) {
+                this.expected = expected;
+                this.actual = actual;
             }
         }
     }

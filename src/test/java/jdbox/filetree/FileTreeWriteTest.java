@@ -8,6 +8,8 @@ import org.junit.experimental.categories.Category;
 
 import java.util.Date;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+
 @Category(FileTree.class)
 public class FileTreeWriteTest extends BaseFileTreeTest {
 
@@ -23,7 +25,7 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
         fileTree2 = injector2.getInstance(FileTree.class);
         fileTree2.setRoot(testDir.getId());
 
-        assertFileTreeContains(fileTree2).nothing();
+        assertThat(fileTree2, contains().nothing());
     }
 
     /**
@@ -33,13 +35,13 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
     public void createFile() throws Exception {
 
         fileTree.create(testDirPath.resolve(testFileName), false);
-        assertFileTreeContains().defaultEmptyTestFile().only();
+        assertThat(fileTree, contains().defaultEmptyTestFile());
 
         waitUntilUploaderIsDone();
-        assertFileTreeContains(fileTree2).nothing();
+        assertThat(fileTree2, contains().nothing());
 
         fileTree2.update();
-        assertFileTreeContains(fileTree2).defaultEmptyTestFile().only();
+        assertThat(fileTree2, contains().defaultEmptyTestFile());
     }
 
     /**
@@ -49,13 +51,13 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
     public void createFolder() throws Exception {
 
         fileTree.create(testDirPath.resolve(testFolderName), true);
-        assertFileTreeContains().defaultTestFolder().only();
+        assertThat(fileTree, contains().defaultTestFolder());
 
         waitUntilUploaderIsDone();
-        assertFileTreeContains(fileTree2).nothing();
+        assertThat(fileTree2, contains().nothing());
 
         fileTree2.update();
-        assertFileTreeContains(fileTree2).defaultTestFolder().only();
+        assertThat(fileTree2, contains().defaultTestFolder());
     }
 
     /**
@@ -66,15 +68,15 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
 
         fileTree.create(testDirPath.resolve(testFolderName), true);
         fileTree.create(testDirPath.resolve(testFolderName).resolve(testFileName), false);
-        assertFileTreeContains().defaultTestFolder().only();
-        assertFileTreeContains().in(testFolderName).defaultEmptyTestFile().only();
+        assertThat(fileTree, contains().defaultTestFolder());
+        assertThat(fileTree, contains().defaultEmptyTestFile().in(testFolderName));
 
         waitUntilUploaderIsDone();
-        assertFileTreeContains(fileTree2).nothing();
+        assertThat(fileTree2, contains().nothing());
 
         fileTree2.update();
-        assertFileTreeContains(fileTree2).defaultTestFolder().only();
-        assertFileTreeContains(fileTree2).in(testFolderName).defaultEmptyTestFile().only();
+        assertThat(fileTree2, contains().defaultTestFolder());
+        assertThat(fileTree2, contains().defaultEmptyTestFile().in(testFolderName));
     }
 
     /**
@@ -88,21 +90,19 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
 
         fileTree.create(testDirPath.resolve(testFileName), false);
         fileTree.setDates(testDirPath.resolve(testFileName), newModifiedDate, newAccessedDate);
-        assertFileTreeContains()
+        assertThat(fileTree, contains()
                 .defaultEmptyTestFile()
                 .withModifiedDate(newModifiedDate)
-                .withAccessedDate(newAccessedDate)
-                .only();
+                .withAccessedDate(newAccessedDate));
 
         waitUntilUploaderIsDone();
-        assertFileTreeContains(fileTree2).nothing();
+        assertThat(fileTree2, contains().nothing());
 
         fileTree2.update();
-        assertFileTreeContains(fileTree2)
+        assertThat(fileTree2, contains()
                 .defaultEmptyTestFile()
                 .withModifiedDate(newModifiedDate)
-                .withAccessedDate(newAccessedDate)
-                .only();
+                .withAccessedDate(newAccessedDate));
     }
 
     /**
@@ -112,22 +112,22 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
     public void remove() throws Exception {
 
         fileTree.create(testDirPath.resolve(testFileName), false);
-        assertFileTreeContains().defaultEmptyTestFile().only();
+        assertThat(fileTree, contains().defaultEmptyTestFile());
 
         waitUntilUploaderIsDone();
-        assertFileTreeContains(fileTree2).nothing();
+        assertThat(fileTree2, contains().nothing());
 
         fileTree2.update();
-        assertFileTreeContains(fileTree2).defaultEmptyTestFile().only();
+        assertThat(fileTree2, contains().defaultEmptyTestFile());
 
         fileTree.remove(testDirPath.resolve(testFileName));
-        assertFileTreeContains().nothing();
+        assertThat(fileTree, contains().nothing());
 
         waitUntilUploaderIsDone();
-        assertFileTreeContains(fileTree2).defaultEmptyTestFile().only();
+        assertThat(fileTree2, contains().defaultEmptyTestFile());
 
         fileTree2.update();
-        assertFileTreeContains(fileTree2).nothing();
+        assertThat(fileTree2, contains().nothing());
     }
 
     /**
@@ -142,29 +142,29 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
         fileTree.create(testDirPath.resolve(source), true);
         fileTree.create(testDirPath.resolve(destination), true);
         fileTree.create(testDirPath.resolve(source).resolve(testFileName), false);
-        assertFileTreeContains().in(source).defaultEmptyTestFile().only();
-        assertFileTreeContains().in(destination).nothing();
+        assertThat(fileTree, contains().defaultEmptyTestFile().in(source));
+        assertThat(fileTree, contains().nothing().in(destination));
 
         waitUntilUploaderIsDone();
-        assertFileTreeContains(fileTree2).nothing();
+        assertThat(fileTree2, contains().nothing());
 
         fileTree2.update();
-        assertFileTreeContains(fileTree2).in(source).defaultEmptyTestFile().only();
-        assertFileTreeContains(fileTree2).in(destination).nothing();
+        assertThat(fileTree2, contains().defaultEmptyTestFile().in(source));
+        assertThat(fileTree2, contains().nothing().in(destination));
 
         fileTree.move(
                 testDirPath.resolve(source).resolve(testFileName),
                 testDirPath.resolve(destination).resolve("test_file_2"));
-        assertFileTreeContains().in(source).nothing();
-        assertFileTreeContains().in(destination).file().withName("test_file_2").only();
+        assertThat(fileTree, contains().nothing().in(source));
+        assertThat(fileTree, contains().file().withName("test_file_2").in(destination));
 
         waitUntilUploaderIsDone();
-        assertFileTreeContains(fileTree2).in(source).defaultEmptyTestFile().only();
-        assertFileTreeContains(fileTree2).in(destination).nothing();
+        assertThat(fileTree2, contains().defaultEmptyTestFile().in(source));
+        assertThat(fileTree2, contains().nothing().in(destination));
 
         fileTree2.update();
-        assertFileTreeContains(fileTree2).in(source).nothing();
-        assertFileTreeContains(fileTree2).in(destination).file().withName("test_file_2").only();
+        assertThat(fileTree2, contains().nothing().in(source));
+        assertThat(fileTree2, contains().file().withName("test_file_2").in(destination));
     }
 
     /**
@@ -174,37 +174,35 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
     @Test
     public void renameTyped() throws Exception {
 
-        assertFileTreeContains().nothing();
+        assertThat(fileTree, contains().nothing());
 
         drive.createFile(testFileName, testDir, JdBox.class.getResource("/test.pdf").openStream());
 
-        assertFileTreeContains().nothing();
+        assertThat(fileTree, contains().nothing());
 
         fileTree.update();
 
-        assertFileTreeContains().file()
+        assertThat(fileTree, contains()
+                .file()
                 .withName(testFileName + ".pdf")
-                .withRealName(testFileName)
-                .only();
+                .withRealName(testFileName));
 
         fileTree.move(
                 testDirPath.resolve(testFileName + ".pdf"),
                 testDirPath.resolve("test_file_2.pdf"));
 
-        assertFileTreeContains()
+        assertThat(fileTree, contains()
                 .file()
                 .withName("test_file_2.pdf")
-                .withRealName("test_file_2.pdf")
-                .only();
+                .withRealName("test_file_2.pdf"));
 
         waitUntilUploaderIsDone();
         fileTree.update();
 
-        assertFileTreeContains()
+        assertThat(fileTree, contains()
                 .file()
                 .withName("test_file_2.pdf")
-                .withRealName("test_file_2.pdf")
-                .only();
+                .withRealName("test_file_2.pdf"));
 
         assertCounts(2, 1);
     }

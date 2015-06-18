@@ -7,6 +7,8 @@ import org.junit.experimental.categories.Category;
 
 import java.nio.file.Path;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+
 @Category(FileTree.class)
 public class FileTreeBasicReadTest extends BaseFileTreeTest {
 
@@ -20,8 +22,8 @@ public class FileTreeBasicReadTest extends BaseFileTreeTest {
         File testFolder = drive.createFolder(testFolderName, testDir);
         drive.createFile(testFileName, testFolder, getTestContent());
 
-        assertFileTreeContains().defaultTestFile().and().defaultTestFolder().only();
-        assertFileTreeContains().in(testFolderName).defaultTestFile().only();
+        assertThat(fileTree, contains().defaultTestFile().and().defaultTestFolder());
+        assertThat(fileTree, contains().defaultTestFile().in(testFolderName));
 
         assertCounts(4, 2);
     }
@@ -31,11 +33,11 @@ public class FileTreeBasicReadTest extends BaseFileTreeTest {
      */
     @Test
     public void create() throws Exception {
-        assertFileTreeContains().nothing();
+        assertThat(fileTree, contains().nothing());
         drive.createFile(testFileName, testDir, getTestContent());
-        assertFileTreeContains().nothing();
+        assertThat(fileTree, contains().nothing());
         fileTree.update();
-        assertFileTreeContains().defaultTestFile().only();
+        assertThat(fileTree, contains().defaultTestFile());
         assertCounts(2, 1);
     }
 
@@ -49,17 +51,17 @@ public class FileTreeBasicReadTest extends BaseFileTreeTest {
 
         testFile.setName("test_file_2");
         drive.updateFile(testFile);
-        assertFileTreeContains().defaultTestFile().only();
+        assertThat(fileTree, contains().defaultTestFile());
 
         fileTree.update();
-        assertFileTreeContains().defaultTestFile().withName("test_file_2").only();
+        assertThat(fileTree, contains().defaultTestFile().withName("test_file_2"));
 
         testFile.setName(testFileName);
         drive.updateFile(testFile);
-        assertFileTreeContains().defaultTestFile().withName("test_file_2").only();
+        assertThat(fileTree, contains().defaultTestFile().withName("test_file_2"));
 
         fileTree.update();
-        assertFileTreeContains().defaultTestFile().only();
+        assertThat(fileTree, contains().defaultTestFile());
 
         assertCounts(2, 1);
     }
@@ -79,13 +81,13 @@ public class FileTreeBasicReadTest extends BaseFileTreeTest {
 
         testFolder.setName("test_folder_2");
         drive.updateFile(testFolder);
-        assertFileTreeContains().defaultTestFolder().only();
-        assertFileTreeContains().in(testFolderPath).defaultTestFile().only();
+        assertThat(fileTree, contains().defaultTestFolder());
+        assertThat(fileTree, contains().defaultTestFile().in(testFolderPath));
 
         fileTree.update();
         assertCounts(3, 2);
-        assertFileTreeContains().defaultTestFolder().withName("test_folder_2").only();
-        assertFileTreeContains().in(testDirPath.resolve("test_folder_2")).defaultTestFile().only();
+        assertThat(fileTree, contains().defaultTestFolder().withName("test_folder_2"));
+        assertThat(fileTree, contains().defaultTestFile().in("test_folder_2"));
     }
 
     /**
@@ -94,18 +96,18 @@ public class FileTreeBasicReadTest extends BaseFileTreeTest {
     @Test
     public void extensionIsAdded() throws Exception {
 
-        assertFileTreeContains().nothing();
+        assertThat(fileTree, contains().nothing());
 
         drive.createFile(testFileName, testDir, JdBox.class.getResource("/test.pdf").openStream());
 
-        assertFileTreeContains().nothing();
+        assertThat(fileTree, contains().nothing());
 
         fileTree.update();
 
-        assertFileTreeContains().file()
+        assertThat(fileTree, contains()
+                .file()
                 .withName(testFileName + ".pdf")
-                .withRealName(testFileName)
-                .only();
+                .withRealName(testFileName));
 
         assertCounts(2, 1);
     }
@@ -116,15 +118,15 @@ public class FileTreeBasicReadTest extends BaseFileTreeTest {
     @Test
     public void extensionIsPreserved() throws Exception {
 
-        assertFileTreeContains().nothing();
+        assertThat(fileTree, contains().nothing());
 
         drive.createFile(testFileName + ".pdf", testDir, JdBox.class.getResource("/test.pdf").openStream());
 
-        assertFileTreeContains().nothing();
+        assertThat(fileTree, contains().nothing());
 
         fileTree.update();
 
-        assertFileTreeContains().file().withName(testFileName + ".pdf").only();
+        assertThat(fileTree, contains().file().withName(testFileName + ".pdf"));
 
         assertCounts(2, 1);
     }
@@ -136,18 +138,18 @@ public class FileTreeBasicReadTest extends BaseFileTreeTest {
     @Test
     public void extensionIsNotAdded() throws Exception {
 
-        assertFileTreeContains().nothing();
+        assertThat(fileTree, contains().nothing());
 
         drive.createFile(testFileName + ".pdf", testDir, getTestContent());
         drive.createFile(testFileName, testDir, JdBox.class.getResource("/test.pdf").openStream());
 
-        assertFileTreeContains().nothing();
+        assertThat(fileTree, contains().nothing());
 
         fileTree.update();
 
-        assertFileTreeContains()
+        assertThat(fileTree, contains()
                 .file().withName(testFileName).and()
-                .file().defaultTestFile().withName(testFileName + ".pdf").only();
+                .file().defaultTestFile().withName(testFileName + ".pdf"));
 
         assertCounts(3, 1);
     }

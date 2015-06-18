@@ -11,6 +11,8 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+
 @Category(FileTree.class)
 @RunWith(Parameterized.class)
 public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
@@ -39,13 +41,13 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
         String newContent = "hello beautiful world";
         drive.updateFileContent(testFile, new ByteArrayInputStream(newContent.getBytes()));
 
-        assertFileTreeContains().defaultTestFile().only();
+        assertThat(fileTree, contains().defaultTestFile());
 
         fileTree.update();
-        assertFileTreeContains()
+        assertThat(fileTree, contains()
                 .file()
                 .withName(rename ? "test_file_2" : testFileName)
-                .withSize(newContent.length()).only();
+                .withSize(newContent.length()));
 
         assertCounts(2, 1);
     }
@@ -61,9 +63,9 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
             drive.updateFile(testFile);
         }
         drive.trashFile(testFile);
-        assertFileTreeContains().defaultTestFile().only();
+        assertThat(fileTree, contains().defaultTestFile());
         fileTree.update();
-        assertFileTreeContains().nothing();
+        assertThat(fileTree, contains().nothing());
         assertCounts(1, 1);
     }
 
@@ -78,9 +80,9 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
             drive.updateFile(testFile);
         }
         drive.deleteFile(testFile);
-        assertFileTreeContains().defaultTestFile().only();
+        assertThat(fileTree, contains().defaultTestFile());
         fileTree.update();
-        assertFileTreeContains().nothing();
+        assertThat(fileTree, contains().nothing());
         assertCounts(1, 1);
     }
 
@@ -101,10 +103,10 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
             drive.updateFile(folder);
         }
         drive.deleteFile(folder);
-        assertFileTreeContains().defaultTestFolder().only();
+        assertThat(fileTree, contains().defaultTestFolder());
 
         fileTree.update();
-        assertFileTreeContains().nothing();
+        assertThat(fileTree, contains().nothing());
 
         assertCounts(1, 1);
     }
@@ -129,13 +131,13 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
             testFile.setName("test_file_2");
         testFile.setParentId(destination.getId());
         drive.updateFile(testFile);
-        assertFileTreeContains().in(sourcePath).defaultTestFile().only();
-        assertFileTreeContains().in(destinationPath).nothing();
+        assertThat(fileTree, contains().defaultTestFile().in(sourcePath));
+        assertThat(fileTree, contains().nothing().in(destinationPath));
 
         fileTree.update();
-        assertFileTreeContains().in(sourcePath).nothing();
-        assertFileTreeContains()
-                .in(destinationPath).defaultTestFile().withName(rename ? "test_file_2" : testFileName).only();
+        assertThat(fileTree, contains().nothing().in(sourcePath));
+        assertThat(fileTree, contains()
+                .defaultTestFile().withName(rename ? "test_file_2" : testFileName).in(destinationPath));
 
         assertCounts(4, 3);
     }
@@ -158,10 +160,10 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
             testFile.setName("test_file_2");
         testFile.setParentId(destination.getId());
         drive.updateFile(testFile);
-        assertFileTreeContains().in(sourcePath).defaultTestFile().only();
+        assertThat(fileTree, contains().defaultTestFile().in(sourcePath));
 
         fileTree.update();
-        assertFileTreeContains().in(sourcePath).nothing();
+        assertThat(fileTree, contains().nothing().in(sourcePath));
 
         assertCounts(3, 2);
     }
@@ -184,10 +186,13 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
             testFile.setName("test_file_2");
         testFile.setParentId(destination.getId());
         drive.updateFile(testFile);
-        assertFileTreeContains().in(destinationPath).nothing();
+        assertThat(fileTree, contains().nothing().in(destinationPath));
 
         fileTree.update();
-        assertFileTreeContains().in(destinationPath).defaultTestFile().withName(rename ? "test_file_2" : testFileName).only();
+        assertThat(fileTree, contains()
+                .defaultTestFile()
+                .withName(rename ? "test_file_2" : testFileName)
+                .in(destinationPath));
 
         assertCounts(4, 2);
     }
