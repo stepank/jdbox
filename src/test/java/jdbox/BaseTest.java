@@ -13,6 +13,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.Date;
 import java.util.List;
@@ -102,5 +103,9 @@ public class BaseTest {
 
     protected static InputStream getTestContent() {
         return new ByteArrayInputStream(testContentString.getBytes());
+    }
+
+    protected static InputStream getTestPdfContent() throws IOException {
+        return JdBox.class.getResource("/test.pdf").openStream();
     }
 }

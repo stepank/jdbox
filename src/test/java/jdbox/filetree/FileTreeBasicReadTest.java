@@ -1,6 +1,5 @@
 package jdbox.filetree;
 
-import jdbox.JdBox;
 import jdbox.driveadapter.File;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -88,69 +87,5 @@ public class FileTreeBasicReadTest extends BaseFileTreeTest {
         assertCounts(3, 2);
         assertThat(fileTree, contains().defaultTestFolder().withName("test_folder_2"));
         assertThat(fileTree, contains().defaultTestFile().in("test_folder_2"));
-    }
-
-    /**
-     * List all files, make sure that a typed file w/o extension is listed with extension.
-     */
-    @Test
-    public void extensionIsAdded() throws Exception {
-
-        assertThat(fileTree, contains().nothing());
-
-        drive.createFile(testFileName, testDir, JdBox.class.getResource("/test.pdf").openStream());
-
-        assertThat(fileTree, contains().nothing());
-
-        fileTree.update();
-
-        assertThat(fileTree, contains()
-                .file()
-                .withName(testFileName + ".pdf")
-                .withRealName(testFileName));
-
-        assertCounts(2, 1);
-    }
-
-    /**
-     * List all files, make sure that a typed file with extension is listed with extension.
-     */
-    @Test
-    public void extensionIsPreserved() throws Exception {
-
-        assertThat(fileTree, contains().nothing());
-
-        drive.createFile(testFileName + ".pdf", testDir, JdBox.class.getResource("/test.pdf").openStream());
-
-        assertThat(fileTree, contains().nothing());
-
-        fileTree.update();
-
-        assertThat(fileTree, contains().file().withName(testFileName + ".pdf"));
-
-        assertCounts(2, 1);
-    }
-
-    /**
-     * List all files, make sure that a typed file w/o extension is listed w/o extension
-     * (because there is already a file with this name).
-     */
-    @Test
-    public void extensionIsNotAdded() throws Exception {
-
-        assertThat(fileTree, contains().nothing());
-
-        drive.createFile(testFileName + ".pdf", testDir, getTestContent());
-        drive.createFile(testFileName, testDir, JdBox.class.getResource("/test.pdf").openStream());
-
-        assertThat(fileTree, contains().nothing());
-
-        fileTree.update();
-
-        assertThat(fileTree, contains()
-                .file().withName(testFileName).and()
-                .file().defaultTestFile().withName(testFileName + ".pdf"));
-
-        assertCounts(3, 1);
     }
 }

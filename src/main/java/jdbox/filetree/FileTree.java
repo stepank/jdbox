@@ -3,7 +3,6 @@ package jdbox.filetree;
 import com.google.common.base.Function;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.inject.Inject;
 import jdbox.driveadapter.DriveAdapter;
@@ -31,17 +30,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class FileTree {
 
-    private static ImmutableMap<String, String> extensions = ImmutableMap.copyOf(new HashMap<String, String>() {{
-        put("application/pdf", "pdf");
-        put("image/png", "png");
-        put("image/git", "gif");
-        put("image/jpeg", "jpg");
-        put("application/vnd.google-apps.drawing", "desktop");
-        put("application/vnd.google-apps.document", "desktop");
-        put("application/vnd.google-apps.presentation", "desktop");
-        put("application/vnd.google-apps.spreadsheet", "desktop");
-    }});
-
     private static final Logger logger = LoggerFactory.getLogger(FileTree.class);
     private static final Path rootPath = Paths.get("/");
 
@@ -66,17 +54,7 @@ public class FileTree {
                         @Nullable
                         @Override
                         public String apply(Map.Entry<String, KnownFile> entry) {
-
-                            String fileName = entry.getValue().getName();
-                            KnownFile file = entry.getValue();
-
-                            String extension = extensions.get(file.getMimeType());
-
-                            if (extension == null || fileName.endsWith(extension))
-                                return fileName;
-
-                            String newFileName = fileName + "." + extension;
-                            return files.containsKey(newFileName) ? fileName : newFileName;
+                            return entry.getValue().getName();
                         }
                     }));
         }
@@ -93,20 +71,7 @@ public class FileTree {
     private final static Getter<KnownFile> singleKnownFileGetter = new Getter<KnownFile>() {
         @Override
         public KnownFile apply(String fileName, Map<String, KnownFile> files) {
-
-            KnownFile kf = files.get(fileName);
-            if (kf != null)
-                return kf;
-
-            int i = fileName.lastIndexOf('.');
-            if (i < 0)
-                return null;
-
-            kf = files.get(fileName.substring(0, i));
-            if (kf == null)
-                return null;
-
-            return fileName.substring(i + 1).equals(extensions.get(kf.getMimeType())) ? kf : null;
+            return files.get(fileName);
         }
     };
 

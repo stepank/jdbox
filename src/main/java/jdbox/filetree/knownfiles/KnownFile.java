@@ -1,5 +1,6 @@
 package jdbox.filetree.knownfiles;
 
+import com.google.common.collect.ImmutableMap;
 import jdbox.models.File;
 import jdbox.models.fileids.FileId;
 
@@ -10,10 +11,21 @@ import java.util.*;
  */
 public class KnownFile {
 
+    private static ImmutableMap<String, String> extensions = ImmutableMap.copyOf(new HashMap<String, String>() {{
+        put("application/pdf", "pdf");
+        put("image/png", "png");
+        put("image/git", "gif");
+        put("image/jpeg", "jpg");
+        put("application/vnd.google-apps.drawing", "desktop");
+        put("application/vnd.google-apps.document", "desktop");
+        put("application/vnd.google-apps.presentation", "desktop");
+        put("application/vnd.google-apps.spreadsheet", "desktop");
+    }});
+
     private File self;
 
     private Map<String, KnownFile> children;
-    private final Set<KnownFile> parents = new HashSet<>();
+    private final HashMap<KnownFile, String> parents = new HashMap<>();
 
     private final KnownFiles knownFiles;
 
@@ -53,12 +65,8 @@ public class KnownFile {
         return self.isDirectory();
     }
 
-    public String getMimeType() {
-        return self.getMimeType();
-    }
-
     public Set<KnownFile> getParents() {
-        return Collections.unmodifiableSet(parents);
+        return Collections.unmodifiableSet(parents.keySet());
     }
 
     public void setUploaded(String id, String downloadUrl) {
@@ -92,8 +100,34 @@ public class KnownFile {
         if (children == null)
             return;
 
-        children.put(child.self.getName(), child);
-        child.parents.add(this);
+        String extension = extensions.get(child.self.getMimeType());
+        String nameWoExtension = child.self.getName();
+
+        if (extension != null && nameWoExtension.endsWith(extension))
+            nameWoExtension = nameWoExtension.substring(0, nameWoExtension.length() - extension.length() - 1);
+
+        int index = 1;
+        String knownByName;
+        KnownFile existing;
+
+        do {
+
+            knownByName = nameWoExtension + (index == 1 ? "" : (" " + index));
+
+            if (extension != null)
+                knownByName += "." + extension;
+
+            existing = children.get(knownByName);
+
+            if (existing == child)
+                return;
+
+            index += 1;
+
+        } while (existing != null);
+
+        children.put(knownByName, child);
+        child.parents.put(this, knownByName);
 
         KnownFile previous = knownFiles.put(child);
         if (previous != null && previous != child)
@@ -106,7 +140,10 @@ public class KnownFile {
 
     public void rename(String name) {
 
-        Set<KnownFile> parents = new HashSet<>(this.parents);
+        if (getName().equals(name))
+            return;
+
+        Set<KnownFile> parents = new HashSet<>(this.parents.keySet());
 
         for (KnownFile parent : parents)
             parent.tryRemoveChild(this, false);
@@ -139,7 +176,7 @@ public class KnownFile {
         if (children == null)
             return;
 
-        children.remove(child.self.getName());
+        children.remove(child.parents.get(this));
         child.parents.remove(this);
 
         if (cleanUp)
@@ -163,9 +200,9 @@ public class KnownFile {
     @Override
     public String toString() {
         return "KnownFile{" +
-                "id=" + self.getId() +
-                ", name='" + self.getName() + '\'' +
-                ", isDirectory=" + self.isDirectory() +
+                "id=" + getId() +
+                ", name='" + getName() + '\'' +
+                ", isDirectory=" + isDirectory() +
                 ", size=" + self.getSize() +
                 '}';
     }

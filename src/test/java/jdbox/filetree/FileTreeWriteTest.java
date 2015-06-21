@@ -1,7 +1,6 @@
 package jdbox.filetree;
 
 import com.google.inject.Injector;
-import jdbox.JdBox;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -176,7 +175,7 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
 
         assertThat(fileTree, contains().nothing());
 
-        drive.createFile(testFileName, testDir, JdBox.class.getResource("/test.pdf").openStream());
+        drive.createFile(testFileName, testDir, getTestPdfContent());
 
         assertThat(fileTree, contains().nothing());
 
@@ -197,9 +196,9 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
                 .withRealName("test_file_2.pdf"));
 
         waitUntilUploaderIsDone();
-        fileTree.update();
+        fileTree2.update();
 
-        assertThat(fileTree, contains()
+        assertThat(fileTree2, contains()
                 .file()
                 .withName("test_file_2.pdf")
                 .withRealName("test_file_2.pdf"));
