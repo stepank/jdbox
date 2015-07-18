@@ -1,7 +1,6 @@
 package jdbox;
 
 import jdbox.driveadapter.File;
-import jdbox.filetree.FileTree;
 import org.junit.Test;
 
 import java.io.FileOutputStream;

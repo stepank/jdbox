@@ -16,8 +16,10 @@ import jdbox.driveadapter.DriveAdapter;
 import jdbox.filetree.FileTree;
 import jdbox.models.fileids.FileIdStore;
 import jdbox.openedfiles.OpenedFilesModule;
+import jdbox.openedfiles.UpdateFileSizeEvent;
 import jdbox.uploader.Uploader;
 import org.ini4j.Ini;
+import rx.Observable;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -128,8 +130,9 @@ public class JdBox {
         @Provides
         @Singleton
         public FileTree createFileTree(
-                DriveAdapter drive, FileIdStore fileIdStore, Uploader uploader) throws Exception {
-            FileTree ft = new FileTree(drive, fileIdStore, uploader, autoUpdateFileTree);
+                DriveAdapter drive, FileIdStore fileIdStore,
+                Observable<UpdateFileSizeEvent> updateFileSizeEvent, Uploader uploader) throws Exception {
+            FileTree ft = new FileTree(drive, fileIdStore, updateFileSizeEvent, uploader, autoUpdateFileTree);
             ft.start();
             return ft;
         }

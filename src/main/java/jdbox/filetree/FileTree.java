@@ -11,10 +11,13 @@ import jdbox.filetree.knownfiles.KnownFiles;
 import jdbox.models.File;
 import jdbox.models.fileids.FileId;
 import jdbox.models.fileids.FileIdStore;
+import jdbox.openedfiles.UpdateFileSizeEvent;
 import jdbox.uploader.Task;
 import jdbox.uploader.Uploader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import rx.Subscription;
+import rx.functions.Action1;
 
 import javax.annotation.Nullable;
 import java.io.ByteArrayInputStream;
@@ -41,9 +44,11 @@ public class FileTree {
     private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
     private final ReadWriteLock applyChangesReadWriteLock = new ReentrantReadWriteLock();
     private final FileIdStore fileIdStore;
+    private final rx.Observable<UpdateFileSizeEvent> updateFileSizeEvent;
     private final Uploader uploader;
     private final boolean autoUpdate;
 
+    private volatile Subscription updateFileSizeEventSubscription;
     private volatile long largestChangeId;
 
     private final static Getter<List<String>> namesGetter = new Getter<List<String>>() {
@@ -76,10 +81,13 @@ public class FileTree {
     };
 
     @Inject
-    public FileTree(DriveAdapter drive, FileIdStore fileIdStore, Uploader uploader, boolean autoUpdate) {
+    public FileTree(
+            DriveAdapter drive, FileIdStore fileIdStore, rx.Observable<UpdateFileSizeEvent> updateFileSizeEvent,
+            Uploader uploader, boolean autoUpdate) {
 
         this.drive = drive;
         this.fileIdStore = fileIdStore;
+        this.updateFileSizeEvent = updateFileSizeEvent;
         this.uploader = uploader;
         this.autoUpdate = autoUpdate;
 
@@ -109,6 +117,13 @@ public class FileTree {
         if (start.getCount() == 0)
             return;
 
+        updateFileSizeEventSubscription = updateFileSizeEvent.subscribe(new Action1<UpdateFileSizeEvent>() {
+            @Override
+            public void call(UpdateFileSizeEvent event) {
+                updateFileSize(event.fileId, event.fileSize);
+            }
+        });
+
         DriveAdapter.BasicInfo info = drive.getBasicInfo();
 
         largestChangeId = info.largestChangeId;
@@ -132,6 +147,9 @@ public class FileTree {
     }
 
     public void stopAndWait(int timeout) throws InterruptedException {
+
+        if (updateFileSizeEventSubscription != null)
+            updateFileSizeEventSubscription.unsubscribe();
 
         if (!autoUpdate)
             return;
@@ -404,15 +422,6 @@ public class FileTree {
         }
     }
 
-    public void updateFileSize(File file) {
-        readWriteLock.writeLock().lock();
-        try {
-            knownFiles.get(file.getId()).setSize(file.getSize());
-        } finally {
-            readWriteLock.writeLock().unlock();
-        }
-    }
-
     private <T> T getOrFetch(Path path, String fileName, Getter<T> getter) throws Exception {
 
         readWriteLock.readLock().lock();
@@ -509,6 +518,17 @@ public class FileTree {
         }
 
         return getter.apply(fileName, dir.getChildrenOrNull());
+    }
+
+    private void updateFileSize(FileId fileId, long fileSize) {
+        readWriteLock.writeLock().lock();
+        try {
+            KnownFile file = knownFiles.get(fileId);
+            if (file != null)
+                file.setSize(fileSize);
+        } finally {
+            readWriteLock.writeLock().unlock();
+        }
     }
 
     private void retrieveAndApplyChanges() {

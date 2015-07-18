@@ -8,6 +8,7 @@ import jdbox.uploader.Task;
 import jdbox.uploader.Uploader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import rx.Observer;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -20,13 +21,17 @@ public class LocalStorage {
 
     private final DriveAdapter drive;
     private final InMemoryByteStoreFactory tempStoreFactory;
+    private final Observer<UpdateFileSizeEvent> updateFileSizeEvent;
     private final Uploader uploader;
     private final Map<FileId, SharedOpenedFile> files = new HashMap<>();
 
     @Inject
-    LocalStorage(DriveAdapter drive, InMemoryByteStoreFactory tempStoreFactory, Uploader uploader) {
+    LocalStorage(
+            DriveAdapter drive, InMemoryByteStoreFactory tempStoreFactory,
+            Observer<UpdateFileSizeEvent> updateFileSizeEvent, Uploader uploader) {
         this.drive = drive;
         this.tempStoreFactory = tempStoreFactory;
+        this.updateFileSizeEvent = updateFileSizeEvent;
         this.uploader = uploader;
     }
 
@@ -41,7 +46,7 @@ public class LocalStorage {
         return files.get(file.getId()).file.getSize();
     }
 
-    public synchronized OpenedFile getContent(File file) {
+    public synchronized ByteStore getContent(File file) {
 
         SharedOpenedFile shared = files.get(file.getId());
 
@@ -50,16 +55,16 @@ public class LocalStorage {
 
         shared.refCount++;
 
-        return new ProxyOpenedFile(shared);
+        return new ContentUpdatingProxyOpenedFile(shared);
     }
 
-    public synchronized OpenedFile putContent(File file, ByteStore content) {
+    public synchronized ByteStore putContent(File file, ByteStore content) {
 
         SharedOpenedFile shared = new SharedOpenedFile(file, content);
 
         files.put(file.getId(), shared);
 
-        return new ProxyOpenedFile(shared);
+        return new ContentUpdatingProxyOpenedFile(shared);
     }
 
     private class SharedOpenedFile {
@@ -75,12 +80,12 @@ public class LocalStorage {
         }
     }
 
-    private class ProxyOpenedFile extends OpenedFile {
+    private class ContentUpdatingProxyOpenedFile implements ByteStore {
 
         private final SharedOpenedFile shared;
         private boolean closed = false;
 
-        public ProxyOpenedFile(SharedOpenedFile shared) {
+        public ContentUpdatingProxyOpenedFile(SharedOpenedFile shared) {
             this.shared = shared;
         }
 
@@ -132,7 +137,7 @@ public class LocalStorage {
         }
 
         @Override
-        public File release() throws IOException {
+        public void close() throws IOException {
 
             logger.debug(
                     "closing a proxy for {}, has changed {}, ref count {}",
@@ -141,7 +146,7 @@ public class LocalStorage {
             synchronized (shared) {
 
                 if (closed)
-                    return null;
+                    return;
 
                 if (!shared.hasChanged) {
 
@@ -153,11 +158,13 @@ public class LocalStorage {
                             files.remove(shared.file.getId()).content.close();
                         }
 
-                    return null;
+                    return;
                 }
 
                 final ByteStore capturedContent = tempStoreFactory.create();
-                int size = ByteSources.copy(shared.content, capturedContent);
+                final int size = ByteSources.copy(shared.content, capturedContent);
+
+                shared.file.setSize(size);
 
                 uploader.submit(new Task("update file content", shared.file.getId()) {
                     @Override
@@ -171,15 +178,13 @@ public class LocalStorage {
                             shared.refCount--;
                             if (shared.refCount == 0)
                                 synchronized (LocalStorage.this) {
+                                    updateFileSizeEvent.onNext(
+                                            new UpdateFileSizeEvent(shared.file.getId(), size));
                                     files.remove(shared.file.getId()).content.close();
                                 }
                         }
                     }
                 });
-
-                shared.file.setSize(size);
-
-                return shared.file;
             }
         }
     }

@@ -3,7 +3,6 @@ package jdbox;
 import com.google.inject.Inject;
 import jdbox.filetree.FileTree;
 import jdbox.models.File;
-import jdbox.openedfiles.OpenedFile;
 import jdbox.openedfiles.OpenedFiles;
 import net.fusejna.*;
 import net.fusejna.types.TypeMode;
@@ -120,12 +119,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
 
         try {
 
-            OpenedFile openedFile = openedFiles.get(info.fh());
-
-            File file = openedFile.release();
-
-            if (file != null)
-                fileTree.updateFileSize(file);
+            openedFiles.get(info.fh()).close();
 
             return 0;
 
@@ -203,7 +197,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
         logger.debug("[{}] truncating, offset {}", path, offset);
 
         try {
-            try (OpenedFiles.ProxyOpenedFile openedFile =
+            try (OpenedFiles.FileHandlerRemovingProxyByteStore openedFile =
                          openedFiles.open(fileTree.get(path), OpenedFiles.OpenMode.WRITE_ONLY)) {
                 logger.debug(
                         "[{}] opened file for truncate, fh {}, mode {}",
