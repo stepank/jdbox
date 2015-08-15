@@ -29,7 +29,6 @@ import static org.hamcrest.Matchers.lessThan;
 
 public class BaseTest {
 
-    private static JdBox.Environment env;
     private static Drive driveService;
 
     protected final static String testFolderName = "test_folder";
@@ -46,8 +45,7 @@ public class BaseTest {
 
     @BeforeClass
     public static void setUpClass() throws Exception {
-        env = SetUpTests.createEnvironment();
-        driveService = JdBox.createDriveService(env);
+        driveService = JdBox.createDriveService(SetUpTests.createEnvironment());
     }
 
     @Before
@@ -73,7 +71,7 @@ public class BaseTest {
     }
 
     protected Injector createInjector() throws Exception {
-        return JdBox.createInjector(env, driveService, autoUpdateFileTree);
+        return JdBox.createInjector(driveService, autoUpdateFileTree);
     }
 
     protected void destroyInjector(Injector injector) throws InterruptedException {

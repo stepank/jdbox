@@ -1,7 +1,7 @@
 package jdbox.uploader;
 
 import com.google.common.collect.Lists;
-import jdbox.JdBox;
+import jdbox.CommonModule;
 import jdbox.models.fileids.FileId;
 import jdbox.models.fileids.FileIdStore;
 import org.junit.After;
@@ -21,7 +21,7 @@ public class UploaderTest {
 
     private static final Logger logger = LoggerFactory.getLogger(UploaderTest.class);
 
-    private ExecutorService executor = JdBox.createExecutor();
+    private ExecutorService executor = CommonModule.createExecutor();
     private Uploader uploader;
     private Collection<List<Integer>> expectedOrders;
     private TestTaskFactory taskFactory;

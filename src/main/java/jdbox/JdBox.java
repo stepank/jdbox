@@ -11,22 +11,18 @@ import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.client.util.store.FileDataStoreFactory;
 import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.DriveScopes;
-import com.google.inject.*;
-import jdbox.driveadapter.DriveAdapter;
-import jdbox.filetree.FileTree;
-import jdbox.models.fileids.FileIdStore;
+import com.google.inject.Guice;
+import com.google.inject.Injector;
+import jdbox.driveadapter.DriveAdapterModule;
+import jdbox.filetree.FileTreeModule;
 import jdbox.openedfiles.OpenedFilesModule;
-import jdbox.openedfiles.UpdateFileSizeEvent;
-import jdbox.uploader.Uploader;
+import jdbox.uploader.UploaderModule;
 import org.ini4j.Ini;
-import rx.Observable;
 
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
 import java.util.Collections;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 public class JdBox {
 
@@ -47,19 +43,22 @@ public class JdBox {
     }
 
     public static Injector createInjector(Environment env) throws Exception {
-        return createInjector(env, createDriveService(env));
+        return createInjector(createDriveService(env));
     }
 
-    public static Injector createInjector(Environment env, Drive drive) throws Exception {
-        return createInjector(env, drive, true);
+    public static Injector createInjector(Drive drive) throws Exception {
+        return createInjector(drive, true);
     }
 
-    public static Injector createInjector(Environment env, Drive drive, boolean autoUpdateFileTree) throws Exception {
-        return Guice.createInjector(new MainModule(env, drive, autoUpdateFileTree), new OpenedFilesModule());
-    }
-
-    public static ExecutorService createExecutor() {
-        return Executors.newCachedThreadPool();
+    public static Injector createInjector(Drive drive, boolean autoUpdateFileTree) throws Exception {
+        return Guice.createInjector(
+                new CommonModule(),
+                new DriveAdapterModule(drive),
+                new UploaderModule(),
+                new OpenedFilesModule(),
+                new FileTreeModule(autoUpdateFileTree),
+                new ApplicationModule()
+        );
     }
 
     public static Drive createDriveService(Environment env) throws Exception {
@@ -95,61 +94,5 @@ public class JdBox {
         }
 
         return new Drive.Builder(httpTransport, jsonFactory, credential).setApplicationName("JDBox").build();
-    }
-
-    public static class MainModule extends AbstractModule {
-
-        private final Environment env;
-        private final Drive drive;
-        private final boolean autoUpdateFileTree;
-        private final Ini config;
-
-        public MainModule(Environment env, Drive drive, boolean autoUpdateFileTree) throws Exception {
-            this.env = env;
-            this.drive = drive;
-            this.autoUpdateFileTree = autoUpdateFileTree;
-            config = new Ini(new File(env.dataDir, "config"));
-        }
-
-        @Override
-        protected void configure() {
-
-            bind(FileSystem.class).in(Singleton.class);
-
-            bind(Environment.class).toInstance(env);
-            bind(Drive.class).toInstance(drive);
-            bind(Ini.class).toInstance(config);
-
-            bind(FileIdStore.class).in(Singleton.class);
-            bind(DriveAdapter.class).in(Singleton.class);
-            bind(Uploader.class).in(Singleton.class);
-
-            bind(ExecutorService.class).toInstance(createExecutor());
-        }
-
-        @Provides
-        @Singleton
-        public FileTree createFileTree(
-                DriveAdapter drive, FileIdStore fileIdStore,
-                Observable<UpdateFileSizeEvent> updateFileSizeEvent, Uploader uploader) throws Exception {
-            FileTree ft = new FileTree(drive, fileIdStore, updateFileSizeEvent, uploader, autoUpdateFileTree);
-            ft.start();
-            return ft;
-        }
-    }
-
-    public static class Environment {
-
-        public final File dataDir;
-        public final String userAlias;
-
-        public Environment() {
-            this(null, null);
-        }
-
-        public Environment(String dataDirSuffix, String userAlias) {
-            this.dataDir = new File(System.getProperty("user.home"), dataDirSuffix != null ? dataDirSuffix : ".jdbox");
-            this.userAlias = userAlias != null ? userAlias : "my";
-        }
     }
 }
