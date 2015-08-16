@@ -1,12 +1,13 @@
 package jdbox.openedfiles;
 
-import jdbox.models.File;
+import jdbox.utils.OrderedRule;
+import jdbox.utils.TestFileProvider;
+import jdbox.utils.TestUtils;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
 import java.util.Random;
 
@@ -18,35 +19,34 @@ public class FullAccessOpenedFileMiscTest extends BaseFullAccessOpenedFileTest {
 
     private static final Logger logger = LoggerFactory.getLogger(FullAccessOpenedFileMiscTest.class);
 
+    @OrderedRule
+    public TestFileProvider testFileProvider = new TestFileProvider(injectorProvider, testFolderProvider, 1024 * 1024);
+
     @Test
     public void fuzzyRead() throws Exception {
 
         tempStoreFactory.setConfig(new InMemoryByteStoreFactory.Config(1024));
         readerFactory.setConfig(new StreamCachingByteSourceFactory.Config(1024));
 
-        final int contentLength = 1024 * 1024;
-        final int[] maxReadChunkSizes =
-                new int[]{10, 100, 1024, 4 * 1024, 16 * 1024, 64 * 1024, 256 * 1024, contentLength};
+        byte[] content = testFileProvider.getContent();
 
         Random random = new Random();
-        byte[] content = new byte[contentLength];
-        random.nextBytes(content);
-
-        File file = new File(fileIdStore, drive.createFile(testFileName, testDir, new ByteArrayInputStream(content)));
+        final int[] maxReadChunkSizes =
+                new int[]{10, 100, 1024, 4 * 1024, 16 * 1024, 64 * 1024, 256 * 1024, content.length};
 
         for (int maxReadChunkSize : maxReadChunkSizes) {
 
             logger.info("max read chunk size is {}", maxReadChunkSize);
 
-            try (ByteStore openedFile = factory.create(file)) {
+            try (ByteStore openedFile = factory.create(testFileProvider.getFile())) {
 
                 ByteBuffer buffer = ByteBuffer.allocate(maxReadChunkSize);
 
                 for (int i = 0; i < 100; i++) {
 
-                    int offset = random.nextInt(contentLength);
+                    int offset = random.nextInt(content.length);
                     int bytesToRead = 1 + random.nextInt(maxReadChunkSize);
-                    int expectedRead = Math.min(contentLength - offset, bytesToRead);
+                    int expectedRead = Math.min(content.length - offset, bytesToRead);
 
                     buffer.rewind();
                     assertThat(openedFile.read(buffer, offset, bytesToRead), equalTo(expectedRead));
@@ -62,7 +62,7 @@ public class FullAccessOpenedFileMiscTest extends BaseFullAccessOpenedFileTest {
                 }
             }
 
-            waitUntilLocalStorageIsEmpty();
+            TestUtils.waitUntilLocalStorageIsEmpty(injector);
         }
     }
 }

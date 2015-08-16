@@ -8,7 +8,9 @@ import java.io.OutputStream;
 import java.nio.file.DirectoryNotEmptyException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 
+import static jdbox.utils.TestUtils.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -17,25 +19,22 @@ public class MountTest extends BaseMountFileSystemTest {
 
     @Test
     public void read() throws Exception {
-        drive.createFile("test.txt", testDir, getTestContent());
+        drive.createFile("test.txt", testFolder, getTestContent());
         resetFileTree();
-        String actual = new String(Files.readAllBytes(mountPoint.resolve("test.txt")));
-        assertThat(actual, equalTo(testContentString));
+        assertThat(Files.readAllBytes(mountPoint.resolve("test.txt")), equalTo(getTestContentBytes()));
     }
 
     @Test
     public void writeAndRead() throws Exception {
-        Files.write(mountPoint.resolve("test.txt"), testContentString.getBytes());
-        String actual = new String(Files.readAllBytes(mountPoint.resolve("test.txt")));
-        assertThat(actual, equalTo(testContentString));
+        Files.write(mountPoint.resolve("test.txt"), getTestContentBytes());
+        assertThat(Files.readAllBytes(mountPoint.resolve("test.txt")), equalTo(getTestContentBytes()));
     }
 
     @Test
     public void writeAndReadAfterClose() throws Exception {
-        Files.write(mountPoint.resolve("test.txt"), testContentString.getBytes());
-        waitUntilLocalStorageIsEmpty();
-        String actual = new String(Files.readAllBytes(mountPoint.resolve("test.txt")));
-        assertThat(actual, equalTo(testContentString));
+        Files.write(mountPoint.resolve("test.txt"), getTestContentBytes());
+        waitUntilLocalStorageIsEmpty(injectorProvider.getInjector());
+        assertThat(Files.readAllBytes(mountPoint.resolve("test.txt")), equalTo(getTestContentBytes()));
     }
 
     @Test
@@ -44,28 +43,28 @@ public class MountTest extends BaseMountFileSystemTest {
         Path path = mountPoint.resolve("test.txt");
 
         try (OutputStream stream = Files.newOutputStream(path)) {
-            stream.write(testContentString.substring(0, 6).getBytes());
+            stream.write(Arrays.copyOfRange(getTestContentBytes(), 0, 6));
             assertThat(path.toFile().length(), equalTo((long) 6));
-            stream.write(testContentString.substring(6).getBytes());
-            assertThat(path.toFile().length(), equalTo((long) testContentString.length()));
+            stream.write(Arrays.copyOfRange(getTestContentBytes(), 6, getTestContentBytes().length));
+            assertThat(path.toFile().length(), equalTo((long) getTestContentBytes().length));
         }
 
-        assertThat(path.toFile().length(), equalTo((long) testContentString.length()));
+        assertThat(path.toFile().length(), equalTo((long) getTestContentBytes().length));
     }
 
     @Test
     public void truncate() throws Exception {
         Path path = mountPoint.resolve("test.txt");
-        Files.write(path, testContentString.getBytes());
-        waitUntilLocalStorageIsEmpty();
+        Files.write(path, getTestContentBytes());
+        waitUntilLocalStorageIsEmpty(injectorProvider.getInjector());
         new FileOutputStream(path.toFile(), true).getChannel().truncate(5).close();
-        assertThat(new String(Files.readAllBytes(path)), equalTo(testContentString.substring(0, 5)));
+        assertThat(Files.readAllBytes(path), equalTo(Arrays.copyOfRange(getTestContentBytes(), 0, 5)));
     }
 
     @Test
     public void remove() throws Exception {
 
-        File folder = drive.createFolder("test", testDir);
+        File folder = drive.createFolder("test", testFolder);
         drive.createFile("test.txt", folder, getTestContent());
 
         resetFileTree();
@@ -82,19 +81,19 @@ public class MountTest extends BaseMountFileSystemTest {
         }
 
         Files.delete(filePath);
-        waitUntilUploaderIsDone();
+        waitUntilUploaderIsDone(injectorProvider.getInjector());
         assertThat(Files.exists(filePath), is(false));
 
         Files.delete(dirPath);
-        waitUntilUploaderIsDone();
+        waitUntilUploaderIsDone(injectorProvider.getInjector());
         assertThat(Files.exists(dirPath), is(false));
     }
 
     @Test
     public void move() throws Exception {
 
-        File source = drive.createFolder("source", testDir);
-        drive.createFolder("destination", testDir);
+        File source = drive.createFolder("source", testFolder);
+        drive.createFolder("destination", testFolder);
         drive.createFile("test.txt", source, getTestContent());
 
         resetFileTree();
@@ -106,7 +105,7 @@ public class MountTest extends BaseMountFileSystemTest {
         assertThat(Files.exists(destinationPath), is(false));
 
         Files.move(sourcePath, destinationPath);
-        waitUntilUploaderIsDone();
+        waitUntilUploaderIsDone(injectorProvider.getInjector());
         assertThat(Files.exists(sourcePath), is(false));
         assertThat(Files.exists(destinationPath), is(true));
     }

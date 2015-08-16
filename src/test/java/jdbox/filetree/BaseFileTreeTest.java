@@ -1,16 +1,23 @@
 package jdbox.filetree;
 
+import com.google.inject.Module;
 import jdbox.BaseTest;
+import jdbox.driveadapter.DriveAdapter;
+import jdbox.driveadapter.DriveAdapterModule;
 import jdbox.driveadapter.File;
+import jdbox.openedfiles.OpenedFilesModule;
+import jdbox.uploader.UploaderModule;
+import jdbox.utils.OrderedRule;
+import jdbox.utils.TestFolderIsolation;
+import jdbox.utils.TestFolderProvider;
+import jdbox.utils.TestUtils;
 import org.hamcrest.Description;
 import org.hamcrest.TypeSafeMatcher;
 import org.junit.Before;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Date;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -19,21 +26,40 @@ public class BaseFileTreeTest extends BaseTest {
 
     protected final static Path testDirPath = Paths.get("/");
 
+    @OrderedRule(1)
+    public TestFolderProvider testFolderProvider = new TestFolderProvider(errorCollector, injectorProvider);
+
+    @OrderedRule(2)
+    public TestFolderIsolation testFolderIsolation = new TestFolderIsolation(injectorProvider, testFolderProvider);
+
+    protected DriveAdapter drive;
     protected FileTree fileTree;
+    protected File testFolder;
+
+    @Override
+    protected Collection<Module> getRequiredModules() {
+        return new ArrayList<Module>() {{
+            add(new DriveAdapterModule(driveServiceProvider.getDriveService()));
+            add(new UploaderModule());
+            add(new OpenedFilesModule());
+            add(new FileTreeModule(false));
+
+        }};
+    }
 
     @Before
     public void setUp() throws Exception {
-        autoUpdateFileTree = false;
-        super.setUp();
-        fileTree = injector.getInstance(FileTree.class);
+        drive = injectorProvider.getInjector().getInstance(DriveAdapter.class);
+        fileTree = injectorProvider.getInjector().getInstance(FileTree.class);
+        testFolder = testFolderProvider.getTestFolder();
     }
 
     protected File createTestFile(File parent) throws Exception {
-        return drive.createFile(testFileName, parent, getTestContent());
+        return drive.createFile(TestUtils.testFileName, parent, TestUtils.getTestContent());
     }
 
     protected File createTestFileAndUpdate() throws Exception {
-        return createTestFileAndUpdate(testDir, testDirPath);
+        return createTestFileAndUpdate(testFolderProvider.getTestFolder(), testDirPath);
     }
 
     protected File createTestFileAndUpdate(File parent, Path parentPath) throws Exception {
@@ -124,8 +150,8 @@ public class BaseFileTreeTest extends BaseTest {
 
         public FileTreeMatcher defaultTestFile() throws Exception {
             return file()
-                    .withName(testFileName)
-                    .withSize(testContentString.length());
+                    .withName(TestUtils.testFileName)
+                    .withSize(TestUtils.testContentString.length());
         }
 
         public FileTreeMatcher defaultEmptyTestFile() throws Exception {
@@ -134,7 +160,7 @@ public class BaseFileTreeTest extends BaseTest {
 
         public FileTreeMatcher defaultTestFolder() throws Exception {
             return folder()
-                    .withName(testFolderName)
+                    .withName(TestUtils.testFolderName)
                     .withSize(0);
         }
 

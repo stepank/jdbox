@@ -1,6 +1,9 @@
 package jdbox.openedfiles;
 
 import jdbox.models.File;
+import jdbox.utils.OrderedRule;
+import jdbox.utils.TestFileProvider;
+import jdbox.utils.TestUtils;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -13,10 +16,14 @@ import static org.hamcrest.Matchers.equalTo;
 @Category(OpenedFiles.class)
 public class OpenedFilesMiscTest extends BaseOpenedFilesTest {
 
+    @OrderedRule
+    public TestFileProvider testFileProvider = new TestFileProvider(injectorProvider, testFolderProvider, 11);
+
     @Test
     public void partialReadWrite() throws Exception {
 
-        File file = new File(fileIdStore, drive.createFile(testFileName, testDir, getTestContent()));
+        File file = testFileProvider.getFile();
+        byte[] content = testFileProvider.getContent();
 
         String replacement = "abcd";
         int offset = 3;
@@ -30,49 +37,52 @@ public class OpenedFilesMiscTest extends BaseOpenedFilesTest {
             assertThat(openedFile.write(buffer, offset, replacement.length()), equalTo(replacement.length()));
         }
 
-        waitUntilLocalStorageIsEmpty();
+        TestUtils.waitUntilLocalStorageIsEmpty(injector);
 
-        try (ByteStore openedFile = openedFiles.open(file, OpenedFiles.OpenMode.READ_WRITE)) {
+        try (ByteStore openedFile = openedFiles.open(testFileProvider.getFile(), OpenedFiles.OpenMode.READ_WRITE)) {
 
-            String expected =
-                    testContentString.substring(0, offset) +
-                            replacement + testContentString.substring(offset + replacement.length());
+            byte[] expected = new byte[content.length];
+            System.arraycopy(content, 0, expected, 0, content.length);
+            System.arraycopy(replacement.getBytes(), 0, expected, offset, replacement.length());
 
-            ByteBuffer buffer = ByteBuffer.allocate(expected.length());
+            ByteBuffer buffer = ByteBuffer.allocate(expected.length);
 
-            assertThat(openedFile.read(buffer, 0, expected.length()), equalTo(expected.length()));
-            assertThat(buffer.array(), equalTo(expected.getBytes()));
+            assertThat(openedFile.read(buffer, 0, expected.length), equalTo(expected.length));
+            assertThat(buffer.array(), equalTo(expected));
         }
 
-        waitUntilLocalStorageIsEmpty();
+        TestUtils.waitUntilLocalStorageIsEmpty(injector);
     }
 
     @Test
     public void fileBecomesLarge() throws Exception {
 
-        openedFiles.setConfig(new OpenedFiles.Config(testContentString.length() + 4));
+        File file = testFileProvider.getFile();
+        byte[] content = testFileProvider.getContent();
 
-        File file = new File(fileIdStore, drive.createFile(testFileName, testDir, getTestContent()));
+        openedFiles.setConfig(new OpenedFiles.Config(content.length + 4));
 
         try (ByteStore openedFile = openedFiles.open(file, OpenedFiles.OpenMode.READ_WRITE)) {
 
-            String addition = UUID.randomUUID().toString();
-            byte[] bytes = addition.getBytes();
+            byte[] addition = UUID.randomUUID().toString().getBytes();
 
             assertThat(
-                    openedFile.write(ByteBuffer.wrap(bytes), testContentString.length(), bytes.length),
-                    equalTo(bytes.length));
+                    openedFile.write(ByteBuffer.wrap(addition), content.length, addition.length),
+                    equalTo(addition.length));
 
             try (ByteStore openedFile2 = openedFiles.open(file, OpenedFiles.OpenMode.READ_WRITE)) {
 
-                String expected = testContentString + addition;
-                ByteBuffer buffer = ByteBuffer.allocate(expected.length());
+                byte[] expected = new byte[content.length + addition.length];
+                System.arraycopy(content, 0, expected, 0, content.length);
+                System.arraycopy(addition, 0, expected, content.length, addition.length);
 
-                assertThat(openedFile2.read(buffer, 0, expected.length()), equalTo(expected.length()));
-                assertThat(buffer.array(), equalTo(expected.getBytes()));
+                ByteBuffer buffer = ByteBuffer.allocate(expected.length);
+
+                assertThat(openedFile2.read(buffer, 0, expected.length), equalTo(expected.length));
+                assertThat(buffer.array(), equalTo(expected));
             }
         }
 
-        waitUntilLocalStorageIsEmpty();
+        TestUtils.waitUntilLocalStorageIsEmpty(injector);
     }
 }

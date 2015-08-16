@@ -1,50 +1,33 @@
 package jdbox;
 
 import jdbox.filetree.FileTree;
+import jdbox.utils.MountedFileSystem;
+import jdbox.utils.OrderedRule;
+import jdbox.utils.TestUtils;
 import org.junit.After;
 import org.junit.Before;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 
-public class BaseMountFileSystemTest extends BaseFileSystemTest {
+public class BaseMountFileSystemTest extends BaseFileSystemModuleTest {
 
-    protected static Path mountPoint;
+    @OrderedRule
+    public MountedFileSystem fileSystem = new MountedFileSystem(errorCollector, injectorProvider);
+
+    protected Path mountPoint;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        mountPoint = Files.createTempDirectory("jdbox");
-        fs.mount(new java.io.File(mountPoint.toString()), false);
+        mountPoint = fileSystem.getMountPoint();
     }
 
     @After
     public void tearDown() throws Exception {
-        try {
-            waitUntilLocalStorageIsEmpty();
-            fs.unmount();
-            deleteDir(mountPoint);
-        } finally {
-            super.tearDown();
-        }
+        TestUtils.waitUntilLocalStorageIsEmpty(injectorProvider.getInjector());
     }
 
     protected void resetFileTree() throws InterruptedException {
-        injector.getInstance(FileTree.class).reset();
-    }
-
-    protected static void deleteDir(Path path) {
-        java.io.File[] files = path.toFile().listFiles();
-        if (files != null) {
-            for (java.io.File f : files) {
-                if (f.isDirectory())
-                    deleteDir(f.toPath());
-                else
-                    //noinspection ResultOfMethodCallIgnored
-                    f.delete();
-            }
-        }
-        //noinspection ResultOfMethodCallIgnored
-        path.toFile().delete();
+        injectorProvider.getInjector().getInstance(FileTree.class).reset();
     }
 }

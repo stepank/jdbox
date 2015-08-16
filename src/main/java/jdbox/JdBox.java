@@ -28,36 +28,25 @@ public class JdBox {
 
     public static void main(String[] args) throws Exception {
 
-        Injector injector = createInjector(args.length > 1 ? args[1] : null, args.length > 2 ? args[2] : null);
-        String mountPoint = args.length > 0 ? args[0] : injector.getInstance(Ini.class).get("Main", "mount_point");
+        Environment env = new Environment(args.length > 1 ? args[1] : null, args.length > 2 ? args[2] : null);
+
+        Injector injector = createInjector(env);
+
+        //noinspection MismatchedQueryAndUpdateOfCollection
+        Ini config = new Ini(new File(env.dataDir, "config"));
+        String mountPoint = args.length > 0 ? args[0] : config.get("Main", "mount_point");
 
         injector.getInstance(FileSystem.class).mount(mountPoint);
     }
 
-    public static Injector createInjector() throws Exception {
-        return createInjector(new Environment());
-    }
-
-    public static Injector createInjector(String dataDirSuffix, String userAlias) throws Exception {
-        return createInjector(new Environment(dataDirSuffix, userAlias));
-    }
-
     public static Injector createInjector(Environment env) throws Exception {
-        return createInjector(createDriveService(env));
-    }
-
-    public static Injector createInjector(Drive drive) throws Exception {
-        return createInjector(drive, true);
-    }
-
-    public static Injector createInjector(Drive drive, boolean autoUpdateFileTree) throws Exception {
         return Guice.createInjector(
                 new CommonModule(),
-                new DriveAdapterModule(drive),
+                new DriveAdapterModule(createDriveService(env)),
                 new UploaderModule(),
                 new OpenedFilesModule(),
-                new FileTreeModule(autoUpdateFileTree),
-                new ApplicationModule()
+                new FileTreeModule(true),
+                new FileSystemModule()
         );
     }
 

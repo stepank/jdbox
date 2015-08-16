@@ -1,7 +1,9 @@
 package jdbox.openedfiles;
 
 import jdbox.models.File;
-import org.junit.Before;
+import jdbox.utils.OrderedRule;
+import jdbox.utils.TestFileProvider;
+import jdbox.utils.TestUtils;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
@@ -26,19 +28,17 @@ public class OpenedFilesTruncateTest extends BaseOpenedFilesTest {
     @Parameterized.Parameter
     public int length;
 
-    private File file;
-
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
-        file = new jdbox.models.File(fileIdStore, drive.createFile(testFileName, testDir, getTestContent()));
-    }
+    @OrderedRule
+    public TestFileProvider testFileProvider = new TestFileProvider(injectorProvider, testFolderProvider, 11);
 
     @Test
     public void truncate() throws Exception {
 
+        File file = testFileProvider.getFile();
+        byte[] content = testFileProvider.getContent();
+
         byte[] expected = new byte[length];
-        System.arraycopy(testContentString.getBytes(), 0, expected, 0, Math.min(length, testContentString.length()));
+        System.arraycopy(content, 0, expected, 0, Math.min(length, content.length));
 
         try (ByteStore openedFile = openedFiles.open(file, OpenedFiles.OpenMode.READ_WRITE)) {
 
@@ -50,7 +50,7 @@ public class OpenedFilesTruncateTest extends BaseOpenedFilesTest {
             assertThat(buffer.array(), equalTo(expected));
         }
 
-        waitUntilLocalStorageIsEmpty();
+        TestUtils.waitUntilLocalStorageIsEmpty(injector);
 
         try (ByteStore openedFile = openedFiles.open(file, OpenedFiles.OpenMode.READ_WRITE)) {
 
@@ -60,6 +60,6 @@ public class OpenedFilesTruncateTest extends BaseOpenedFilesTest {
             assertThat(buffer.array(), equalTo(expected));
         }
 
-        waitUntilLocalStorageIsEmpty();
+        TestUtils.waitUntilLocalStorageIsEmpty(injector);
     }
 }

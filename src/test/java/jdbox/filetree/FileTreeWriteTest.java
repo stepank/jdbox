@@ -1,16 +1,30 @@
 package jdbox.filetree;
 
-import com.google.inject.Injector;
+import jdbox.driveadapter.DriveAdapterModule;
+import jdbox.openedfiles.OpenedFilesModule;
+import jdbox.uploader.UploaderModule;
+import jdbox.utils.InjectorProvider;
+import jdbox.utils.OrderedRule;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 import java.util.Date;
 
+import static jdbox.utils.TestUtils.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 @Category(FileTree.class)
 public class FileTreeWriteTest extends BaseFileTreeTest {
+
+    @OrderedRule
+    public InjectorProvider injectorProvider2 = new InjectorProvider(
+            errorCollector,
+            new DriveAdapterModule(driveServiceProvider.getDriveService()),
+            new UploaderModule(),
+            new OpenedFilesModule(),
+            new FileTreeModule(false)
+    );
 
     protected FileTree fileTree2;
 
@@ -19,10 +33,8 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
 
         super.setUp();
 
-        Injector injector2 = createInjector();
-
-        fileTree2 = injector2.getInstance(FileTree.class);
-        fileTree2.setRoot(testDir.getId());
+        fileTree2 = injectorProvider2.getInjector().getInstance(FileTree.class);
+        fileTree2.setRoot(testFolder.getId());
 
         assertThat(fileTree2, contains().nothing());
     }
@@ -33,10 +45,10 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
     @Test
     public void createFile() throws Exception {
 
-        fileTree.create(testDirPath.resolve(testFileName), false);
+        fileTree.create(testDirPath.resolve(getTestFileName()), false);
         assertThat(fileTree, contains().defaultEmptyTestFile());
 
-        waitUntilUploaderIsDone();
+        waitUntilUploaderIsDone(injectorProvider.getInjector());
         assertThat(fileTree2, contains().nothing());
 
         fileTree2.update();
@@ -49,10 +61,10 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
     @Test
     public void createFolder() throws Exception {
 
-        fileTree.create(testDirPath.resolve(testFolderName), true);
+        fileTree.create(testDirPath.resolve(getTestFolderName()), true);
         assertThat(fileTree, contains().defaultTestFolder());
 
-        waitUntilUploaderIsDone();
+        waitUntilUploaderIsDone(injectorProvider.getInjector());
         assertThat(fileTree2, contains().nothing());
 
         fileTree2.update();
@@ -65,17 +77,17 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
     @Test
     public void createFolderWithFile() throws Exception {
 
-        fileTree.create(testDirPath.resolve(testFolderName), true);
-        fileTree.create(testDirPath.resolve(testFolderName).resolve(testFileName), false);
+        fileTree.create(testDirPath.resolve(getTestFolderName()), true);
+        fileTree.create(testDirPath.resolve(getTestFolderName()).resolve(getTestFileName()), false);
         assertThat(fileTree, contains().defaultTestFolder());
-        assertThat(fileTree, contains().defaultEmptyTestFile().in(testFolderName));
+        assertThat(fileTree, contains().defaultEmptyTestFile().in(getTestFolderName()));
 
-        waitUntilUploaderIsDone();
+        waitUntilUploaderIsDone(injectorProvider.getInjector());
         assertThat(fileTree2, contains().nothing());
 
         fileTree2.update();
         assertThat(fileTree2, contains().defaultTestFolder());
-        assertThat(fileTree2, contains().defaultEmptyTestFile().in(testFolderName));
+        assertThat(fileTree2, contains().defaultEmptyTestFile().in(getTestFolderName()));
     }
 
     /**
@@ -87,14 +99,14 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
         Date newAccessedDate = new Date(new Date().getTime() + 3600 * 1000);
         Date newModifiedDate = new Date(new Date().getTime() + 7200 * 1000);
 
-        fileTree.create(testDirPath.resolve(testFileName), false);
-        fileTree.setDates(testDirPath.resolve(testFileName), newModifiedDate, newAccessedDate);
+        fileTree.create(testDirPath.resolve(getTestFileName()), false);
+        fileTree.setDates(testDirPath.resolve(getTestFileName()), newModifiedDate, newAccessedDate);
         assertThat(fileTree, contains()
                 .defaultEmptyTestFile()
                 .withModifiedDate(newModifiedDate)
                 .withAccessedDate(newAccessedDate));
 
-        waitUntilUploaderIsDone();
+        waitUntilUploaderIsDone(injectorProvider.getInjector());
         assertThat(fileTree2, contains().nothing());
 
         fileTree2.update();
@@ -110,19 +122,19 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
     @Test
     public void remove() throws Exception {
 
-        fileTree.create(testDirPath.resolve(testFileName), false);
+        fileTree.create(testDirPath.resolve(getTestFileName()), false);
         assertThat(fileTree, contains().defaultEmptyTestFile());
 
-        waitUntilUploaderIsDone();
+        waitUntilUploaderIsDone(injectorProvider.getInjector());
         assertThat(fileTree2, contains().nothing());
 
         fileTree2.update();
         assertThat(fileTree2, contains().defaultEmptyTestFile());
 
-        fileTree.remove(testDirPath.resolve(testFileName));
+        fileTree.remove(testDirPath.resolve(getTestFileName()));
         assertThat(fileTree, contains().nothing());
 
-        waitUntilUploaderIsDone();
+        waitUntilUploaderIsDone(injectorProvider.getInjector());
         assertThat(fileTree2, contains().defaultEmptyTestFile());
 
         fileTree2.update();
@@ -140,11 +152,11 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
 
         fileTree.create(testDirPath.resolve(source), true);
         fileTree.create(testDirPath.resolve(destination), true);
-        fileTree.create(testDirPath.resolve(source).resolve(testFileName), false);
+        fileTree.create(testDirPath.resolve(source).resolve(getTestFileName()), false);
         assertThat(fileTree, contains().defaultEmptyTestFile().in(source));
         assertThat(fileTree, contains().nothing().in(destination));
 
-        waitUntilUploaderIsDone();
+        waitUntilUploaderIsDone(injectorProvider.getInjector());
         assertThat(fileTree2, contains().nothing());
 
         fileTree2.update();
@@ -152,12 +164,12 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
         assertThat(fileTree2, contains().nothing().in(destination));
 
         fileTree.move(
-                testDirPath.resolve(source).resolve(testFileName),
+                testDirPath.resolve(source).resolve(getTestFileName()),
                 testDirPath.resolve(destination).resolve("test_file_2"));
         assertThat(fileTree, contains().nothing().in(source));
         assertThat(fileTree, contains().file().withName("test_file_2").in(destination));
 
-        waitUntilUploaderIsDone();
+        waitUntilUploaderIsDone(injectorProvider.getInjector());
         assertThat(fileTree2, contains().defaultEmptyTestFile().in(source));
         assertThat(fileTree2, contains().nothing().in(destination));
 
@@ -175,7 +187,7 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
 
         assertThat(fileTree, contains().nothing());
 
-        drive.createFile(testFileName, testDir, getTestPdfContent());
+        drive.createFile(getTestFileName(), testFolder, getTestPdfContent());
 
         assertThat(fileTree, contains().nothing());
 
@@ -183,11 +195,11 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
 
         assertThat(fileTree, contains()
                 .file()
-                .withName(testFileName + ".pdf")
-                .withRealName(testFileName));
+                .withName(getTestFileName() + ".pdf")
+                .withRealName(getTestFileName()));
 
         fileTree.move(
-                testDirPath.resolve(testFileName + ".pdf"),
+                testDirPath.resolve(getTestFileName() + ".pdf"),
                 testDirPath.resolve("test_file_2.pdf"));
 
         assertThat(fileTree, contains()
@@ -195,7 +207,7 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
                 .withName("test_file_2.pdf")
                 .withRealName("test_file_2.pdf"));
 
-        waitUntilUploaderIsDone();
+        waitUntilUploaderIsDone(injectorProvider.getInjector());
         fileTree2.update();
 
         assertThat(fileTree2, contains()

@@ -1,16 +1,15 @@
 package jdbox.openedfiles;
 
-import jdbox.models.File;
+import jdbox.utils.OrderedRule;
+import jdbox.utils.TestFileProvider;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Random;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -28,6 +27,9 @@ public class RollingReadOpenedFileStableTest extends BaseRollingReadOpenedFileTe
     @Parameterized.Parameter
     public int count;
 
+    @OrderedRule
+    public TestFileProvider testFileProvider = new TestFileProvider(injectorProvider, testFolderProvider, 64 * 1024);
+
     @Test
     public void read() throws Exception {
 
@@ -35,14 +37,9 @@ public class RollingReadOpenedFileStableTest extends BaseRollingReadOpenedFileTe
         readerFactory.setConfig(new StreamCachingByteSourceFactory.Config(128));
         factory.setConfig(new RollingReadOpenedFileFactory.Config(1024, 4096));
 
-        final int contentLength = 64 * 1024;
+        byte[] content = testFileProvider.getContent();
 
-        Random random = new Random();
-        byte[] content = new byte[contentLength];
-        random.nextBytes(content);
-
-        try (ByteStore openedFile = factory.create(
-                new File(fileIdStore, drive.createFile(testFileName, testDir, new ByteArrayInputStream(content))))) {
+        try (ByteStore openedFile = factory.create(testFileProvider.getFile())) {
 
             byte[] bytes = new byte[content.length];
 

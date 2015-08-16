@@ -580,7 +580,7 @@ public class FileTree {
                         parent.tryAddChild(file);
                 }
 
-            } else if (currentFile != null) {
+            } else if (currentFile != null && knownFiles.getRoot() != currentFile) {
 
                 if (changedFile == null || changedFile.isTrashed()) {
 
@@ -591,7 +591,7 @@ public class FileTree {
 
                 } else {
 
-                    logger.debug("updating existing file with {}", change);
+                    logger.debug("updating existing file with {}", changedFile);
 
                     currentFile.rename(changedFile.getName());
                     currentFile.update(changedFile);

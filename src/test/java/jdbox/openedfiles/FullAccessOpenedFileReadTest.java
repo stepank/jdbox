@@ -1,7 +1,7 @@
 package jdbox.openedfiles;
 
-import jdbox.models.File;
-import org.junit.Before;
+import jdbox.utils.OrderedRule;
+import jdbox.utils.TestFileProvider;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
@@ -36,20 +36,15 @@ public class FullAccessOpenedFileReadTest extends BaseFullAccessOpenedFileTest {
     @Parameterized.Parameter
     public int[] counts;
 
-    private File file;
-
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
-        file = new File(fileIdStore, drive.createFile(testFileName, testDir, getTestContent()));
-    }
+    @OrderedRule
+    public TestFileProvider testFileProvider = new TestFileProvider(injectorProvider, testFolderProvider, 11);
 
     @Test
     public void read() throws Exception {
 
-        byte[] content = testContentString.getBytes();
+        byte[] content = testFileProvider.getContent();
 
-        try (ByteStore openedFile = factory.create(file)) {
+        try (ByteStore openedFile = factory.create(testFileProvider.getFile())) {
 
             byte[] bytes = new byte[content.length];
 

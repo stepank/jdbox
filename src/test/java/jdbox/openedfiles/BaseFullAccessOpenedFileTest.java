@@ -1,9 +1,8 @@
 package jdbox.openedfiles;
 
-import jdbox.BaseTest;
 import org.junit.Before;
 
-public class BaseFullAccessOpenedFileTest extends BaseTest {
+public class BaseFullAccessOpenedFileTest extends BaseOpenedFilesTest {
 
     protected FullAccessOpenedFileFactory factory;
     protected InMemoryByteStoreFactory tempStoreFactory;

@@ -1,9 +1,8 @@
 package jdbox.openedfiles;
 
-import jdbox.BaseTest;
 import org.junit.Before;
 
-public class BaseRollingReadOpenedFileTest extends BaseTest {
+public class BaseRollingReadOpenedFileTest extends BaseOpenedFilesTest {
 
     protected InMemoryByteStoreFactory tempStoreFactory;
     protected StreamCachingByteSourceFactory readerFactory;

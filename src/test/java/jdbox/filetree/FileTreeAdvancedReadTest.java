@@ -11,6 +11,8 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 
+import static jdbox.utils.TestUtils.getTestFileName;
+import static jdbox.utils.TestUtils.getTestFolderName;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 @Category(FileTree.class)
@@ -46,7 +48,7 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
         fileTree.update();
         assertThat(fileTree, contains()
                 .file()
-                .withName(rename ? "test_file_2" : testFileName)
+                .withName(rename ? "test_file_2" : getTestFileName())
                 .withSize(newContent.length()));
 
         assertCounts(2, 1);
@@ -92,14 +94,14 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
     @Test
     public void deleteTrackedDir() throws Exception {
 
-        Path folderPath = testDirPath.resolve(testFolderName);
-        File folder = drive.createFolder(testFolderName, testDir);
+        Path folderPath = testDirPath.resolve(getTestFolderName());
+        File folder = drive.createFolder(getTestFolderName(), testFolder);
         createTestFileAndUpdate(folder, folderPath);
 
         assertCounts(3, 2);
 
         if (rename) {
-            folder.setName(testFolderName + "_2");
+            folder.setName(getTestFolderName() + "_2");
             drive.updateFile(folder);
         }
         drive.deleteFile(folder);
@@ -118,11 +120,11 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
     public void move() throws Exception {
 
         Path sourcePath = testDirPath.resolve("source");
-        File source = drive.createFolder("source", testDir);
+        File source = drive.createFolder("source", testFolder);
         File testFile = createTestFile(source);
 
         Path destinationPath = testDirPath.resolve("destination");
-        File destination = drive.createFolder("destination", testDir);
+        File destination = drive.createFolder("destination", testFolder);
 
         fileTree.getChildren(sourcePath);
         fileTree.getChildren(destinationPath);
@@ -137,7 +139,7 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
         fileTree.update();
         assertThat(fileTree, contains().nothing().in(sourcePath));
         assertThat(fileTree, contains()
-                .defaultTestFile().withName(rename ? "test_file_2" : testFileName).in(destinationPath));
+                .defaultTestFile().withName(rename ? "test_file_2" : getTestFileName()).in(destinationPath));
 
         assertCounts(4, 3);
     }
@@ -149,10 +151,10 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
     public void moveToNotTrackedDir() throws Exception {
 
         Path sourcePath = testDirPath.resolve("source");
-        File source = drive.createFolder("source", testDir);
+        File source = drive.createFolder("source", testFolder);
         File testFile = createTestFile(source);
 
-        File destination = drive.createFolder("destination", testDir);
+        File destination = drive.createFolder("destination", testFolder);
 
         fileTree.getChildren(sourcePath);
 
@@ -174,11 +176,11 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
     @Test
     public void moveFromNotTrackedDir() throws Exception {
 
-        File source = drive.createFolder("source", testDir);
+        File source = drive.createFolder("source", testFolder);
         File testFile = createTestFile(source);
 
         Path destinationPath = testDirPath.resolve("destination");
-        File destination = drive.createFolder("destination", testDir);
+        File destination = drive.createFolder("destination", testFolder);
 
         fileTree.getChildren(destinationPath);
 
@@ -191,7 +193,7 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
         fileTree.update();
         assertThat(fileTree, contains()
                 .defaultTestFile()
-                .withName(rename ? "test_file_2" : testFileName)
+                .withName(rename ? "test_file_2" : getTestFileName())
                 .in(destinationPath));
 
         assertCounts(4, 2);

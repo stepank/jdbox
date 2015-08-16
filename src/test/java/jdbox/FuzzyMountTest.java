@@ -1,13 +1,11 @@
 package jdbox;
 
 import com.google.common.collect.ImmutableList;
-import jdbox.filetree.FileTree;
-import jdbox.utils.Repeat;
-import jdbox.utils.RepeatRule;
+import jdbox.utils.*;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,19 +17,27 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
 
+import static jdbox.utils.TestUtils.waitUntilUploaderIsDone;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 public class FuzzyMountTest extends BaseMountFileSystemTest {
 
-    @Rule
-    public RepeatRule repeatRule = new RepeatRule();
-
     private static final Logger logger = LoggerFactory.getLogger(FuzzyMountTest.class);
     private static final Random random = new Random();
 
-    private Path tempDirPath;
+    @OrderedRule(0)
+    public TemporaryFolder temporaryFolder = new TemporaryFolder();
+
+    @OrderedRule(1)
+    public InjectorProvider injectorProvider2 = new InjectorProvider(errorCollector, injectorProvider.getModules());
+
+    @OrderedRule(2)
+    public TestFolderIsolation testFolderIsolation = new TestFolderIsolation(injectorProvider2, testFolderProvider);
+
+    @OrderedRule(3)
+    public MountedFileSystem fileSystem2 = new MountedFileSystem(errorCollector, injectorProvider2, false);
 
     private final List<ActionFactory> actionFactories = ImmutableList.of(
             new CreateFileActionFactory(),
@@ -46,15 +52,13 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
     public void setUp() throws Exception {
         logger.debug("entering set up");
         super.setUp();
-        tempDirPath = Files.createTempDirectory("jdbox");
         logger.debug("leaving set up");
     }
 
     @After
     public void tearDown() throws Exception {
         logger.debug("entering tear down");
-        waitUntilUploaderIsDone();
-        deleteDir(tempDirPath);
+        waitUntilUploaderIsDone(injectorProvider.getInjector());
         super.tearDown();
         logger.debug("leaving tear down");
     }
@@ -62,6 +66,8 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
     @Test
     @Repeat(2)
     public void run() throws Exception {
+
+        Path tempDirPath = temporaryFolder.getRoot().toPath();
 
         List<Path> dirs = new ArrayList<Path>() {{
             add(Paths.get("."));
@@ -92,16 +98,11 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
 
         assertThat(dumpDir(mountPoint), equalTo(dumpDir(tempDirPath)));
 
-        waitUntilUploaderIsDone();
-        fs.unmount();
-        destroyInjector(injector);
+        waitUntilUploaderIsDone(injectorProvider.getInjector());
 
-        injector = createInjector();
-        injector.getInstance(FileTree.class).setRoot(testDir.getId());
-        fs = injector.getInstance(FileSystem.class);
-        fs.mount(new java.io.File(mountPoint.toString()), false);
+        fileSystem2.mount();
 
-        assertThat(dumpDir(mountPoint), equalTo(dumpDir(tempDirPath)));
+        assertThat(dumpDir(fileSystem2.getMountPoint()), equalTo(dumpDir(tempDirPath)));
     }
 
     private Action getNextAction(final List<Path> dirs, final List<Path> files) throws Exception {

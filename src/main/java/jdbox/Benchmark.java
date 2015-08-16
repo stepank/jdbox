@@ -6,8 +6,8 @@ import com.google.api.client.http.HttpResponse;
 import com.google.api.client.util.ByteStreams;
 import com.google.api.services.drive.Drive;
 import com.google.inject.Injector;
-import jdbox.models.File;
 import jdbox.filetree.FileTree;
+import jdbox.models.File;
 import net.fusejna.DirectoryFiller;
 
 import java.io.InputStream;
@@ -40,7 +40,7 @@ public class Benchmark {
         String path = args[0];
         String suffix = args[1];
 
-        Injector injector = JdBox.createInjector();
+        Injector injector = JdBox.createInjector(new Environment());
 
         FileSystem fileSystem = injector.getInstance(FileSystem.class);
 

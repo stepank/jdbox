@@ -1,7 +1,9 @@
 package jdbox.openedfiles;
 
 import jdbox.models.File;
-import org.junit.Before;
+import jdbox.utils.OrderedRule;
+import jdbox.utils.TestFileProvider;
+import jdbox.utils.TestUtils;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
@@ -37,19 +39,14 @@ public class OpenedFilesWriteTest extends BaseOpenedFilesTest {
     @Parameterized.Parameter
     public int[] counts;
 
-    private File file;
-
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
-        file = new File(fileIdStore, drive.createFile(testFileName, testDir, getTestContent()));
-    }
+    @OrderedRule
+    public TestFileProvider testFileProvider = new TestFileProvider(injectorProvider, testFolderProvider, 11);
 
     @Test
     public void write() throws Exception {
 
-        String content = "pysh-pysh-ololo";
-        byte[] bytes = content.getBytes();
+        File file = testFileProvider.getFile();
+        byte[] bytes = "pysh-pysh-ololo".getBytes();
 
         try (ByteStore openedFile = openedFiles.open(file, OpenedFiles.OpenMode.READ_WRITE)) {
 
@@ -73,7 +70,7 @@ public class OpenedFilesWriteTest extends BaseOpenedFilesTest {
             assertThat(buffer.array(), equalTo(bytes));
         }
 
-        waitUntilLocalStorageIsEmpty();
+        TestUtils.waitUntilLocalStorageIsEmpty(injector);
 
         try (ByteStore openedFile = openedFiles.open(file, OpenedFiles.OpenMode.READ_WRITE)) {
 
@@ -83,6 +80,6 @@ public class OpenedFilesWriteTest extends BaseOpenedFilesTest {
             assertThat(buffer.array(), equalTo(bytes));
         }
 
-        waitUntilLocalStorageIsEmpty();
+        TestUtils.waitUntilLocalStorageIsEmpty(injector);
     }
 }

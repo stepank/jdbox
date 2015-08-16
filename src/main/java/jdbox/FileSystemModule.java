@@ -3,7 +3,7 @@ package jdbox;
 import com.google.inject.AbstractModule;
 import com.google.inject.Singleton;
 
-public class ApplicationModule extends AbstractModule {
+public class FileSystemModule extends AbstractModule {
 
     @Override
     protected void configure() {

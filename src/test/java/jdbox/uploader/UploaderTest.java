@@ -1,9 +1,11 @@
 package jdbox.uploader;
 
 import com.google.common.collect.Lists;
-import jdbox.CommonModule;
+import com.google.inject.Module;
+import jdbox.BaseTest;
 import jdbox.models.fileids.FileId;
 import jdbox.models.fileids.FileIdStore;
+import jdbox.utils.TestUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -11,25 +13,29 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
-public class UploaderTest {
+public class UploaderTest extends BaseTest {
 
     private static final Logger logger = LoggerFactory.getLogger(UploaderTest.class);
 
-    private ExecutorService executor = CommonModule.createExecutor();
     private Uploader uploader;
     private Collection<List<Integer>> expectedOrders;
     private TestTaskFactory taskFactory;
 
+    @Override
+    protected Collection<Module> getRequiredModules() {
+        return new ArrayList<Module>() {{
+            add(new UploaderModule());
+        }};
+    }
+
     @Before
     public void setUp() {
 
-        uploader = new Uploader(executor);
+        uploader = injectorProvider.getInjector().getInstance(Uploader.class);
 
         expectedOrders = new LinkedList<>();
         taskFactory = new TestTaskFactory();
@@ -38,7 +44,7 @@ public class UploaderTest {
     @After
     public void tearDown() throws Exception {
 
-        uploader.waitUntilIsDone();
+        TestUtils.waitUntilUploaderIsDone(injectorProvider.getInjector());
 
         List<Integer> order = taskFactory.getOrder();
 
@@ -54,10 +60,6 @@ public class UploaderTest {
                 previous = current;
             }
         }
-
-        List<Runnable> tasks = executor.shutdownNow();
-        assertThat(tasks.size(), equalTo(0));
-        executor.awaitTermination(5, TimeUnit.SECONDS);
     }
 
     @Test

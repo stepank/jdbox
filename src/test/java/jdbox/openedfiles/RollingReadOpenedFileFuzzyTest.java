@@ -1,12 +1,14 @@
 package jdbox.openedfiles;
 
 import jdbox.models.File;
+import jdbox.utils.OrderedRule;
+import jdbox.utils.TestFileProvider;
+import jdbox.utils.TestUtils;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
 import java.util.Random;
 
@@ -18,6 +20,9 @@ public class RollingReadOpenedFileFuzzyTest extends BaseRollingReadOpenedFileTes
 
     private static final Logger logger = LoggerFactory.getLogger(RollingReadOpenedFileFuzzyTest.class);
 
+    @OrderedRule
+    public TestFileProvider testFileProvider = new TestFileProvider(injectorProvider, testFolderProvider, 1024 * 1024);
+
     @Test
     public void fuzzyRead() throws Exception {
 
@@ -25,14 +30,12 @@ public class RollingReadOpenedFileFuzzyTest extends BaseRollingReadOpenedFileTes
         readerFactory.setConfig(new StreamCachingByteSourceFactory.Config(512));
         factory.setConfig(new RollingReadOpenedFileFactory.Config(2048, 8192));
 
-        final int contentLength = 1024 * 1024;
-        final int[] maxReadChunkSizes = new int[]{1024, 4 * 1024, 16 * 1024};
-
         Random random = new Random();
-        byte[] content = new byte[contentLength];
-        random.nextBytes(content);
 
-        File file = new File(fileIdStore, drive.createFile(testFileName, testDir, new ByteArrayInputStream(content)));
+        File file = testFileProvider.getFile();
+        byte[] content = testFileProvider.getContent();
+
+        final int[] maxReadChunkSizes = new int[]{1024, 4 * 1024, 16 * 1024};
 
         for (int maxReadChunkSize : maxReadChunkSizes) {
 
@@ -44,9 +47,9 @@ public class RollingReadOpenedFileFuzzyTest extends BaseRollingReadOpenedFileTes
 
                 for (int i = 0; i < 50; i++) {
 
-                    int offset = random.nextInt(contentLength);
+                    int offset = random.nextInt(content.length);
                     int bytesToRead = 1 + random.nextInt(maxReadChunkSize);
-                    int expectedRead = Math.min(contentLength - offset, bytesToRead);
+                    int expectedRead = Math.min(content.length - offset, bytesToRead);
 
                     buffer.rewind();
                     assertThat(openedFile.read(buffer, offset, expectedRead), equalTo(expectedRead));
@@ -62,7 +65,7 @@ public class RollingReadOpenedFileFuzzyTest extends BaseRollingReadOpenedFileTes
                 }
             }
 
-            waitUntilLocalStorageIsEmpty();
+            TestUtils.waitUntilLocalStorageIsEmpty(injector);
         }
     }
 }

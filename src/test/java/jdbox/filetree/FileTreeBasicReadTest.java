@@ -6,6 +6,7 @@ import org.junit.experimental.categories.Category;
 
 import java.nio.file.Path;
 
+import static jdbox.utils.TestUtils.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 @Category(FileTree.class)
@@ -17,12 +18,12 @@ public class FileTreeBasicReadTest extends BaseFileTreeTest {
     @Test
     public void list() throws Exception {
 
-        drive.createFile(testFileName, testDir, getTestContent());
-        File testFolder = drive.createFolder(testFolderName, testDir);
-        drive.createFile(testFileName, testFolder, getTestContent());
+        drive.createFile(getTestFileName(), testFolder, getTestContent());
+        File testChildFolder = drive.createFolder(getTestFolderName(), testFolder);
+        drive.createFile(getTestFileName(), testChildFolder, getTestContent());
 
         assertThat(fileTree, contains().defaultTestFile().and().defaultTestFolder());
-        assertThat(fileTree, contains().defaultTestFile().in(testFolderName));
+        assertThat(fileTree, contains().defaultTestFile().in(getTestFolderName()));
 
         assertCounts(4, 2);
     }
@@ -33,7 +34,7 @@ public class FileTreeBasicReadTest extends BaseFileTreeTest {
     @Test
     public void create() throws Exception {
         assertThat(fileTree, contains().nothing());
-        drive.createFile(testFileName, testDir, getTestContent());
+        drive.createFile(getTestFileName(), testFolder, getTestContent());
         assertThat(fileTree, contains().nothing());
         fileTree.update();
         assertThat(fileTree, contains().defaultTestFile());
@@ -55,7 +56,7 @@ public class FileTreeBasicReadTest extends BaseFileTreeTest {
         fileTree.update();
         assertThat(fileTree, contains().defaultTestFile().withName("test_file_2"));
 
-        testFile.setName(testFileName);
+        testFile.setName(getTestFileName());
         drive.updateFile(testFile);
         assertThat(fileTree, contains().defaultTestFile().withName("test_file_2"));
 
@@ -71,17 +72,17 @@ public class FileTreeBasicReadTest extends BaseFileTreeTest {
     @Test
     public void renameDir() throws Exception {
 
-        Path testFolderPath = testDirPath.resolve(testFolderName);
-        File testFolder = drive.createFolder(testFolderName, testDir);
-        createTestFile(testFolder);
+        Path testChildFolderPath = testDirPath.resolve(getTestFolderName());
+        File testChildFolder = drive.createFolder(getTestFolderName(), testFolder);
+        createTestFile(testChildFolder);
 
-        fileTree.getChildren(testFolderPath);
+        fileTree.getChildren(testChildFolderPath);
         assertCounts(3, 2);
 
-        testFolder.setName("test_folder_2");
-        drive.updateFile(testFolder);
+        testChildFolder.setName("test_folder_2");
+        drive.updateFile(testChildFolder);
         assertThat(fileTree, contains().defaultTestFolder());
-        assertThat(fileTree, contains().defaultTestFile().in(testFolderPath));
+        assertThat(fileTree, contains().defaultTestFile().in(testChildFolderPath));
 
         fileTree.update();
         assertCounts(3, 2);

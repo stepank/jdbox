@@ -8,6 +8,7 @@ import org.junit.runners.Parameterized;
 import java.util.Arrays;
 import java.util.Collection;
 
+import static jdbox.utils.TestUtils.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.AnyOf.anyOf;
 
@@ -48,14 +49,14 @@ public class NameResolutionReadTest extends BaseFileTreeTest {
 
         tryAssertFileTreeContainsNothing();
 
-        drive.createFile(testFileName, testDir, getTestPdfContent());
+        drive.createFile(getTestFileName(), testFolder, getTestPdfContent());
 
         tryUpdateFileTree();
 
         assertThat(fileTree, contains()
                 .file()
-                .withName(testFileName + ".pdf")
-                .withRealName(testFileName));
+                .withName(getTestFileName() + ".pdf")
+                .withRealName(getTestFileName()));
 
         assertCounts(2, 1);
     }
@@ -68,11 +69,11 @@ public class NameResolutionReadTest extends BaseFileTreeTest {
 
         tryAssertFileTreeContainsNothing();
 
-        drive.createFile(testFileName + ".pdf", testDir, getTestPdfContent());
+        drive.createFile(getTestFileName() + ".pdf", testFolder, getTestPdfContent());
 
         tryUpdateFileTree();
 
-        assertThat(fileTree, contains().file().withName(testFileName + ".pdf"));
+        assertThat(fileTree, contains().file().withName(getTestFileName() + ".pdf"));
 
         assertCounts(2, 1);
     }
@@ -82,20 +83,20 @@ public class NameResolutionReadTest extends BaseFileTreeTest {
 
         tryAssertFileTreeContainsNothing();
 
-        drive.createFile(testFileName, testDir, getTestContent());
+        drive.createFile(getTestFileName(), testFolder, getTestContent());
 
         if (tryUpdateFileTree())
-            assertThat(fileTree, contains().file().withName(testFileName).withRealName(testFileName));
+            assertThat(fileTree, contains().file().withName(getTestFileName()).withRealName(getTestFileName()));
 
-        drive.createFile(testFileName, testDir, getTestContent());
-        drive.createFile(testFileName, testDir, getTestContent());
+        drive.createFile(getTestFileName(), testFolder, getTestContent());
+        drive.createFile(getTestFileName(), testFolder, getTestContent());
 
         tryUpdateFileTree();
 
         assertThat(fileTree, contains()
-                .file().withName(testFileName).withRealName(testFileName).and()
-                .file().withName(testFileName + " 2").withRealName(testFileName).and()
-                .file().withName(testFileName + " 3").withRealName(testFileName));
+                .file().withName(getTestFileName()).withRealName(getTestFileName()).and()
+                .file().withName(getTestFileName() + " 2").withRealName(getTestFileName()).and()
+                .file().withName(getTestFileName() + " 3").withRealName(getTestFileName()));
 
         assertCounts(4, 1);
     }
@@ -105,20 +106,21 @@ public class NameResolutionReadTest extends BaseFileTreeTest {
 
         tryAssertFileTreeContainsNothing();
 
-        drive.createFile(testFileName, testDir, getTestPdfContent());
+        drive.createFile(getTestFileName(), testFolder, getTestPdfContent());
 
         if (tryUpdateFileTree())
-            assertThat(fileTree, contains().file().withName(testFileName + ".pdf").withRealName(testFileName));
+            assertThat(fileTree, contains()
+                    .file().withName(getTestFileName() + ".pdf").withRealName(getTestFileName()));
 
-        drive.createFile(testFileName, testDir, getTestPdfContent());
-        drive.createFile(testFileName, testDir, getTestPdfContent());
+        drive.createFile(getTestFileName(), testFolder, getTestPdfContent());
+        drive.createFile(getTestFileName(), testFolder, getTestPdfContent());
 
         tryUpdateFileTree();
 
         assertThat(fileTree, contains()
-                .file().withName(testFileName + ".pdf").withRealName(testFileName).and()
-                .file().withName(testFileName + " 2.pdf").withRealName(testFileName).and()
-                .file().withName(testFileName + " 3.pdf").withRealName(testFileName));
+                .file().withName(getTestFileName() + ".pdf").withRealName(getTestFileName()).and()
+                .file().withName(getTestFileName() + " 2.pdf").withRealName(getTestFileName()).and()
+                .file().withName(getTestFileName() + " 3.pdf").withRealName(getTestFileName()));
 
         assertCounts(4, 1);
     }
@@ -128,18 +130,18 @@ public class NameResolutionReadTest extends BaseFileTreeTest {
 
         tryAssertFileTreeContainsNothing();
 
-        drive.createFile(testFileName, testDir, getTestContent());
+        drive.createFile(getTestFileName(), testFolder, getTestContent());
 
         if (tryUpdateFileTree())
-            assertThat(fileTree, contains().file().withName(testFileName).withRealName(testFileName));
+            assertThat(fileTree, contains().file().withName(getTestFileName()).withRealName(getTestFileName()));
 
-        drive.createFile(testFileName, testDir, getTestPdfContent());
+        drive.createFile(getTestFileName(), testFolder, getTestPdfContent());
 
         tryUpdateFileTree();
 
         assertThat(fileTree, contains()
-                .file().withName(testFileName).withRealName(testFileName).and()
-                .file().withName(testFileName + ".pdf").withRealName(testFileName));
+                .file().withName(getTestFileName()).withRealName(getTestFileName()).and()
+                .file().withName(getTestFileName() + ".pdf").withRealName(getTestFileName()));
 
         assertCounts(3, 1);
     }
@@ -149,18 +151,19 @@ public class NameResolutionReadTest extends BaseFileTreeTest {
 
         tryAssertFileTreeContainsNothing();
 
-        drive.createFile(testFileName + ".pdf", testDir, getTestContent());
+        drive.createFile(getTestFileName() + ".pdf", testFolder, getTestContent());
 
         if (tryUpdateFileTree())
-            assertThat(fileTree, contains().file().withName(testFileName + ".pdf").withRealName(testFileName + ".pdf"));
+            assertThat(fileTree, contains()
+                    .file().withName(getTestFileName() + ".pdf").withRealName(getTestFileName() + ".pdf"));
 
-        drive.createFile(testFileName + ".pdf", testDir, getTestContent());
+        drive.createFile(getTestFileName() + ".pdf", testFolder, getTestContent());
 
         tryUpdateFileTree();
 
         assertThat(fileTree, contains()
-                .file().withName(testFileName + ".pdf").withRealName(testFileName + ".pdf").and()
-                .file().withName(testFileName + " 2.pdf").withRealName(testFileName + ".pdf"));
+                .file().withName(getTestFileName() + ".pdf").withRealName(getTestFileName() + ".pdf").and()
+                .file().withName(getTestFileName() + " 2.pdf").withRealName(getTestFileName() + ".pdf"));
 
         assertCounts(3, 1);
     }
@@ -170,12 +173,13 @@ public class NameResolutionReadTest extends BaseFileTreeTest {
 
         tryAssertFileTreeContainsNothing();
 
-        drive.createFile(testFileName, testDir, getTestPdfContent());
+        drive.createFile(getTestFileName(), testFolder, getTestPdfContent());
 
         if (tryUpdateFileTree())
-            assertThat(fileTree, contains().file().withName(testFileName + ".pdf").withRealName(testFileName));
+            assertThat(fileTree, contains()
+                    .file().withName(getTestFileName() + ".pdf").withRealName(getTestFileName()));
 
-        drive.createFile(testFileName + ".pdf", testDir, getTestContent());
+        drive.createFile(getTestFileName() + ".pdf", testFolder, getTestContent());
 
         tryUpdateFileTree();
 
@@ -183,11 +187,11 @@ public class NameResolutionReadTest extends BaseFileTreeTest {
         // so we check that at least one of these asserts passes
         assertThat(fileTree, anyOf(
                 contains()
-                        .file().withName(testFileName + ".pdf").withRealName(testFileName).and()
-                        .file().withName(testFileName + " 2.pdf").withRealName(testFileName + ".pdf"),
+                        .file().withName(getTestFileName() + ".pdf").withRealName(getTestFileName()).and()
+                        .file().withName(getTestFileName() + " 2.pdf").withRealName(getTestFileName() + ".pdf"),
                 contains()
-                        .file().withName(testFileName + ".pdf").withRealName(testFileName + ".pdf").and()
-                        .file().withName(testFileName + " 2.pdf").withRealName(testFileName)
+                        .file().withName(getTestFileName() + ".pdf").withRealName(getTestFileName() + ".pdf").and()
+                        .file().withName(getTestFileName() + " 2.pdf").withRealName(getTestFileName())
         ));
 
         assertCounts(3, 1);
