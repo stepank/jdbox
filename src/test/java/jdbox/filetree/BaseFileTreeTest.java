@@ -86,7 +86,7 @@ public class BaseFileTreeTest extends BaseTest {
                 }
 
                 for (Assert a : asserts) {
-                    result = a.check(fileTree.getOrNull(path.resolve(a.name)));
+                    result = a.check(children, fileTree.getOrNull(path.resolve(a.name)));
                     if (result != null)
                         return false;
                 }
@@ -190,17 +190,22 @@ public class BaseFileTreeTest extends BaseTest {
             public Date accessedDate;
             public Date modifiedDate;
 
-            public AssertResult check(jdbox.models.File file) {
+            public AssertResult check(List<String> children, jdbox.models.File file) {
+
+                if (!children.contains(name))
+                    return new AssertResult(
+                            String.format("file %s exists in %s", name, FileTreeMatcher.this.path),
+                            String.format("file %s does not exist (it is not present in file list)", name));
 
                 if (file == null)
                     return new AssertResult(
                             String.format("file %s exists in %s", name, FileTreeMatcher.this.path),
-                            String.format("file %s does not exist", name));
+                            String.format("file %s does not exist (cannot retrieve its info)", name));
 
                 if (realName == null && !file.getName().equals(name))
                     return new AssertResult(
                             String.format("%s has name %s", file, name),
-                            String.format("%s has name %s", file, name));
+                            String.format("%s has name %s", file, file.getName()));
 
                 if (realName != null && !file.getName().equals(realName))
                     return new AssertResult(

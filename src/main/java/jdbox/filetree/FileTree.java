@@ -54,7 +54,7 @@ public class FileTree {
                         @Nullable
                         @Override
                         public String apply(Map.Entry<String, KnownFile> entry) {
-                            return entry.getValue().getName();
+                            return entry.getKey();
                         }
                     }));
         }
