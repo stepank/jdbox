@@ -17,7 +17,10 @@ import org.junit.Before;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.LinkedList;
+import java.util.List;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -27,30 +30,29 @@ public class BaseFileTreeTest extends BaseTest {
     protected final static Path testDirPath = Paths.get("/");
 
     @OrderedRule(1)
-    public TestFolderProvider testFolderProvider = new TestFolderProvider(errorCollector, injectorProvider);
+    public final TestFolderProvider testFolderProvider = new TestFolderProvider(errorCollector, lifeCycleManager);
 
     @OrderedRule(2)
-    public TestFolderIsolation testFolderIsolation = new TestFolderIsolation(injectorProvider, testFolderProvider);
+    public final TestFolderIsolation testFolderIsolation = new TestFolderIsolation(lifeCycleManager, testFolderProvider);
 
     protected DriveAdapter drive;
     protected FileTree fileTree;
     protected File testFolder;
 
     @Override
-    protected Collection<Module> getRequiredModules() {
+    protected List<Module> getRequiredModules() {
         return new ArrayList<Module>() {{
             add(new DriveAdapterModule(driveServiceProvider.getDriveService()));
             add(new UploaderModule());
             add(new OpenedFilesModule());
             add(new FileTreeModule(false));
-
         }};
     }
 
     @Before
     public void setUp() throws Exception {
-        drive = injectorProvider.getInjector().getInstance(DriveAdapter.class);
-        fileTree = injectorProvider.getInjector().getInstance(FileTree.class);
+        drive = lifeCycleManager.getInstance(DriveAdapter.class);
+        fileTree = lifeCycleManager.getInstance(FileTree.class);
         testFolder = testFolderProvider.getTestFolder();
     }
 

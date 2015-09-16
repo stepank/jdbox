@@ -3,7 +3,6 @@ package jdbox;
 import jdbox.filetree.FileTree;
 import jdbox.utils.MountedFileSystem;
 import jdbox.utils.OrderedRule;
-import jdbox.utils.TestUtils;
 import org.junit.After;
 import org.junit.Before;
 
@@ -12,7 +11,7 @@ import java.nio.file.Path;
 public class BaseMountFileSystemTest extends BaseFileSystemModuleTest {
 
     @OrderedRule
-    public MountedFileSystem fileSystem = new MountedFileSystem(errorCollector, injectorProvider);
+    public final MountedFileSystem fileSystem = new MountedFileSystem(errorCollector, lifeCycleManager);
 
     protected Path mountPoint;
 
@@ -24,10 +23,10 @@ public class BaseMountFileSystemTest extends BaseFileSystemModuleTest {
 
     @After
     public void tearDown() throws Exception {
-        TestUtils.waitUntilLocalStorageIsEmpty(injectorProvider.getInjector());
+        lifeCycleManager.waitUntilLocalStorageIsEmpty();
     }
 
     protected void resetFileTree() throws InterruptedException {
-        injectorProvider.getInjector().getInstance(FileTree.class).reset();
+        lifeCycleManager.getInstance(FileTree.class).reset();
     }
 }

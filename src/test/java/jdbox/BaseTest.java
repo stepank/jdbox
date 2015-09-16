@@ -6,24 +6,25 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.rules.ErrorCollector;
 
-import java.util.Collection;
+import java.util.List;
 
 public abstract class BaseTest {
 
     @ClassRule
-    public static DriveServiceProvider driveServiceProvider = new DriveServiceProvider();
+    public final static DriveServiceProvider driveServiceProvider = new DriveServiceProvider();
 
     @Rule
-    public OrderedRuleCollector collector = new OrderedRuleCollector();
+    public final OrderedRuleCollector collector = new OrderedRuleCollector();
 
     @OrderedRule(0)
-    public RepeatRule repeatRule = new RepeatRule();
+    public final RepeatRule repeatRule = new RepeatRule();
 
     @OrderedRule(1)
-    public ErrorCollector errorCollector = new ErrorCollector();
+    public final ErrorCollector errorCollector = new ErrorCollector();
 
     @OrderedRule(2)
-    public InjectorProvider injectorProvider = new InjectorProvider(errorCollector, getRequiredModules());
+    public final LifeCycleManagerResource lifeCycleManager =
+            new LifeCycleManagerResource(errorCollector, getRequiredModules());
 
-    protected abstract Collection<Module> getRequiredModules();
+    protected abstract List<Module> getRequiredModules();
 }

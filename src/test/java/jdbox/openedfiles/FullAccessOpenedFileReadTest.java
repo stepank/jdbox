@@ -37,7 +37,7 @@ public class FullAccessOpenedFileReadTest extends BaseFullAccessOpenedFileTest {
     public int[] counts;
 
     @OrderedRule
-    public TestFileProvider testFileProvider = new TestFileProvider(injectorProvider, testFolderProvider, 11);
+    public final TestFileProvider testFileProvider = new TestFileProvider(lifeCycleManager, testFolderProvider, 11);
 
     @Test
     public void read() throws Exception {

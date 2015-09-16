@@ -3,7 +3,6 @@ package jdbox.openedfiles;
 import jdbox.models.File;
 import jdbox.utils.OrderedRule;
 import jdbox.utils.TestFileProvider;
-import jdbox.utils.TestUtils;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
@@ -40,7 +39,7 @@ public class OpenedFilesWriteTest extends BaseOpenedFilesTest {
     public int[] counts;
 
     @OrderedRule
-    public TestFileProvider testFileProvider = new TestFileProvider(injectorProvider, testFolderProvider, 11);
+    public final TestFileProvider testFileProvider = new TestFileProvider(lifeCycleManager, testFolderProvider, 11);
 
     @Test
     public void write() throws Exception {
@@ -70,7 +69,7 @@ public class OpenedFilesWriteTest extends BaseOpenedFilesTest {
             assertThat(buffer.array(), equalTo(bytes));
         }
 
-        TestUtils.waitUntilLocalStorageIsEmpty(injector);
+        lifeCycleManager.waitUntilLocalStorageIsEmpty();
 
         try (ByteStore openedFile = openedFiles.open(file, OpenedFiles.OpenMode.READ_WRITE)) {
 
@@ -80,6 +79,6 @@ public class OpenedFilesWriteTest extends BaseOpenedFilesTest {
             assertThat(buffer.array(), equalTo(bytes));
         }
 
-        TestUtils.waitUntilLocalStorageIsEmpty(injector);
+        lifeCycleManager.waitUntilLocalStorageIsEmpty();
     }
 }

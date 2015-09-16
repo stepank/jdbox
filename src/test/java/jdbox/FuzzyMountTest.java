@@ -17,7 +17,6 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
 
-import static jdbox.utils.TestUtils.waitUntilUploaderIsDone;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -28,16 +27,17 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
     private static final Random random = new Random();
 
     @OrderedRule(0)
-    public TemporaryFolder temporaryFolder = new TemporaryFolder();
+    public final TemporaryFolder temporaryFolder = new TemporaryFolder();
 
     @OrderedRule(1)
-    public InjectorProvider injectorProvider2 = new InjectorProvider(errorCollector, injectorProvider.getModules());
+    public final LifeCycleManagerResource lifeCycleManager2 =
+            new LifeCycleManagerResource(errorCollector, lifeCycleManager.getModules());
 
     @OrderedRule(2)
-    public TestFolderIsolation testFolderIsolation = new TestFolderIsolation(injectorProvider2, testFolderProvider);
+    public final TestFolderIsolation testFolderIsolation = new TestFolderIsolation(lifeCycleManager2, testFolderProvider);
 
     @OrderedRule(3)
-    public MountedFileSystem fileSystem2 = new MountedFileSystem(errorCollector, injectorProvider2, false);
+    public final MountedFileSystem fileSystem2 = new MountedFileSystem(errorCollector, lifeCycleManager2, false);
 
     private final List<ActionFactory> actionFactories = ImmutableList.of(
             new CreateFileActionFactory(),
@@ -58,7 +58,7 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
     @After
     public void tearDown() throws Exception {
         logger.debug("entering tear down");
-        waitUntilUploaderIsDone(injectorProvider.getInjector());
+        lifeCycleManager.waitUntilUploaderIsDone();
         super.tearDown();
         logger.debug("leaving tear down");
     }
@@ -98,7 +98,7 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
 
         assertThat(dumpDir(mountPoint), equalTo(dumpDir(tempDirPath)));
 
-        waitUntilUploaderIsDone(injectorProvider.getInjector());
+        lifeCycleManager.waitUntilUploaderIsDone();
 
         fileSystem2.mount();
 

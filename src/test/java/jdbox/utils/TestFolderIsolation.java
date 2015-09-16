@@ -5,15 +5,15 @@ import org.junit.rules.ExternalResource;
 
 public class TestFolderIsolation extends ExternalResource {
 
-    private final InjectorProvider injectorProvider;
+    private final LifeCycleManagerResource lifeCycleManager;
     private final TestFolderProvider testFolderProvider;
 
-    public TestFolderIsolation(InjectorProvider injectorProvider, TestFolderProvider testFolderProvider) {
-        this.injectorProvider = injectorProvider;
+    public TestFolderIsolation(LifeCycleManagerResource lifeCycleManager, TestFolderProvider testFolderProvider) {
+        this.lifeCycleManager = lifeCycleManager;
         this.testFolderProvider = testFolderProvider;
     }
 
     public void before() throws InterruptedException {
-        injectorProvider.getInjector().getInstance(FileTree.class).setRoot(testFolderProvider.getTestFolder().getId());
+        lifeCycleManager.getInstance(FileTree.class).setRoot(testFolderProvider.getTestFolder().getId());
     }
 }

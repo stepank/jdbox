@@ -20,7 +20,7 @@ public class GetAttrTest extends BaseFileSystemModuleTest {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        fs = injectorProvider.getInjector().getInstance(FileSystem.class);
+        fs = lifeCycleManager.getInstance(FileSystem.class);
     }
 
     @Test

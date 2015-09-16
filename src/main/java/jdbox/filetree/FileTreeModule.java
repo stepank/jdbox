@@ -1,16 +1,10 @@
 package jdbox.filetree;
 
 import com.google.inject.Injector;
-import com.google.inject.Provides;
 import com.google.inject.Singleton;
-import jdbox.DisposableModule;
-import jdbox.driveadapter.DriveAdapter;
-import jdbox.models.fileids.FileIdStore;
-import jdbox.openedfiles.UpdateFileSizeEvent;
-import jdbox.uploader.Uploader;
-import rx.Observable;
+import jdbox.modules.ActiveModule;
 
-public class FileTreeModule extends DisposableModule {
+public class FileTreeModule extends ActiveModule {
 
     private final boolean autoUpdateFileTree;
 
@@ -20,20 +14,22 @@ public class FileTreeModule extends DisposableModule {
 
     @Override
     protected void configure() {
-    }
-
-    @Provides
-    @Singleton
-    public FileTree createFileTree(
-            DriveAdapter drive, FileIdStore fileIdStore,
-            Observable<UpdateFileSizeEvent> updateFileSizeEvent, Uploader uploader) throws Exception {
-        FileTree ft = new FileTree(drive, fileIdStore, updateFileSizeEvent, uploader, autoUpdateFileTree);
-        ft.start();
-        return ft;
+        bind(FileTree.class).in(Singleton.class);
     }
 
     @Override
-    public void dispose(Injector injector) throws Exception {
-        injector.getInstance(FileTree.class).stopAndWait(5000);
+    public void init(Injector injector) throws Exception {
+        injector.getInstance(FileTree.class).init();
+    }
+
+    @Override
+    public void start(Injector injector) {
+        if (autoUpdateFileTree)
+            injector.getInstance(FileTree.class).start();
+    }
+
+    @Override
+    public void tearDown(Injector injector) throws Exception {
+        injector.getInstance(FileTree.class).tearDown();
     }
 }

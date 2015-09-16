@@ -10,18 +10,18 @@ import java.nio.file.Path;
 public class MountedFileSystem extends ExternalResource {
 
     private final ErrorCollector errorCollector;
-    private final InjectorProvider injectorProvider;
+    private final LifeCycleManagerResource lifeCycleManager;
     private final boolean mountOnBefore;
 
     private Path mountPoint;
 
-    public MountedFileSystem(ErrorCollector errorCollector, InjectorProvider injectorProvider) {
-        this(errorCollector, injectorProvider, true);
+    public MountedFileSystem(ErrorCollector errorCollector, LifeCycleManagerResource lifeCycleManager) {
+        this(errorCollector, lifeCycleManager, true);
     }
 
-    public MountedFileSystem(ErrorCollector errorCollector, InjectorProvider injectorProvider, boolean mountOnBefore) {
+    public MountedFileSystem(ErrorCollector errorCollector, LifeCycleManagerResource lifeCycleManager, boolean mountOnBefore) {
         this.errorCollector = errorCollector;
-        this.injectorProvider = injectorProvider;
+        this.lifeCycleManager = lifeCycleManager;
         this.mountOnBefore = mountOnBefore;
     }
 
@@ -33,8 +33,7 @@ public class MountedFileSystem extends ExternalResource {
 
         mountPoint = Files.createTempDirectory("jdbox");
 
-        injectorProvider.getInjector()
-                .getInstance(FileSystem.class).mount(new java.io.File(mountPoint.toString()), false);
+        lifeCycleManager.getInstance(FileSystem.class).mount(new java.io.File(mountPoint.toString()), false);
     }
 
     @Override
@@ -47,7 +46,7 @@ public class MountedFileSystem extends ExternalResource {
     protected void after() {
 
         try {
-            injectorProvider.getInjector().getInstance(FileSystem.class).unmount();
+            lifeCycleManager.getInstance(FileSystem.class).unmount();
         } catch (Exception e) {
             errorCollector.addError(e);
         }

@@ -28,7 +28,7 @@ public class RollingReadOpenedFileStableTest extends BaseRollingReadOpenedFileTe
     public int count;
 
     @OrderedRule
-    public TestFileProvider testFileProvider = new TestFileProvider(injectorProvider, testFolderProvider, 64 * 1024);
+    public final TestFileProvider testFileProvider = new TestFileProvider(lifeCycleManager, testFolderProvider, 64 * 1024);
 
     @Test
     public void read() throws Exception {

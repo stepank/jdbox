@@ -11,8 +11,8 @@ public class BaseRollingReadOpenedFileTest extends BaseOpenedFilesTest {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        tempStoreFactory = injector.getInstance(InMemoryByteStoreFactory.class);
-        readerFactory = injector.getInstance(StreamCachingByteSourceFactory.class);
-        factory = injector.getInstance(RollingReadOpenedFileFactory.class);
+        tempStoreFactory = lifeCycleManager.getInstance(InMemoryByteStoreFactory.class);
+        readerFactory = lifeCycleManager.getInstance(StreamCachingByteSourceFactory.class);
+        factory = lifeCycleManager.getInstance(RollingReadOpenedFileFactory.class);
     }
 }

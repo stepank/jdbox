@@ -11,15 +11,15 @@ import java.util.Random;
 
 public class TestFileProvider extends ExternalResource {
 
-    private final InjectorProvider injectorProvider;
+    private final LifeCycleManagerResource lifeCycleManager;
     private final TestFolderProvider testFolderProvider;
     private final int contentLength;
     private File file;
     private byte[] content;
 
     public TestFileProvider(
-            InjectorProvider injectorProvider, TestFolderProvider testFolderProvider, int contentLength) {
-        this.injectorProvider = injectorProvider;
+            LifeCycleManagerResource lifeCycleManager, TestFolderProvider testFolderProvider, int contentLength) {
+        this.lifeCycleManager = lifeCycleManager;
         this.testFolderProvider = testFolderProvider;
         this.contentLength = contentLength;
     }
@@ -40,8 +40,8 @@ public class TestFileProvider extends ExternalResource {
         random.nextBytes(content);
 
         file = new File(
-                injectorProvider.getInjector().getInstance(FileIdStore.class),
-                injectorProvider.getInjector().getInstance(DriveAdapter.class).createFile(
+                lifeCycleManager.getInstance(FileIdStore.class),
+                lifeCycleManager.getInstance(DriveAdapter.class).createFile(
                         TestUtils.testFileName, testFolderProvider.getTestFolder(),
                         new ByteArrayInputStream(content)));
     }

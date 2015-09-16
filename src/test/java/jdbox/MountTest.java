@@ -10,7 +10,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 
-import static jdbox.utils.TestUtils.*;
+import static jdbox.utils.TestUtils.getTestContent;
+import static jdbox.utils.TestUtils.getTestContentBytes;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -33,7 +34,7 @@ public class MountTest extends BaseMountFileSystemTest {
     @Test
     public void writeAndReadAfterClose() throws Exception {
         Files.write(mountPoint.resolve("test.txt"), getTestContentBytes());
-        waitUntilLocalStorageIsEmpty(injectorProvider.getInjector());
+        lifeCycleManager.waitUntilLocalStorageIsEmpty();
         assertThat(Files.readAllBytes(mountPoint.resolve("test.txt")), equalTo(getTestContentBytes()));
     }
 
@@ -56,7 +57,7 @@ public class MountTest extends BaseMountFileSystemTest {
     public void truncate() throws Exception {
         Path path = mountPoint.resolve("test.txt");
         Files.write(path, getTestContentBytes());
-        waitUntilLocalStorageIsEmpty(injectorProvider.getInjector());
+        lifeCycleManager.waitUntilLocalStorageIsEmpty();
         new FileOutputStream(path.toFile(), true).getChannel().truncate(5).close();
         assertThat(Files.readAllBytes(path), equalTo(Arrays.copyOfRange(getTestContentBytes(), 0, 5)));
     }
@@ -81,11 +82,11 @@ public class MountTest extends BaseMountFileSystemTest {
         }
 
         Files.delete(filePath);
-        waitUntilUploaderIsDone(injectorProvider.getInjector());
+        lifeCycleManager.waitUntilUploaderIsDone();
         assertThat(Files.exists(filePath), is(false));
 
         Files.delete(dirPath);
-        waitUntilUploaderIsDone(injectorProvider.getInjector());
+        lifeCycleManager.waitUntilUploaderIsDone();
         assertThat(Files.exists(dirPath), is(false));
     }
 
@@ -105,7 +106,7 @@ public class MountTest extends BaseMountFileSystemTest {
         assertThat(Files.exists(destinationPath), is(false));
 
         Files.move(sourcePath, destinationPath);
-        waitUntilUploaderIsDone(injectorProvider.getInjector());
+        lifeCycleManager.waitUntilUploaderIsDone();
         assertThat(Files.exists(sourcePath), is(false));
         assertThat(Files.exists(destinationPath), is(true));
     }

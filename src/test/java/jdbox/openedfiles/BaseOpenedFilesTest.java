@@ -12,7 +12,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 public class BaseOpenedFilesTest extends BaseOpenedFilesModuleTest {
 
     @OrderedRule
-    public TestFolderProvider testFolderProvider = new TestFolderProvider(errorCollector, injectorProvider);
+    public final TestFolderProvider testFolderProvider = new TestFolderProvider(errorCollector, lifeCycleManager);
 
     protected FileIdStore fileIdStore;
     protected DriveAdapter drive;
@@ -25,18 +25,16 @@ public class BaseOpenedFilesTest extends BaseOpenedFilesModuleTest {
     @Before
     public void setUp() throws Exception {
 
-        super.setUp();
+        fileIdStore = lifeCycleManager.getInstance(FileIdStore.class);
+        drive = lifeCycleManager.getInstance(DriveAdapter.class);
 
-        fileIdStore = injectorProvider.getInjector().getInstance(FileIdStore.class);
-        drive = injectorProvider.getInjector().getInstance(DriveAdapter.class);
-
-        tempStoreFactory = injector.getInstance(InMemoryByteStoreFactory.class);
+        tempStoreFactory = lifeCycleManager.getInstance(InMemoryByteStoreFactory.class);
         tempStoreFactory.setConfig(new InMemoryByteStoreFactory.Config(4));
-        readerFactory = injector.getInstance(StreamCachingByteSourceFactory.class);
+        readerFactory = lifeCycleManager.getInstance(StreamCachingByteSourceFactory.class);
         readerFactory.setConfig(new StreamCachingByteSourceFactory.Config(4));
-        factory = injector.getInstance(FullAccessOpenedFileFactory.class);
-        openedFiles = injector.getInstance(OpenedFiles.class);
+        factory = lifeCycleManager.getInstance(FullAccessOpenedFileFactory.class);
+        openedFiles = lifeCycleManager.getInstance(OpenedFiles.class);
 
-        assertThat(injector.getInstance(LocalStorage.class).getFilesCount(), equalTo(0));
+        assertThat(lifeCycleManager.getInstance(LocalStorage.class).getFilesCount(), equalTo(0));
     }
 }

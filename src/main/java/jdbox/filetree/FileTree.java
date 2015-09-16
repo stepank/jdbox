@@ -3,7 +3,6 @@ package jdbox.filetree;
 import com.google.common.base.Function;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableList;
-import com.google.common.util.concurrent.SettableFuture;
 import com.google.inject.Inject;
 import jdbox.driveadapter.DriveAdapter;
 import jdbox.filetree.knownfiles.KnownFile;
@@ -24,7 +23,6 @@ import java.io.ByteArrayInputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -37,17 +35,21 @@ public class FileTree {
     private static final Path rootPath = Paths.get("/");
 
     private final DriveAdapter drive;
-    private final ScheduledExecutorService scheduler;
-    private final KnownFiles knownFiles = new KnownFiles();
-    private final SettableFuture syncError = SettableFuture.create();
-    private final CountDownLatch start = new CountDownLatch(1);
-    private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
-    private final ReadWriteLock applyChangesReadWriteLock = new ReentrantReadWriteLock();
     private final FileIdStore fileIdStore;
     private final rx.Observable<UpdateFileSizeEvent> updateFileSizeEvent;
     private final Uploader uploader;
-    private final boolean autoUpdate;
 
+    private final KnownFiles knownFiles = new KnownFiles();
+
+    // read is acquired on knownFiles read operations to prevent modification of the state while read is in progress,
+    // write is acquired on knownFiles write operations
+    private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+
+    // read is acquired on knownFiles write operations to prevent application of fetched changes,
+    // write is acquired when fetched changes are applied
+    private final ReadWriteLock applyChangesReadWriteLock = new ReentrantReadWriteLock();
+
+    private volatile ScheduledExecutorService scheduler;
     private volatile Subscription updateFileSizeEventSubscription;
     private volatile long largestChangeId;
 
@@ -82,16 +84,13 @@ public class FileTree {
 
     @Inject
     public FileTree(
-            DriveAdapter drive, FileIdStore fileIdStore, rx.Observable<UpdateFileSizeEvent> updateFileSizeEvent,
-            Uploader uploader, boolean autoUpdate) {
+            DriveAdapter drive, FileIdStore fileIdStore,
+            rx.Observable<UpdateFileSizeEvent> updateFileSizeEvent, Uploader uploader) {
 
         this.drive = drive;
         this.fileIdStore = fileIdStore;
         this.updateFileSizeEvent = updateFileSizeEvent;
         this.uploader = uploader;
-        this.autoUpdate = autoUpdate;
-
-        this.scheduler = Executors.newSingleThreadScheduledExecutor();
     }
 
     public int getKnownFileCount() {
@@ -112,10 +111,7 @@ public class FileTree {
         }
     }
 
-    public void start() throws Exception {
-
-        if (start.getCount() == 0)
-            return;
+    public void init() throws Exception {
 
         updateFileSizeEventSubscription = updateFileSizeEvent.subscribe(new Action1<UpdateFileSizeEvent>() {
             @Override
@@ -128,39 +124,34 @@ public class FileTree {
 
         largestChangeId = info.largestChangeId;
 
-        readWriteLock.writeLock().lock();
-        try {
-            knownFiles.setRoot(fileIdStore.get(info.rootFolderId));
-        } finally {
-            readWriteLock.writeLock().unlock();
-        }
-
-        start.countDown();
-
-        if (autoUpdate)
-            scheduler.scheduleAtFixedRate(new Runnable() {
-                @Override
-                public void run() {
-                    FileTree.this.retrieveAndApplyChanges();
-                }
-            }, 0, 5, TimeUnit.SECONDS);
+        setRoot(info.rootFolderId);
     }
 
-    public void stopAndWait(int timeout) throws InterruptedException {
+    public void start() {
+
+        scheduler = Executors.newSingleThreadScheduledExecutor();
+
+        scheduler.scheduleAtFixedRate(new Runnable() {
+            @Override
+            public void run() {
+                FileTree.this.retrieveAndApplyChanges();
+            }
+        }, 0, 5, TimeUnit.SECONDS);
+    }
+
+    public void tearDown() throws InterruptedException {
+
+        if (scheduler != null) {
+            scheduler.shutdown();
+            scheduler.awaitTermination(5, TimeUnit.SECONDS);
+            scheduler = null;
+        }
 
         if (updateFileSizeEventSubscription != null)
             updateFileSizeEventSubscription.unsubscribe();
-
-        if (!autoUpdate)
-            return;
-
-        scheduler.shutdown();
-        scheduler.awaitTermination(timeout, TimeUnit.SECONDS);
     }
 
     public void setRoot(String id) throws InterruptedException {
-
-        start.await();
 
         readWriteLock.writeLock().lock();
         try {
@@ -176,8 +167,9 @@ public class FileTree {
 
     public void update() {
 
-        if (autoUpdate)
-            return;
+        if (scheduler != null)
+            throw new IllegalStateException(
+                    "manual updates on a FileTree with scheduled retrieval of changes are not allowed");
 
         retrieveAndApplyChanges();
     }
@@ -493,8 +485,6 @@ public class FileTree {
 
     private <T> T getOrFetchUnsafe(KnownFile root, Path path, String fileName, Getter<T> getter) throws Exception {
 
-        start.await();
-
         KnownFile dir = getUnsafe(root, path);
 
         if (!dir.isDirectory())
@@ -545,9 +535,9 @@ public class FileTree {
             for (DriveAdapter.Change change : changes.items) {
                 FileTree.this.tryApplyChange(change);
             }
+
         } catch (Exception e) {
             logger.error("an error occured retrieving a list of changes", e);
-            syncError.setException(e);
         } finally {
             applyChangesReadWriteLock.writeLock().unlock();
         }

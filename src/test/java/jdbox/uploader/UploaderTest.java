@@ -5,7 +5,6 @@ import com.google.inject.Module;
 import jdbox.BaseTest;
 import jdbox.models.fileids.FileId;
 import jdbox.models.fileids.FileIdStore;
-import jdbox.utils.TestUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -26,7 +25,7 @@ public class UploaderTest extends BaseTest {
     private TestTaskFactory taskFactory;
 
     @Override
-    protected Collection<Module> getRequiredModules() {
+    protected List<Module> getRequiredModules() {
         return new ArrayList<Module>() {{
             add(new UploaderModule());
         }};
@@ -35,7 +34,7 @@ public class UploaderTest extends BaseTest {
     @Before
     public void setUp() {
 
-        uploader = injectorProvider.getInjector().getInstance(Uploader.class);
+        uploader = lifeCycleManager.getInstance(Uploader.class);
 
         expectedOrders = new LinkedList<>();
         taskFactory = new TestTaskFactory();
@@ -44,7 +43,7 @@ public class UploaderTest extends BaseTest {
     @After
     public void tearDown() throws Exception {
 
-        TestUtils.waitUntilUploaderIsDone(injectorProvider.getInjector());
+        lifeCycleManager.waitUntilUploaderIsDone();
 
         List<Integer> order = taskFactory.getOrder();
 

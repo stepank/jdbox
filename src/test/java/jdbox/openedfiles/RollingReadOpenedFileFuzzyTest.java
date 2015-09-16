@@ -3,7 +3,6 @@ package jdbox.openedfiles;
 import jdbox.models.File;
 import jdbox.utils.OrderedRule;
 import jdbox.utils.TestFileProvider;
-import jdbox.utils.TestUtils;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.slf4j.Logger;
@@ -21,7 +20,7 @@ public class RollingReadOpenedFileFuzzyTest extends BaseRollingReadOpenedFileTes
     private static final Logger logger = LoggerFactory.getLogger(RollingReadOpenedFileFuzzyTest.class);
 
     @OrderedRule
-    public TestFileProvider testFileProvider = new TestFileProvider(injectorProvider, testFolderProvider, 1024 * 1024);
+    public final TestFileProvider testFileProvider = new TestFileProvider(lifeCycleManager, testFolderProvider, 1024 * 1024);
 
     @Test
     public void fuzzyRead() throws Exception {
@@ -65,7 +64,7 @@ public class RollingReadOpenedFileFuzzyTest extends BaseRollingReadOpenedFileTes
                 }
             }
 
-            TestUtils.waitUntilLocalStorageIsEmpty(injector);
+            lifeCycleManager.waitUntilLocalStorageIsEmpty();
         }
     }
 }

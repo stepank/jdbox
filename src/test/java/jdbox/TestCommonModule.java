@@ -12,7 +12,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 public class TestCommonModule extends CommonModule {
 
     @Override
-    public void dispose(Injector injector) throws Exception {
+    public void tearDown(Injector injector) throws Exception {
         ExecutorService executor = injector.getInstance(ExecutorService.class);
         List<Runnable> tasks = executor.shutdownNow();
         assertThat(tasks.size(), equalTo(0));

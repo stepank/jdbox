@@ -19,8 +19,7 @@ public class InMemoryByteStoreTest extends BaseOpenedFilesModuleTest {
 
     @Before
     public void setUp() throws Exception {
-        super.setUp();
-        factory = injector.getInstance(InMemoryByteStoreFactory.class);
+        factory = lifeCycleManager.getInstance(InMemoryByteStoreFactory.class);
         factory.setConfig(new InMemoryByteStoreFactory.Config(4));
     }
 

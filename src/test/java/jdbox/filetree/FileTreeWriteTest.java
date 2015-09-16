@@ -1,9 +1,6 @@
 package jdbox.filetree;
 
-import jdbox.driveadapter.DriveAdapterModule;
-import jdbox.openedfiles.OpenedFilesModule;
-import jdbox.uploader.UploaderModule;
-import jdbox.utils.InjectorProvider;
+import jdbox.utils.LifeCycleManagerResource;
 import jdbox.utils.OrderedRule;
 import org.junit.Before;
 import org.junit.Test;
@@ -18,13 +15,8 @@ import static org.hamcrest.MatcherAssert.assertThat;
 public class FileTreeWriteTest extends BaseFileTreeTest {
 
     @OrderedRule
-    public InjectorProvider injectorProvider2 = new InjectorProvider(
-            errorCollector,
-            new DriveAdapterModule(driveServiceProvider.getDriveService()),
-            new UploaderModule(),
-            new OpenedFilesModule(),
-            new FileTreeModule(false)
-    );
+    public final LifeCycleManagerResource lifeCycleManager2 =
+            new LifeCycleManagerResource(errorCollector, lifeCycleManager.getModules());
 
     protected FileTree fileTree2;
 
@@ -33,7 +25,7 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
 
         super.setUp();
 
-        fileTree2 = injectorProvider2.getInjector().getInstance(FileTree.class);
+        fileTree2 = lifeCycleManager2.getInstance(FileTree.class);
         fileTree2.setRoot(testFolder.getId());
 
         assertThat(fileTree2, contains().nothing());
@@ -48,7 +40,7 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
         fileTree.create(testDirPath.resolve(getTestFileName()), false);
         assertThat(fileTree, contains().defaultEmptyTestFile());
 
-        waitUntilUploaderIsDone(injectorProvider.getInjector());
+        lifeCycleManager.waitUntilUploaderIsDone();
         assertThat(fileTree2, contains().nothing());
 
         fileTree2.update();
@@ -64,7 +56,7 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
         fileTree.create(testDirPath.resolve(getTestFolderName()), true);
         assertThat(fileTree, contains().defaultTestFolder());
 
-        waitUntilUploaderIsDone(injectorProvider.getInjector());
+        lifeCycleManager.waitUntilUploaderIsDone();
         assertThat(fileTree2, contains().nothing());
 
         fileTree2.update();
@@ -82,7 +74,7 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
         assertThat(fileTree, contains().defaultTestFolder());
         assertThat(fileTree, contains().defaultEmptyTestFile().in(getTestFolderName()));
 
-        waitUntilUploaderIsDone(injectorProvider.getInjector());
+        lifeCycleManager.waitUntilUploaderIsDone();
         assertThat(fileTree2, contains().nothing());
 
         fileTree2.update();
@@ -106,7 +98,7 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
                 .withModifiedDate(newModifiedDate)
                 .withAccessedDate(newAccessedDate));
 
-        waitUntilUploaderIsDone(injectorProvider.getInjector());
+        lifeCycleManager.waitUntilUploaderIsDone();
         assertThat(fileTree2, contains().nothing());
 
         fileTree2.update();
@@ -125,7 +117,7 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
         fileTree.create(testDirPath.resolve(getTestFileName()), false);
         assertThat(fileTree, contains().defaultEmptyTestFile());
 
-        waitUntilUploaderIsDone(injectorProvider.getInjector());
+        lifeCycleManager.waitUntilUploaderIsDone();
         assertThat(fileTree2, contains().nothing());
 
         fileTree2.update();
@@ -134,7 +126,7 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
         fileTree.remove(testDirPath.resolve(getTestFileName()));
         assertThat(fileTree, contains().nothing());
 
-        waitUntilUploaderIsDone(injectorProvider.getInjector());
+        lifeCycleManager.waitUntilUploaderIsDone();
         assertThat(fileTree2, contains().defaultEmptyTestFile());
 
         fileTree2.update();
@@ -156,7 +148,7 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
         assertThat(fileTree, contains().defaultEmptyTestFile().in(source));
         assertThat(fileTree, contains().nothing().in(destination));
 
-        waitUntilUploaderIsDone(injectorProvider.getInjector());
+        lifeCycleManager.waitUntilUploaderIsDone();
         assertThat(fileTree2, contains().nothing());
 
         fileTree2.update();
@@ -169,7 +161,7 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
         assertThat(fileTree, contains().nothing().in(source));
         assertThat(fileTree, contains().file().withName("test_file_2").in(destination));
 
-        waitUntilUploaderIsDone(injectorProvider.getInjector());
+        lifeCycleManager.waitUntilUploaderIsDone();
         assertThat(fileTree2, contains().defaultEmptyTestFile().in(source));
         assertThat(fileTree2, contains().nothing().in(destination));
 
@@ -207,7 +199,7 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
                 .withName("test_file_2.pdf")
                 .withRealName("test_file_2.pdf"));
 
-        waitUntilUploaderIsDone(injectorProvider.getInjector());
+        lifeCycleManager.waitUntilUploaderIsDone();
         fileTree2.update();
 
         assertThat(fileTree2, contains()

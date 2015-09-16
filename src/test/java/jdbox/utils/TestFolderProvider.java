@@ -11,14 +11,14 @@ import java.util.UUID;
 public class TestFolderProvider extends ExternalResource {
 
     private final ErrorCollector errorCollector;
-    private final InjectorProvider injectorProvider;
+    private final LifeCycleManagerResource lifeCycleManager;
 
     private DriveAdapter drive;
     private File testFolder;
 
-    public TestFolderProvider(ErrorCollector errorCollector, InjectorProvider injectorProvider) {
+    public TestFolderProvider(ErrorCollector errorCollector, LifeCycleManagerResource lifeCycleManager) {
         this.errorCollector = errorCollector;
-        this.injectorProvider = injectorProvider;
+        this.lifeCycleManager = lifeCycleManager;
     }
 
     public File getTestFolder() {
@@ -26,7 +26,7 @@ public class TestFolderProvider extends ExternalResource {
     }
 
     public void before() throws Exception {
-        drive = injectorProvider.getInjector().getInstance(DriveAdapter.class);
+        drive = lifeCycleManager.getInstance(DriveAdapter.class);
         testFolder = drive.createFolder(UUID.randomUUID().toString(), null);
     }
 

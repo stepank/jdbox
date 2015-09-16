@@ -13,21 +13,21 @@ import jdbox.utils.TestFolderProvider;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.List;
 
 public class BaseFileSystemModuleTest extends BaseTest {
 
     @OrderedRule(1)
-    public TestFolderProvider testFolderProvider = new TestFolderProvider(errorCollector, injectorProvider);
+    public final TestFolderProvider testFolderProvider = new TestFolderProvider(errorCollector, lifeCycleManager);
 
     @OrderedRule(2)
-    public TestFolderIsolation testFolderIsolation = new TestFolderIsolation(injectorProvider, testFolderProvider);
+    public final TestFolderIsolation testFolderIsolation = new TestFolderIsolation(lifeCycleManager, testFolderProvider);
 
     protected DriveAdapter drive;
     protected File testFolder;
 
     @Override
-    protected Collection<Module> getRequiredModules() {
+    protected List<Module> getRequiredModules() {
         return new ArrayList<Module>() {{
             add(new DriveAdapterModule(driveServiceProvider.getDriveService()));
             add(new UploaderModule());
@@ -39,7 +39,7 @@ public class BaseFileSystemModuleTest extends BaseTest {
 
     @Before
     public void setUp() throws Exception {
-        drive = injectorProvider.getInjector().getInstance(DriveAdapter.class);
+        drive = lifeCycleManager.getInstance(DriveAdapter.class);
         testFolder = testFolderProvider.getTestFolder();
     }
 }

@@ -3,12 +3,13 @@ package jdbox;
 import com.google.inject.Injector;
 import com.google.inject.Singleton;
 import jdbox.models.fileids.FileIdStore;
+import jdbox.modules.ActiveModule;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-public class CommonModule extends DisposableModule {
+public class CommonModule extends ActiveModule {
 
     public static ExecutorService createExecutor() {
         return Executors.newCachedThreadPool();
@@ -21,7 +22,7 @@ public class CommonModule extends DisposableModule {
     }
 
     @Override
-    public void dispose(Injector injector) throws Exception {
+    public void tearDown(Injector injector) throws Exception {
         ExecutorService executor = injector.getInstance(ExecutorService.class);
         executor.shutdown();
         executor.awaitTermination(5, TimeUnit.SECONDS);

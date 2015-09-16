@@ -3,7 +3,6 @@ package jdbox.openedfiles;
 import jdbox.models.File;
 import jdbox.utils.OrderedRule;
 import jdbox.utils.TestFileProvider;
-import jdbox.utils.TestUtils;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -17,7 +16,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class OpenedFilesMiscTest extends BaseOpenedFilesTest {
 
     @OrderedRule
-    public TestFileProvider testFileProvider = new TestFileProvider(injectorProvider, testFolderProvider, 11);
+    public final TestFileProvider testFileProvider = new TestFileProvider(lifeCycleManager, testFolderProvider, 11);
 
     @Test
     public void partialReadWrite() throws Exception {
@@ -37,7 +36,7 @@ public class OpenedFilesMiscTest extends BaseOpenedFilesTest {
             assertThat(openedFile.write(buffer, offset, replacement.length()), equalTo(replacement.length()));
         }
 
-        TestUtils.waitUntilLocalStorageIsEmpty(injector);
+        lifeCycleManager.waitUntilLocalStorageIsEmpty();
 
         try (ByteStore openedFile = openedFiles.open(testFileProvider.getFile(), OpenedFiles.OpenMode.READ_WRITE)) {
 
@@ -51,7 +50,7 @@ public class OpenedFilesMiscTest extends BaseOpenedFilesTest {
             assertThat(buffer.array(), equalTo(expected));
         }
 
-        TestUtils.waitUntilLocalStorageIsEmpty(injector);
+        lifeCycleManager.waitUntilLocalStorageIsEmpty();
     }
 
     @Test
@@ -83,6 +82,6 @@ public class OpenedFilesMiscTest extends BaseOpenedFilesTest {
             }
         }
 
-        TestUtils.waitUntilLocalStorageIsEmpty(injector);
+        lifeCycleManager.waitUntilLocalStorageIsEmpty();
     }
 }

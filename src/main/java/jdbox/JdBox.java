@@ -11,13 +11,15 @@ import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.client.util.store.FileDataStoreFactory;
 import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.DriveScopes;
-import com.google.inject.Guice;
-import com.google.inject.Injector;
 import jdbox.driveadapter.DriveAdapterModule;
 import jdbox.filetree.FileTreeModule;
+import jdbox.modules.LifeCycleManager;
+import jdbox.modules.MultipleException;
 import jdbox.openedfiles.OpenedFilesModule;
 import jdbox.uploader.UploaderModule;
 import org.ini4j.Ini;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -26,21 +28,17 @@ import java.util.Collections;
 
 public class JdBox {
 
+    private static final Logger logger = LoggerFactory.getLogger(JdBox.class);
+
     public static void main(String[] args) throws Exception {
 
         Environment env = new Environment(args.length > 1 ? args[1] : null, args.length > 2 ? args[2] : null);
-
-        Injector injector = createInjector(env);
 
         //noinspection MismatchedQueryAndUpdateOfCollection
         Ini config = new Ini(new File(env.dataDir, "config"));
         String mountPoint = args.length > 0 ? args[0] : config.get("Main", "mount_point");
 
-        injector.getInstance(FileSystem.class).mount(mountPoint);
-    }
-
-    public static Injector createInjector(Environment env) throws Exception {
-        return Guice.createInjector(
+        final LifeCycleManager injector = new LifeCycleManager(
                 new CommonModule(),
                 new DriveAdapterModule(createDriveService(env)),
                 new UploaderModule(),
@@ -48,6 +46,23 @@ public class JdBox {
                 new FileTreeModule(true),
                 new FileSystemModule()
         );
+
+        injector.init();
+
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            @Override
+            public void run() {
+                try {
+                    injector.tearDown();
+                } catch (MultipleException e) {
+                    logger.error("an error occured while shutting down the application", e);
+                }
+            }
+        });
+
+        injector.start();
+
+        injector.getInjector().getInstance(FileSystem.class).mount(mountPoint);
     }
 
     public static Drive createDriveService(Environment env) throws Exception {
