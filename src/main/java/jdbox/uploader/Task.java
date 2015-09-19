@@ -30,6 +30,10 @@ public abstract class Task {
         return fileId;
     }
 
+    public String getLabel() {
+        return label;
+    }
+
     public FileId getDependsOn() {
         return dependsOn;
     }

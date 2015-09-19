@@ -78,6 +78,9 @@ public class Uploader {
 
         if (item.getDependencies().size() == 0)
             trySubmitToExecutor(item);
+
+        if (isBroken())
+            updateStatus(uploadStatus.exception);
     }
 
     public void waitUntilIsDone() throws Exception {
@@ -90,6 +93,20 @@ public class Uploader {
 
     private boolean isBroken() {
         return uploadStatus != null;
+    }
+
+    private void updateStatus(Exception e) {
+        uploadStatus = new UploadStatus(e);
+        uploadFailureEvent.onNext(new UploadFailureEvent(uploadStatus));
+    }
+
+    private void trySubmitToExecutor(Item item) {
+
+        if (isBroken())
+            return;
+
+        logger.debug("submitting {}", item.getTask());
+        futures.add(executor.submit(new TaskRunner(item)));
     }
 
     private void waitUntilIsDone(boolean throwWhenIsBroken) throws Exception {
@@ -116,22 +133,6 @@ public class Uploader {
         } while (futures.size() > 0);
     }
 
-    private void trySubmitToExecutor(Item item) {
-
-        if (isBroken()) {
-
-            uploadStatus = new UploadStatus(uploadStatus.exception);
-
-            uploadFailureEvent.onNext(new UploadFailureEvent(uploadStatus));
-
-        } else {
-
-            logger.debug("submitting {}", item.getTask());
-
-            futures.add(executor.submit(new TaskRunner(item)));
-        }
-    }
-
     public class UploadStatus {
 
         public final Date date = new Date();
@@ -146,8 +147,12 @@ public class Uploader {
 
         public String asString() {
 
-            if (serialized == null)
-                serialized = serialize();
+            if (serialized == null) {
+                synchronized (Uploader.this) {
+                    if (serialized == null)
+                        serialized = serialize();
+                }
+            }
 
             return serialized;
         }
@@ -156,9 +161,25 @@ public class Uploader {
 
             StringBuilder sb = new StringBuilder();
 
-            sb.append("Upload is broken due to an error occured while uploading changes to Google Drive.\n\n");
-            sb.append("Back up all the data that you recently added to or modified in JdBox and ");
-            sb.append("then delete this file to discard the local state.\n\n");
+            //                                                                                        | 79 chars
+            sb.append("Upload is broken due to an error occured while uploading changes to the cloud.\n\n");
+            sb.append("Back up all the data that you recently added to or modified in JdBox and then\n");
+            sb.append("delete this file to discard the local state and start from the state in the\n");
+            sb.append("cloud. Until you remove this file, all local modifications will be accumulated,\n");
+            sb.append("to allow you to back up your data safely, but JdBox will never attempt to\n");
+            sb.append("upload these changes to the cloud.\n\n");
+
+            sb.append("The following changes have been accumulated:\n\n");
+
+            for (Queue queue : queues.values()) {
+                Item item = queue.getHead();
+                do {
+                    sb.append("    ").append(item.getTask().getLabel()).append("\n");
+                } while ((item = item.getNext()) != null);
+                sb.append("\n");
+            }
+
+            sb.append("The error that originally occured:\n\n    ");
 
             StringWriter sw = new StringWriter();
             PrintWriter pw = new PrintWriter(sw);
@@ -204,10 +225,7 @@ public class Uploader {
                 logger.error("an error occured while executing {}", item.getTask(), e);
 
                 synchronized (Uploader.this) {
-
-                    uploadStatus = new UploadStatus(e);
-
-                    uploadFailureEvent.onNext(new UploadFailureEvent(uploadStatus));
+                    updateStatus(e);
                 }
             }
         }
@@ -234,7 +252,7 @@ class Queue {
             this.head = item;
             this.tail = item;
         } else {
-            item.addDependency(tail);
+            tail.attachNext(item);
             tail = item;
         }
 
@@ -244,12 +262,7 @@ class Queue {
     public boolean removeHead() {
         if (head == tail)
             return true;
-        for (Item item : head.getDependents()) {
-            if (item.getQueue() == this) {
-                head = item;
-                break;
-            }
-        }
+        head = head.getNext();
         return false;
     }
 }
@@ -260,6 +273,8 @@ class Item {
     private final Task task;
     private final Set<Item> dependencies = new HashSet<>();
     private final Set<Item> dependents = new HashSet<>();
+
+    private Item next;
 
     public Item(Queue queue, Task task) {
         this.queue = queue;
@@ -280,6 +295,15 @@ class Item {
 
     public Set<Item> getDependents() {
         return Collections.unmodifiableSet(dependents);
+    }
+
+    public Item getNext() {
+        return next;
+    }
+
+    public void attachNext(Item item) {
+        item.addDependency(this);
+        this.next = item;
     }
 
     public void addDependency(Item item) {

@@ -90,6 +90,7 @@ public class UploadFailureTest extends BaseMountFileSystemTest {
         String content = new String(Files.readAllBytes(mountPoint.resolve(uploadNotificationFilePath)));
         assertThat(content.indexOf("Upload is broken"), greaterThanOrEqualTo(0));
         assertThat(content.indexOf("something bad happened"), greaterThanOrEqualTo(0));
+        assertThat(content.indexOf("test2.txt"), greaterThanOrEqualTo(0));
 
         logger.debug("wait do the clock to advance a little");
         Thread.sleep(2000);
@@ -109,6 +110,13 @@ public class UploadFailureTest extends BaseMountFileSystemTest {
                 new Date().getTime() / 1000 - uploadNotificationFile.lastModified() / 1000,
                 // 1 is because upload failure and assertion can happen in different seconds
                 lessThanOrEqualTo((long) 1));
+
+        logger.debug("check its content again");
+        content = new String(Files.readAllBytes(mountPoint.resolve(uploadNotificationFilePath)));
+        assertThat(content.indexOf("Upload is broken"), greaterThanOrEqualTo(0));
+        assertThat(content.indexOf("something bad happened"), greaterThanOrEqualTo(0));
+        assertThat(content.indexOf("test2.txt"), greaterThanOrEqualTo(0));
+        assertThat(content.indexOf("test3.txt"), greaterThanOrEqualTo(0));
 
         logger.debug("delete upload notification file");
         //noinspection ResultOfMethodCallIgnored

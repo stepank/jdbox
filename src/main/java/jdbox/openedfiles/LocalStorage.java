@@ -170,7 +170,9 @@ public class LocalStorage {
 
                 shared.file.setSize(size);
 
-                uploader.submit(new Task("update file content", shared.file.getId()) {
+                String label = shared.file.getName() + ": update content, content length is " + size;
+
+                uploader.submit(new Task(label, shared.file.getId()) {
                     @Override
                     public void run() throws Exception {
 

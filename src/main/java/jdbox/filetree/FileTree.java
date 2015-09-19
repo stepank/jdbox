@@ -272,7 +272,9 @@ public class FileTree {
             // the operation will fail because D's id is not known yet.
             final File file = newFile.toFile();
 
-            uploader.submit(new Task("create file/dir", file.getId(), parent.getId(), file.isDirectory()) {
+            String label = path + ": create " + (isDirectory ? "directory" : "file");
+
+            uploader.submit(new Task(label, file.getId(), parent.getId(), file.isDirectory()) {
                 @Override
                 public void run() throws Exception {
 
@@ -324,7 +326,9 @@ public class FileTree {
 
             final File file = existing.toFile(EnumSet.of(File.Field.MODIFIED_DATE, File.Field.ACCESSED_DATE));
 
-            uploader.submit(new Task("set dates", file.getId()) {
+            String label = path + ": set modified date to " + modifiedDate.toString() + " and accessed date to " + accessedDate;
+
+            uploader.submit(new Task(label, file.getId()) {
                 @Override
                 public void run() throws Exception {
                     drive.updateFile(file.toDaFile());
@@ -373,7 +377,7 @@ public class FileTree {
 
                 final File file = existing.toFile(EnumSet.of(File.Field.PARENT_IDS));
 
-                uploader.submit(new Task("remove file/dir", file.getId()) {
+                uploader.submit(new Task(path + ": remove file/directory", file.getId()) {
                     @Override
                     public void run() throws Exception {
                         if (file.getParentIds().size() == 0)
@@ -446,7 +450,7 @@ public class FileTree {
 
             final File file = existing.toFile(fields);
 
-            uploader.submit(new Task("set dates", file.getId(), newParentId) {
+            uploader.submit(new Task(path + ": move/rename to " + newPath, file.getId(), newParentId) {
                 @Override
                 public void run() throws Exception {
                     drive.updateFile(file.toDaFile());
