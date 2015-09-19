@@ -5,7 +5,6 @@ import jdbox.BaseTest;
 import jdbox.driveadapter.DriveAdapter;
 import jdbox.driveadapter.DriveAdapterModule;
 import jdbox.driveadapter.File;
-import jdbox.openedfiles.OpenedFilesModule;
 import jdbox.uploader.UploaderModule;
 import jdbox.utils.OrderedRule;
 import jdbox.utils.TestFolderIsolation;
@@ -44,8 +43,7 @@ public class BaseFileTreeTest extends BaseTest {
         return new ArrayList<Module>() {{
             add(new DriveAdapterModule(driveServiceProvider.getDriveService()));
             add(new UploaderModule());
-            add(new OpenedFilesModule());
-            add(new FileTreeModule(false));
+            add(new TestFileTreeModule(false));
         }};
     }
 
