@@ -1,8 +1,11 @@
 package jdbox.filetree;
 
+import com.google.inject.Singleton;
 import com.google.inject.TypeLiteral;
 import jdbox.openedfiles.FileSizeUpdateEvent;
+import jdbox.openedfiles.OpenedFilesManager;
 import rx.Observable;
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 public class TestFileTreeModule extends FileTreeModule {
 
@@ -15,7 +18,22 @@ public class TestFileTreeModule extends FileTreeModule {
 
         super.configure();
 
-        Observable<FileSizeUpdateEvent> fileSizeUpdateEvent = Observable.empty();
-        bind(new TypeLiteral<Observable<FileSizeUpdateEvent>>() {}).toInstance(fileSizeUpdateEvent);
+        bind(OpenedFilesManager.class).to(EmptyOpenedFilesManager.class).in(Singleton.class);
+
+        Observable<FileSizeUpdateEvent> fileSizeUpdateEventEvent = Observable.empty();
+        bind(new TypeLiteral<Observable<FileSizeUpdateEvent>>() {}).toInstance(fileSizeUpdateEventEvent);
+    }
+}
+
+class EmptyOpenedFilesManager implements OpenedFilesManager {
+
+    @Override
+    public int getOpenedFilesCount() {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public void reset() {
+        throw new NotImplementedException();
     }
 }

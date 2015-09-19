@@ -12,8 +12,6 @@ import org.junit.rules.ExternalResource;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.lessThan;
@@ -57,9 +55,12 @@ public class LifeCycleManagerResource extends ExternalResource {
         }
     }
 
-    public void waitUntilUploaderIsDone()
-            throws InterruptedException, ExecutionException, TimeoutException {
+    public void waitUntilUploaderIsDone() throws Exception {
         getInstance(Uploader.class).waitUntilIsDone();
+    }
+
+    public void waitUntilUploaderIsDoneOrBroken() throws Exception {
+        getInstance(Uploader.class).waitUntilIsDoneOrBroken();
     }
 
     public void waitUntilLocalStorageIsEmpty() throws Exception {

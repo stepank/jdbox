@@ -11,10 +11,13 @@ import jdbox.models.File;
 import jdbox.models.fileids.FileId;
 import jdbox.models.fileids.FileIdStore;
 import jdbox.openedfiles.FileSizeUpdateEvent;
+import jdbox.openedfiles.OpenedFilesManager;
 import jdbox.uploader.Task;
+import jdbox.uploader.UploadFailureEvent;
 import jdbox.uploader.Uploader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import rx.Observable;
 import rx.Subscription;
 import rx.functions.Action1;
 
@@ -31,12 +34,15 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class FileTree {
 
+    public static final String uploadNotificationFileName = "READ ME - UPLOAD IS BROKEN.txt";
+
     private static final Logger logger = LoggerFactory.getLogger(FileTree.class);
-    private static final Path rootPath = Paths.get("/");
 
     private final DriveAdapter drive;
     private final FileIdStore fileIdStore;
     private final rx.Observable<FileSizeUpdateEvent> fileSizeUpdateEvent;
+    private final rx.Observable<UploadFailureEvent> uploadFailureEvent;
+    private final OpenedFilesManager openedFilesManager;
     private final Uploader uploader;
 
     private final KnownFiles knownFiles = new KnownFiles();
@@ -62,7 +68,10 @@ public class FileTree {
 
     private volatile ScheduledExecutorService scheduler;
     private volatile Subscription fileSizeUpdateEventSubscription;
+    private volatile Subscription uploadFailureEventSubscription;
     private volatile long largestChangeId;
+
+    private volatile KnownFile uploadFailureNotificationFile;
 
     private final static Getter<List<String>> namesGetter = new Getter<List<String>>() {
         @Override
@@ -96,11 +105,14 @@ public class FileTree {
     @Inject
     public FileTree(
             DriveAdapter drive, FileIdStore fileIdStore,
-            rx.Observable<FileSizeUpdateEvent> fileSizeUpdateEvent, Uploader uploader) {
+            Observable<FileSizeUpdateEvent> fileSizeUpdateEvent, Observable<UploadFailureEvent> uploadFailureEvent,
+            OpenedFilesManager openedFilesManager, Uploader uploader) {
 
         this.drive = drive;
         this.fileIdStore = fileIdStore;
         this.fileSizeUpdateEvent = fileSizeUpdateEvent;
+        this.uploadFailureEvent = uploadFailureEvent;
+        this.openedFilesManager = openedFilesManager;
         this.uploader = uploader;
     }
 
@@ -128,6 +140,13 @@ public class FileTree {
             @Override
             public void call(FileSizeUpdateEvent event) {
                 updateFileSize(event.fileId, event.fileSize);
+            }
+        });
+
+        uploadFailureEventSubscription = uploadFailureEvent.subscribe(new Action1<UploadFailureEvent>() {
+            @Override
+            public void call(UploadFailureEvent uploadFailureEvent) {
+                createOrUpdateUploadFailureNotificationFile(uploadFailureEvent.uploadStatus);
             }
         });
 
@@ -160,6 +179,9 @@ public class FileTree {
 
         if (fileSizeUpdateEventSubscription != null)
             fileSizeUpdateEventSubscription.unsubscribe();
+
+        if (uploadFailureEventSubscription != null)
+            uploadFailureEventSubscription.unsubscribe();
     }
 
     public void setRoot(String id) {
@@ -294,6 +316,10 @@ public class FileTree {
         try {
 
             KnownFile existing = getUnsafe(knownFiles.getRoot(), path);
+
+            if (existing == uploadFailureNotificationFile)
+                throw new AccessDeniedException(path);
+
             existing.setDates(modifiedDate, accessedDate);
 
             final File file = existing.toFile(EnumSet.of(File.Field.MODIFIED_DATE, File.Field.ACCESSED_DATE));
@@ -330,17 +356,33 @@ public class FileTree {
 
             parent.tryRemoveChild(existing);
 
-            final File file = existing.toFile(EnumSet.of(File.Field.PARENT_IDS));
+            if (existing == uploadFailureNotificationFile) {
 
-            uploader.submit(new Task("remove file/dir", file.getId()) {
-                @Override
-                public void run() throws Exception {
-                    if (file.getParentIds().size() == 0)
-                        drive.trashFile(file.toDaFile());
-                    else
-                        drive.updateFile(file.toDaFile());
-                }
-            });
+                if (openedFilesManager.getOpenedFilesCount() != 0)
+                    throw new AccessDeniedException(path);
+
+                reset();
+
+                openedFilesManager.reset();
+
+                uploader.reset();
+
+                uploadFailureNotificationFile = null;
+
+            } else {
+
+                final File file = existing.toFile(EnumSet.of(File.Field.PARENT_IDS));
+
+                uploader.submit(new Task("remove file/dir", file.getId()) {
+                    @Override
+                    public void run() throws Exception {
+                        if (file.getParentIds().size() == 0)
+                            drive.trashFile(file.toDaFile());
+                        else
+                            drive.updateFile(file.toDaFile());
+                    }
+                });
+            }
 
         } finally {
             localStateLock.writeLock().unlock();
@@ -367,6 +409,9 @@ public class FileTree {
             KnownFile parent = getUnsafe(knownFiles.getRoot(), parentPath);
 
             KnownFile existing = getUnsafe(parent, fileName);
+
+            if (existing == uploadFailureNotificationFile)
+                throw new AccessDeniedException(path);
 
             Path newParentPath = newPath.getParent();
             Path newFileName = newPath.getFileName();
@@ -522,6 +567,31 @@ public class FileTree {
         }
     }
 
+    private void createOrUpdateUploadFailureNotificationFile(Uploader.UploadStatus uploadStatus) {
+
+        localStateLock.writeLock().lock();
+        try {
+
+            if (uploadFailureNotificationFile != null) {
+
+                uploadFailureNotificationFile.setDates(uploadStatus.date, uploadStatus.date);
+
+            } else {
+
+                uploadFailureNotificationFile = knownFiles.create(
+                        fileIdStore.get(Uploader.uploadFailureNotificationFileId),
+                        uploadNotificationFileName, false, uploadStatus.date);
+
+                uploadFailureNotificationFile.setDates(uploadStatus.date, uploadStatus.date);
+
+                knownFiles.getRoot().tryAddChild(uploadFailureNotificationFile);
+            }
+
+        } finally {
+            localStateLock.writeLock().unlock();
+        }
+    }
+
     private void retrieveAndApplyChanges() {
 
         boolean locked = false;
@@ -614,7 +684,7 @@ public class FileTree {
     }
 
     private boolean isRoot(Path path) {
-        return path == null || path.equals(rootPath);
+        return path == null || path.equals(Paths.get("/"));
     }
 
     public class NoSuchFileException extends Exception {
@@ -637,6 +707,12 @@ public class FileTree {
 
     public class NonEmptyDirectoryException extends Exception {
         public NonEmptyDirectoryException(Path path) {
+            super(path.toString());
+        }
+    }
+
+    public class AccessDeniedException extends Exception {
+        public AccessDeniedException(Path path) {
             super(path.toString());
         }
     }

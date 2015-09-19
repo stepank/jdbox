@@ -240,6 +240,8 @@ public class FileSystem extends FuseFilesystemAdapterFull {
             return -ErrorCodes.ENOENT();
         } catch (FileTree.NonEmptyDirectoryException e) {
             return -ErrorCodes.ENOTEMPTY();
+        } catch (FileTree.AccessDeniedException e) {
+            return -ErrorCodes.EACCES();
         } catch (Exception e) {
             logger.error("[{}] an error occured while removing file", path, e);
             return -ErrorCodes.EPIPE();

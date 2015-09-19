@@ -1,29 +1,38 @@
 package jdbox.uploader;
 
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.ListeningExecutorService;
-import com.google.common.util.concurrent.MoreExecutors;
 import com.google.inject.Inject;
 import jdbox.models.fileids.FileId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import rx.Observer;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
 public class Uploader {
 
+    public static final String uploadFailureNotificationFileId = "upload failure notification file id";
+
     private static final Logger logger = LoggerFactory.getLogger(Uploader.class);
 
-    private final ListeningExecutorService executor;
+    private final Observer<UploadFailureEvent> uploadFailureEvent;
+    private final ExecutorService executor;
     private final Map<FileId, Queue> queues = new HashMap<>();
-    private final List<ListenableFuture<?>> futures = new LinkedList<>();
+    private final List<Future> futures = new LinkedList<>();
+
+    private volatile UploadStatus uploadStatus;
 
     @Inject
-    public Uploader(ExecutorService executor) {
-        this.executor = MoreExecutors.listeningDecorator(executor);
+    public Uploader(Observer<UploadFailureEvent> uploadFailureEvent, ExecutorService executor) {
+        this.uploadFailureEvent = uploadFailureEvent;
+        this.executor = executor;
+    }
+
+    public UploadStatus getCurrentStatus() {
+        return uploadStatus;
     }
 
     public synchronized int getQueueCount() {
@@ -32,6 +41,12 @@ public class Uploader {
 
     public synchronized boolean fileIsQueued(FileId fileId) {
         return queues.get(fileId) != null;
+    }
+
+    public synchronized void reset() {
+        uploadStatus = null;
+        queues.clear();
+        futures.clear();
     }
 
     /**
@@ -61,13 +76,23 @@ public class Uploader {
                 item.addDependency(dependency.getHead());
         }
 
-        if (item.getDependencies().size() == 0) {
-            logger.debug("submitting {}", task);
-            futures.add(executor.submit(new TaskRunner(item)));
-        }
+        if (item.getDependencies().size() == 0)
+            trySubmitToExecutor(item);
     }
 
-    public void waitUntilIsDone() throws ExecutionException, InterruptedException {
+    public void waitUntilIsDone() throws Exception {
+        waitUntilIsDone(true);
+    }
+
+    public void waitUntilIsDoneOrBroken() throws Exception {
+        waitUntilIsDone(false);
+    }
+
+    private boolean isBroken() {
+        return uploadStatus != null;
+    }
+
+    private void waitUntilIsDone(boolean throwWhenIsBroken) throws Exception {
 
         if (futures.size() == 0)
             return;
@@ -77,15 +102,71 @@ public class Uploader {
         do {
 
             synchronized (this) {
-                futures = new LinkedList<Future>(this.futures);
+
+                if (throwWhenIsBroken && isBroken())
+                    throw new Exception("upload is broken");
+
+                futures = new LinkedList<>(this.futures);
                 this.futures.clear();
             }
 
-            for (Future future : futures) {
+            for (Future future : futures)
                 future.get();
-            }
 
         } while (futures.size() > 0);
+    }
+
+    private void trySubmitToExecutor(Item item) {
+
+        if (isBroken()) {
+
+            uploadStatus = new UploadStatus(uploadStatus.exception);
+
+            uploadFailureEvent.onNext(new UploadFailureEvent(uploadStatus));
+
+        } else {
+
+            logger.debug("submitting {}", item.getTask());
+
+            futures.add(executor.submit(new TaskRunner(item)));
+        }
+    }
+
+    public class UploadStatus {
+
+        public final Date date = new Date();
+
+        private final Exception exception;
+
+        private volatile String serialized;
+
+        private UploadStatus(Exception exception) {
+            this.exception = exception;
+        }
+
+        public String asString() {
+
+            if (serialized == null)
+                serialized = serialize();
+
+            return serialized;
+        }
+
+        private String serialize() {
+
+            StringBuilder sb = new StringBuilder();
+
+            sb.append("Upload is broken due to an error occured while uploading changes to Google Drive.\n\n");
+            sb.append("Back up all the data that you recently added to or modified in JdBox and ");
+            sb.append("then delete this file to discard the local state.\n\n");
+
+            StringWriter sw = new StringWriter();
+            PrintWriter pw = new PrintWriter(sw);
+            exception.printStackTrace(pw);
+            sb.append(sw.toString()).append("\n");
+
+            return sb.toString();
+        }
     }
 
     private class TaskRunner implements Runnable {
@@ -113,15 +194,21 @@ public class Uploader {
                         queues.remove(item.getTask().getFileId());
 
                     for (Item dependent : new HashSet<>(item.getDependents())) {
-                        if (dependent.removeDependency(item)) {
-                            logger.debug("submitting {}", dependent.getTask());
-                            futures.add(executor.submit(new TaskRunner(dependent)));
-                        }
+                        if (dependent.removeDependency(item))
+                            trySubmitToExecutor(dependent);
                     }
                 }
 
             } catch (Exception e) {
+
                 logger.error("an error occured while executing {}", item.getTask(), e);
+
+                synchronized (Uploader.this) {
+
+                    uploadStatus = new UploadStatus(e);
+
+                    uploadFailureEvent.onNext(new UploadFailureEvent(uploadStatus));
+                }
             }
         }
     }

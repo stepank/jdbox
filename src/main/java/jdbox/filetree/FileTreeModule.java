@@ -2,7 +2,12 @@ package jdbox.filetree;
 
 import com.google.inject.Injector;
 import com.google.inject.Singleton;
+import com.google.inject.TypeLiteral;
 import jdbox.modules.ActiveModule;
+import rx.Observable;
+import rx.Observer;
+import rx.subjects.BehaviorSubject;
+import rx.subjects.Subject;
 
 public class FileTreeModule extends ActiveModule {
 

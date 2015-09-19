@@ -2,13 +2,14 @@ package jdbox.openedfiles;
 
 import com.google.inject.Inject;
 import jdbox.models.File;
+import jdbox.uploader.Uploader;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 
-public class OpenedFiles {
+public class OpenedFiles implements OpenedFilesManager {
 
     public static Config defaultConfig = new Config();
 
@@ -19,6 +20,7 @@ public class OpenedFiles {
     }
 
     private final ByteStoreFactory nonDownloadableOpenedFileFactory;
+    private final UploadStatusOpenedFileFactory uploadStatusOpenedFileFactory;
     private final ByteStoreFactory fullAccessOpenedFileFactory;
     private final ByteStoreFactory rollingReadOpenedFileFactory;
 
@@ -34,11 +36,13 @@ public class OpenedFiles {
             NonDownloadableOpenedFileFactory nonDownloadableOpenedFileFactory,
             FullAccessOpenedFileFactory fullAccessOpenedFileFactory,
             RollingReadOpenedFileFactory rollingReadOpenedFileFactory,
+            UploadStatusOpenedFileFactory uploadStatusOpenedFileFactory,
             LocalStorage localStorage, Config config) {
 
         this.nonDownloadableOpenedFileFactory = nonDownloadableOpenedFileFactory;
         this.fullAccessOpenedFileFactory = new LocalStorageOpenedFileFactory(fullAccessOpenedFileFactory);
         this.rollingReadOpenedFileFactory = rollingReadOpenedFileFactory;
+        this.uploadStatusOpenedFileFactory = uploadStatusOpenedFileFactory;
 
         this.localStorage = localStorage;
         this.config = config;
@@ -46,6 +50,16 @@ public class OpenedFiles {
 
     public void setConfig(Config config) {
         this.config = config;
+    }
+
+    @Override
+    public synchronized int getOpenedFilesCount() {
+        return fileHandlers.size();
+    }
+
+    @Override
+    public void reset() {
+        localStorage.reset();
     }
 
     public synchronized FileHandlerRemovingProxyByteStore open(File file, OpenMode openMode) {
@@ -85,6 +99,8 @@ public class OpenedFiles {
     }
 
     private ByteStoreFactory getOpenedFileFactory(File file, OpenMode openMode) {
+        if (file.getId().isSet() && file.getId().get().equals(Uploader.uploadFailureNotificationFileId))
+            return uploadStatusOpenedFileFactory;
         if (!isReal(file) && openMode.equals(OpenMode.READ_ONLY))
             return nonDownloadableOpenedFileFactory;
         if (isWritable(file))

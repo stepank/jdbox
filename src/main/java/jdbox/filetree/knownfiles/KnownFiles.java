@@ -28,8 +28,6 @@ public class KnownFiles {
     }
 
     public KnownFile create(FileId fileId, String name, boolean isDirectory, Date createdDate) {
-        if (fileId.isSet())
-            throw new IllegalArgumentException("file id must not be set");
         return new KnownFile(fileId, name, isDirectory, createdDate, this);
     }
 

@@ -35,6 +35,10 @@ public class LocalStorage {
         this.uploader = uploader;
     }
 
+    public void reset() {
+        files.clear();
+    }
+
     public synchronized int getFilesCount() {
         return files.size();
     }

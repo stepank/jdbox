@@ -13,8 +13,10 @@ public class OpenedFilesModule extends AbstractModule {
     @Override
     protected void configure() {
 
-        bind(OpenedFiles.Config.class).toInstance(OpenedFiles.defaultConfig);
         bind(OpenedFiles.class).in(Singleton.class);
+        bind(OpenedFilesManager.class).to(OpenedFiles.class);
+
+        bind(OpenedFiles.Config.class).toInstance(OpenedFiles.defaultConfig);
 
         bind(NonDownloadableOpenedFileFactory.class).in(Singleton.class);
 
