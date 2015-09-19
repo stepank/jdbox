@@ -74,7 +74,7 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
         }};
         List<Path> files = new ArrayList<>();
 
-        for (int i = 0; i < 20; i++) {
+        for (int i = 0; i < 40; i++) {
 
             Action action = getNextAction(dirs, files);
 

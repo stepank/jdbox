@@ -168,8 +168,7 @@ public class DriveAdapter {
         logger.debug("updating {}", file);
 
         Drive.Files.Update request = drive.files().update(
-                file.getId(), new com.google.api.services.drive.model.File(),
-                new InputStreamContent(null, content));
+                file.getId(), new com.google.api.services.drive.model.File(), new InputStreamContent(null, content));
         request.getMediaHttpUploader().setDirectUploadEnabled(true);
         return new File(request.execute());
     }

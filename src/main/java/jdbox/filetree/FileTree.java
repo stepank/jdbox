@@ -10,7 +10,7 @@ import jdbox.filetree.knownfiles.KnownFiles;
 import jdbox.models.File;
 import jdbox.models.fileids.FileId;
 import jdbox.models.fileids.FileIdStore;
-import jdbox.openedfiles.UpdateFileSizeEvent;
+import jdbox.openedfiles.FileSizeUpdateEvent;
 import jdbox.uploader.Task;
 import jdbox.uploader.Uploader;
 import org.slf4j.Logger;
@@ -36,21 +36,32 @@ public class FileTree {
 
     private final DriveAdapter drive;
     private final FileIdStore fileIdStore;
-    private final rx.Observable<UpdateFileSizeEvent> updateFileSizeEvent;
+    private final rx.Observable<FileSizeUpdateEvent> fileSizeUpdateEvent;
     private final Uploader uploader;
 
     private final KnownFiles knownFiles = new KnownFiles();
 
-    // read is acquired on knownFiles read operations to prevent modification of the state while read is in progress,
-    // write is acquired on knownFiles write operations
-    private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+    // Read lock is acquired for reading from knownFiles to prevent modification of its state
+    // while read operations are in progress.
+    // Write lock is acquired on:
+    // 1. knownFiles modifications. This ensures consistent modification of its state.
+    // 1. FileTree public write operations. This ensures consistent modification of knownFiles and
+    //    correct order of operations submitted to the Uploader.
+    // 2. Retrieval of the list of files in a directory. The primary goal is to prevent concurrent retrieval of
+    //    the list of files in one directory. Although this also prevents any other write & read operations
+    //    on the FileTree, it is not considered a problem at the moment, because:
+    //      a. Directory contents are cached and retrieval do not seem to be frequent.
+    //      b. Implementing more fine-grained locking would require considerable effort.
+    private final ReadWriteLock localStateLock = new ReentrantReadWriteLock();
 
-    // read is acquired on knownFiles write operations to prevent application of fetched changes,
-    // write is acquired when fetched changes are applied
-    private final ReadWriteLock applyChangesReadWriteLock = new ReentrantReadWriteLock();
+    // Read lock is acquired on upload operations that require feedback to prevent local state's modifications
+    // that can be introduced by retrieval of data from the cloud. Correctness of order of write operations
+    // is ensured by correctness of order of operations submitted to the Uploader (see above) and the Uploader itself.
+    // Write lock is acquired on any retrieval of data from the cloud to ensure consistent changes to the local state.
+    private final ReadWriteLock syncWithRemoteLock = new ReentrantReadWriteLock();
 
     private volatile ScheduledExecutorService scheduler;
-    private volatile Subscription updateFileSizeEventSubscription;
+    private volatile Subscription fileSizeUpdateEventSubscription;
     private volatile long largestChangeId;
 
     private final static Getter<List<String>> namesGetter = new Getter<List<String>>() {
@@ -85,37 +96,37 @@ public class FileTree {
     @Inject
     public FileTree(
             DriveAdapter drive, FileIdStore fileIdStore,
-            rx.Observable<UpdateFileSizeEvent> updateFileSizeEvent, Uploader uploader) {
+            rx.Observable<FileSizeUpdateEvent> fileSizeUpdateEvent, Uploader uploader) {
 
         this.drive = drive;
         this.fileIdStore = fileIdStore;
-        this.updateFileSizeEvent = updateFileSizeEvent;
+        this.fileSizeUpdateEvent = fileSizeUpdateEvent;
         this.uploader = uploader;
     }
 
     public int getKnownFileCount() {
-        readWriteLock.readLock().lock();
+        localStateLock.readLock().lock();
         try {
             return knownFiles.getFileCount();
         } finally {
-            readWriteLock.readLock().unlock();
+            localStateLock.readLock().unlock();
         }
     }
 
     public int getTrackedDirCount() {
-        readWriteLock.readLock().lock();
+        localStateLock.readLock().lock();
         try {
             return knownFiles.getTrackedDirCount();
         } finally {
-            readWriteLock.readLock().unlock();
+            localStateLock.readLock().unlock();
         }
     }
 
     public void init() throws Exception {
 
-        updateFileSizeEventSubscription = updateFileSizeEvent.subscribe(new Action1<UpdateFileSizeEvent>() {
+        fileSizeUpdateEventSubscription = fileSizeUpdateEvent.subscribe(new Action1<FileSizeUpdateEvent>() {
             @Override
-            public void call(UpdateFileSizeEvent event) {
+            public void call(FileSizeUpdateEvent event) {
                 updateFileSize(event.fileId, event.fileSize);
             }
         });
@@ -147,21 +158,20 @@ public class FileTree {
             scheduler = null;
         }
 
-        if (updateFileSizeEventSubscription != null)
-            updateFileSizeEventSubscription.unsubscribe();
+        if (fileSizeUpdateEventSubscription != null)
+            fileSizeUpdateEventSubscription.unsubscribe();
     }
 
-    public void setRoot(String id) throws InterruptedException {
-
-        readWriteLock.writeLock().lock();
+    public void setRoot(String id) {
+        localStateLock.writeLock().lock();
         try {
             knownFiles.setRoot(fileIdStore.get(id));
         } finally {
-            readWriteLock.writeLock().unlock();
+            localStateLock.writeLock().unlock();
         }
     }
 
-    public void reset() throws InterruptedException {
+    public void reset() {
         setRoot(knownFiles.getRoot().getId().get());
     }
 
@@ -213,7 +223,7 @@ public class FileTree {
 
         logger.debug("[{}] creating {}", path, isDirectory ? "folder" : "file");
 
-        readWriteLock.writeLock().lock();
+        localStateLock.writeLock().lock();
 
         try {
 
@@ -244,18 +254,22 @@ public class FileTree {
                 @Override
                 public void run() throws Exception {
 
-                    applyChangesReadWriteLock.readLock().lock();
-                    readWriteLock.writeLock().lock();
+                    syncWithRemoteLock.readLock().lock();
+
                     try {
 
                         jdbox.driveadapter.File createdFile =
                                 drive.createFile(file.toDaFile(), new ByteArrayInputStream(new byte[0]));
 
-                        newFile.setUploaded(createdFile.getId(), createdFile.getDownloadUrl());
+                        localStateLock.writeLock().lock();
+                        try {
+                            newFile.setUploaded(createdFile.getId(), createdFile.getDownloadUrl());
+                        } finally {
+                            localStateLock.writeLock().unlock();
+                        }
 
                     } finally {
-                        readWriteLock.writeLock().unlock();
-                        applyChangesReadWriteLock.readLock().unlock();
+                        syncWithRemoteLock.readLock().unlock();
                     }
                 }
             });
@@ -263,7 +277,7 @@ public class FileTree {
             return file;
 
         } finally {
-            readWriteLock.writeLock().unlock();
+            localStateLock.writeLock().unlock();
         }
     }
 
@@ -275,7 +289,7 @@ public class FileTree {
 
         logger.debug("[{}] setting dates", path);
 
-        readWriteLock.writeLock().lock();
+        localStateLock.writeLock().lock();
 
         try {
 
@@ -287,17 +301,12 @@ public class FileTree {
             uploader.submit(new Task("set dates", file.getId()) {
                 @Override
                 public void run() throws Exception {
-                    applyChangesReadWriteLock.readLock().lock();
-                    try {
-                        drive.updateFile(file.toDaFile());
-                    } finally {
-                        applyChangesReadWriteLock.readLock().unlock();
-                    }
+                    drive.updateFile(file.toDaFile());
                 }
             });
 
         } finally {
-            readWriteLock.writeLock().unlock();
+            localStateLock.writeLock().unlock();
         }
     }
 
@@ -309,7 +318,7 @@ public class FileTree {
 
         logger.debug("[{}] removing", path);
 
-        readWriteLock.writeLock().lock();
+        localStateLock.writeLock().lock();
 
         try {
 
@@ -326,20 +335,15 @@ public class FileTree {
             uploader.submit(new Task("remove file/dir", file.getId()) {
                 @Override
                 public void run() throws Exception {
-                    applyChangesReadWriteLock.readLock().lock();
-                    try {
-                        if (file.getParentIds().size() == 0)
-                            drive.trashFile(file.toDaFile());
-                        else
-                            drive.updateFile(file.toDaFile());
-                    } finally {
-                        applyChangesReadWriteLock.readLock().unlock();
-                    }
+                    if (file.getParentIds().size() == 0)
+                        drive.trashFile(file.toDaFile());
+                    else
+                        drive.updateFile(file.toDaFile());
                 }
             });
 
         } finally {
-            readWriteLock.writeLock().unlock();
+            localStateLock.writeLock().unlock();
         }
     }
 
@@ -354,7 +358,7 @@ public class FileTree {
         if (path.equals(newPath))
             return;
 
-        readWriteLock.writeLock().lock();
+        localStateLock.writeLock().lock();
 
         try {
 
@@ -400,23 +404,18 @@ public class FileTree {
             uploader.submit(new Task("set dates", file.getId(), newParentId) {
                 @Override
                 public void run() throws Exception {
-                    applyChangesReadWriteLock.readLock().lock();
-                    try {
-                        drive.updateFile(file.toDaFile());
-                    } finally {
-                        applyChangesReadWriteLock.readLock().unlock();
-                    }
+                    drive.updateFile(file.toDaFile());
                 }
             });
 
         } finally {
-            readWriteLock.writeLock().unlock();
+            localStateLock.writeLock().unlock();
         }
     }
 
     private <T> T getOrFetch(Path path, String fileName, Getter<T> getter) throws Exception {
 
-        readWriteLock.readLock().lock();
+        localStateLock.readLock().lock();
         try {
 
             KnownFile dir = locateFile(knownFiles.getRoot(), path);
@@ -432,14 +431,16 @@ public class FileTree {
             }
 
         } finally {
-            readWriteLock.readLock().unlock();
+            localStateLock.readLock().unlock();
         }
 
-        readWriteLock.writeLock().lock();
+        syncWithRemoteLock.writeLock().lock();
+        localStateLock.writeLock().lock();
         try {
             return getOrFetchUnsafe(knownFiles.getRoot(), path, fileName, getter);
         } finally {
-            readWriteLock.writeLock().unlock();
+            localStateLock.writeLock().unlock();
+            syncWithRemoteLock.writeLock().unlock();
         }
     }
 
@@ -511,19 +512,27 @@ public class FileTree {
     }
 
     private void updateFileSize(FileId fileId, long fileSize) {
-        readWriteLock.writeLock().lock();
+        localStateLock.writeLock().lock();
         try {
             KnownFile file = knownFiles.get(fileId);
             if (file != null)
                 file.setSize(fileSize);
         } finally {
-            readWriteLock.writeLock().unlock();
+            localStateLock.writeLock().unlock();
         }
     }
 
     private void retrieveAndApplyChanges() {
 
-        if (!applyChangesReadWriteLock.writeLock().tryLock())
+        boolean locked = false;
+
+        try {
+            locked = syncWithRemoteLock.writeLock().tryLock(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            logger.debug("lock acquisition has been interrupted", e);
+        }
+
+        if (!locked)
             return;
 
         try {
@@ -532,20 +541,19 @@ public class FileTree {
 
             largestChangeId = changes.largestChangeId;
 
-            for (DriveAdapter.Change change : changes.items) {
-                FileTree.this.tryApplyChange(change);
-            }
+            for (DriveAdapter.Change change : changes.items)
+                tryApplyChange(change);
 
         } catch (Exception e) {
             logger.error("an error occured retrieving a list of changes", e);
         } finally {
-            applyChangesReadWriteLock.writeLock().unlock();
+            syncWithRemoteLock.writeLock().unlock();
         }
     }
 
     private void tryApplyChange(DriveAdapter.Change change) throws Exception {
 
-        readWriteLock.writeLock().lock();
+        localStateLock.writeLock().lock();
 
         try {
 
@@ -601,7 +609,7 @@ public class FileTree {
                 }
             }
         } finally {
-            readWriteLock.writeLock().unlock();
+            localStateLock.writeLock().unlock();
         }
     }
 

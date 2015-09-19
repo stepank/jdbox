@@ -1,7 +1,7 @@
 package jdbox.filetree;
 
 import com.google.inject.TypeLiteral;
-import jdbox.openedfiles.UpdateFileSizeEvent;
+import jdbox.openedfiles.FileSizeUpdateEvent;
 import rx.Observable;
 
 public class TestFileTreeModule extends FileTreeModule {
@@ -15,7 +15,7 @@ public class TestFileTreeModule extends FileTreeModule {
 
         super.configure();
 
-        Observable<UpdateFileSizeEvent> updateFileSizeEvent = Observable.empty();
-        bind(new TypeLiteral<Observable<UpdateFileSizeEvent>>() {}).toInstance(updateFileSizeEvent);
+        Observable<FileSizeUpdateEvent> fileSizeUpdateEvent = Observable.empty();
+        bind(new TypeLiteral<Observable<FileSizeUpdateEvent>>() {}).toInstance(fileSizeUpdateEvent);
     }
 }

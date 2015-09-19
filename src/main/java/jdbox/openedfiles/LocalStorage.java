@@ -21,17 +21,17 @@ public class LocalStorage {
 
     private final DriveAdapter drive;
     private final InMemoryByteStoreFactory tempStoreFactory;
-    private final Observer<UpdateFileSizeEvent> updateFileSizeEvent;
+    private final Observer<FileSizeUpdateEvent> fileSizeUpdateEvent;
     private final Uploader uploader;
     private final Map<FileId, SharedOpenedFile> files = new HashMap<>();
 
     @Inject
     LocalStorage(
             DriveAdapter drive, InMemoryByteStoreFactory tempStoreFactory,
-            Observer<UpdateFileSizeEvent> updateFileSizeEvent, Uploader uploader) {
+            Observer<FileSizeUpdateEvent> fileSizeUpdateEvent, Uploader uploader) {
         this.drive = drive;
         this.tempStoreFactory = tempStoreFactory;
-        this.updateFileSizeEvent = updateFileSizeEvent;
+        this.fileSizeUpdateEvent = fileSizeUpdateEvent;
         this.uploader = uploader;
     }
 
@@ -178,8 +178,8 @@ public class LocalStorage {
                             shared.refCount--;
                             if (shared.refCount == 0)
                                 synchronized (LocalStorage.this) {
-                                    updateFileSizeEvent.onNext(
-                                            new UpdateFileSizeEvent(shared.file.getId(), size));
+                                    fileSizeUpdateEvent.onNext(
+                                            new FileSizeUpdateEvent(shared.file.getId(), size));
                                     files.remove(shared.file.getId()).content.close();
                                 }
                         }

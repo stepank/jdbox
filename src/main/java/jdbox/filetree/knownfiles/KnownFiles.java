@@ -12,7 +12,7 @@ import java.util.Map;
  */
 public class KnownFiles {
 
-    private KnownFile root;
+    private volatile KnownFile root;
 
     private final Map<FileId, KnownFile> entries = new HashMap<>();
 

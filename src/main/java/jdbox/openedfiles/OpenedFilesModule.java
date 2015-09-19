@@ -31,8 +31,8 @@ public class OpenedFilesModule extends AbstractModule {
 
         bind(LocalStorage.class).in(Singleton.class);
 
-        Subject<UpdateFileSizeEvent, UpdateFileSizeEvent> updateFileSizeEvent = BehaviorSubject.create();
-        bind(new TypeLiteral<Observable<UpdateFileSizeEvent>>() {}).toInstance(updateFileSizeEvent);
-        bind(new TypeLiteral<Observer<UpdateFileSizeEvent>>() {}).toInstance(updateFileSizeEvent);
+        Subject<FileSizeUpdateEvent, FileSizeUpdateEvent> fileSizeUpdateEvent = BehaviorSubject.create();
+        bind(new TypeLiteral<Observable<FileSizeUpdateEvent>>() {}).toInstance(fileSizeUpdateEvent);
+        bind(new TypeLiteral<Observer<FileSizeUpdateEvent>>() {}).toInstance(fileSizeUpdateEvent);
     }
 }
