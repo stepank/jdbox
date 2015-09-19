@@ -107,6 +107,11 @@ class FullAccessOpenedFileFactory implements ByteStoreFactory {
     }
 
     @Override
+    public long getSize(File file) {
+        return file.getSize();
+    }
+
+    @Override
     public synchronized ByteStore create(File file) {
         Future<InputStream> stream = file.getId().isSet() && file.getSize() > 0 ?
                 drive.downloadFileRangeAsync(file.toDaFile(), 0, file.getSize()) : null;

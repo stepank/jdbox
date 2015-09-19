@@ -68,12 +68,16 @@ public class OpenedFiles {
         return fileHandlers.get(fileHandler);
     }
 
-    public Long getSize(File file) {
+    public long getSize(File file) {
+
         if (file.isDirectory())
-            return null;
-        if (!isReal(file))
-            return (long) (NonDownloadableOpenedFile.getContent(file).length());
-        return localStorage.getSize(file);
+            return 0;
+
+        Long size = localStorage.getSize(file);
+        if (size != null)
+            return size;
+
+        return getOpenedFileFactory(file, OpenMode.READ_ONLY).getSize(file);
     }
 
     public boolean isWritable(File file) {
@@ -151,6 +155,11 @@ public class OpenedFiles {
 
         LocalStorageOpenedFileFactory(ByteStoreFactory factory) {
             this.factory = factory;
+        }
+
+        @Override
+        public long getSize(File file) {
+            return factory.getSize(file);
         }
 
         @Override

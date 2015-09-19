@@ -258,6 +258,11 @@ class RollingReadOpenedFileFactory implements ByteStoreFactory {
     }
 
     @Override
+    public long getSize(File file) {
+        return file.getSize();
+    }
+
+    @Override
     public RollingReadOpenedFile create(File file) {
         return new RollingReadOpenedFile(file, drive, readerFactory, config.minPageSize, config.maxPageSize);
     }

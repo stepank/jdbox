@@ -13,5 +13,8 @@ interface ByteStore extends ByteSource {
 }
 
 interface ByteStoreFactory {
+
+    long getSize(File file);
+
     ByteStore create(File file);
 }

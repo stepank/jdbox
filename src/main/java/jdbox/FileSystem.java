@@ -54,8 +54,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
                         true, false, false,
                         true, false, false);
 
-            Long size = openedFiles.getSize(file);
-            stat.size(size != null ? size : file.getSize());
+            stat.size(openedFiles.getSize(file));
 
             if (file.getCreatedDate() != null)
                 stat.ctime(file.getCreatedDate().getTime() / 1000);

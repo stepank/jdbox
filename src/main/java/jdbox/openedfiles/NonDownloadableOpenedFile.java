@@ -54,6 +54,11 @@ class NonDownloadableOpenedFile implements ByteStore {
 class NonDownloadableOpenedFileFactory implements ByteStoreFactory {
 
     @Override
+    public long getSize(File file) {
+        return NonDownloadableOpenedFile.getContent(file).length();
+    }
+
+    @Override
     public NonDownloadableOpenedFile create(File file) {
         return new NonDownloadableOpenedFile(file);
     }
