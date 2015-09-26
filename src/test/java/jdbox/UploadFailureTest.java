@@ -1,13 +1,7 @@
 package jdbox;
 
-import com.google.api.services.drive.Drive;
-import com.google.inject.AbstractModule;
-import com.google.inject.Inject;
 import com.google.inject.Module;
-import com.google.inject.Singleton;
-import com.google.inject.util.Modules;
 import jdbox.driveadapter.DriveAdapter;
-import jdbox.driveadapter.DriveAdapterModule;
 import jdbox.driveadapter.File;
 import jdbox.filetree.FileTree;
 import jdbox.filetree.FileTreeModule;
@@ -15,6 +9,7 @@ import jdbox.openedfiles.LocalStorage;
 import jdbox.openedfiles.OpenedFilesModule;
 import jdbox.uploader.Uploader;
 import jdbox.uploader.UploaderModule;
+import jdbox.utils.MockDriveAdapterModule;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,11 +21,13 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
 
 import static jdbox.utils.TestUtils.getTestContentBytes;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
+import static org.mockito.Matchers.notNull;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.doThrow;
 
 public class UploadFailureTest extends BaseMountFileSystemTest {
 
@@ -39,9 +36,7 @@ public class UploadFailureTest extends BaseMountFileSystemTest {
     @Override
     protected List<Module> getRequiredModules() {
         return new ArrayList<Module>() {{
-            add(Modules
-                    .override(new DriveAdapterModule(driveServiceProvider.getDriveService()))
-                    .with(new FailingDriveAdapterModule()));
+            add(new MockDriveAdapterModule(driveServiceProvider.getDriveService()));
             add(new UploaderModule());
             add(new OpenedFilesModule());
             add(new FileTreeModule(true));
@@ -51,6 +46,8 @@ public class UploadFailureTest extends BaseMountFileSystemTest {
 
     @Test
     public void fullFlow() throws Exception {
+
+        DriveAdapter drive = lifeCycleManager.getInstance(DriveAdapter.class);
 
         Path uploadNotificationFilePath = mountPoint.resolve(FileTree.uploadNotificationFileName);
 
@@ -65,8 +62,8 @@ public class UploadFailureTest extends BaseMountFileSystemTest {
         lifeCycleManager.waitUntilUploaderIsDone();
 
         logger.debug("make the DriveAdapter throw exceptions on content update");
-        FailingDriveAdapter drive = (FailingDriveAdapter) lifeCycleManager.getInstance(DriveAdapter.class);
-        drive.exception = new IOException("something bad happened");
+        doThrow(new IOException("something bad happened"))
+                .when(drive).updateFileContent((File) notNull(), (InputStream) notNull());
 
         logger.debug("write some data to another file");
         Files.write(mountPoint.resolve("test2.txt"), getTestContentBytes());
@@ -129,7 +126,7 @@ public class UploadFailureTest extends BaseMountFileSystemTest {
         assertThat(lifeCycleManager.getInstance(Uploader.class).getQueueCount(), equalTo(0));
 
         logger.debug("repair the DriveAdapter");
-        drive.exception = null;
+        doCallRealMethod().when(drive).updateFileContent((File) notNull(), (InputStream) notNull());
 
         logger.debug("check that upload notification file does not exist");
         assertThat(Files.exists(uploadNotificationFilePath), is(false));
@@ -150,30 +147,5 @@ public class UploadFailureTest extends BaseMountFileSystemTest {
 
         logger.debug("check that the first created file is present and has the new content");
         assertThat(Files.readAllBytes(mountPoint.resolve("test.txt")), equalTo(new byte[]{1, 2, 3}));
-    }
-
-    private class FailingDriveAdapterModule extends AbstractModule {
-
-        @Override
-        protected void configure() {
-            bind(DriveAdapter.class).to(FailingDriveAdapter.class).in(Singleton.class);
-        }
-    }
-}
-
-class FailingDriveAdapter extends DriveAdapter {
-
-    public volatile IOException exception;
-
-    @Inject
-    public FailingDriveAdapter(Drive drive, ExecutorService executor) {
-        super(drive, executor);
-    }
-
-    @Override
-    public File updateFileContent(File file, InputStream content) throws IOException {
-        if (exception != null)
-            throw exception;
-        return super.updateFileContent(file, content);
     }
 }
