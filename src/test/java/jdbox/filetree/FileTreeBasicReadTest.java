@@ -1,5 +1,6 @@
 package jdbox.filetree;
 
+import jdbox.driveadapter.DriveAdapter;
 import jdbox.driveadapter.File;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -9,6 +10,9 @@ import java.nio.file.Path;
 
 import static jdbox.utils.TestUtils.*;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.mockito.Matchers.notNull;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.doThrow;
 
 @Category(FileTree.class)
 public class FileTreeBasicReadTest extends BaseFileTreeTest {
@@ -89,5 +93,30 @@ public class FileTreeBasicReadTest extends BaseFileTreeTest {
         assertCounts(3, 2);
         assertThat(fileTree, contains().defaultTestFolder().withName("test_folder_2"));
         assertThat(fileTree, contains().defaultTestFile().in("test_folder_2"));
+    }
+
+    @Test
+    public void listFailureRecovery() throws IOException {
+
+        drive.createFile(getTestFileName(), testFolder, getTestContent());
+        File testChildFolder = drive.createFolder(getTestFolderName(), testFolder);
+        drive.createFile(getTestFileName(), testChildFolder, getTestContent());
+
+        DriveAdapter driveSpy = lifeCycleManager.getInstance(DriveAdapter.class);
+
+        doThrow(new IOException("something bad happened")).when(driveSpy).getChildren((File) notNull());
+
+        try {
+            fileTree.getChildren("/");
+            throw new AssertionError("an exception must have been thrown");
+        } catch (IOException ignored) {
+        }
+
+        doCallRealMethod().when(driveSpy).getChildren((File) notNull());
+
+        assertThat(fileTree, contains().defaultTestFile().and().defaultTestFolder());
+        assertThat(fileTree, contains().defaultTestFile().in(getTestFolderName()));
+
+        assertCounts(4, 2);
     }
 }

@@ -6,10 +6,7 @@ import jdbox.driveadapter.DriveAdapter;
 import jdbox.driveadapter.DriveAdapterModule;
 import jdbox.driveadapter.File;
 import jdbox.uploader.UploaderModule;
-import jdbox.utils.OrderedRule;
-import jdbox.utils.TestFolderIsolation;
-import jdbox.utils.TestFolderProvider;
-import jdbox.utils.TestUtils;
+import jdbox.utils.*;
 import org.hamcrest.Description;
 import org.hamcrest.TypeSafeMatcher;
 import org.junit.Before;
@@ -42,7 +39,7 @@ public class BaseFileTreeTest extends BaseTest {
     @Override
     protected List<Module> getRequiredModules() {
         return new ArrayList<Module>() {{
-            add(new DriveAdapterModule(driveServiceProvider.getDriveService()));
+            add(new MockDriveAdapterModule(driveServiceProvider.getDriveService()));
             add(new UploaderModule());
             add(new TestFileTreeModule(false));
         }};

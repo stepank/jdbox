@@ -545,10 +545,17 @@ public class FileTree {
         if (children != null)
             return getter.apply(fileName, children);
 
-        dir.setTracked();
+        if (!dir.getId().isSet()) {
 
-        if (dir.getId().isSet()) {
-            for (jdbox.driveadapter.File child : drive.getChildren(dir.toFile().toDaFile())) {
+            dir.setTracked();
+
+        } else {
+
+            List<jdbox.driveadapter.File> retrieved = drive.getChildren(dir.toFile().toDaFile());
+
+            dir.setTracked();
+
+            for (jdbox.driveadapter.File child : retrieved) {
                 File file = new File(fileIdStore, child);
                 KnownFile existing = knownFiles.get(file.getId());
                 if (existing != null)
