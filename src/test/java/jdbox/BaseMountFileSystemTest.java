@@ -16,13 +16,13 @@ public class BaseMountFileSystemTest extends BaseFileSystemModuleTest {
     protected Path mountPoint;
 
     @Before
-    public void setUp() throws Exception {
+    public void setUp() {
         super.setUp();
         mountPoint = fileSystem.getMountPoint();
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void tearDown() throws InterruptedException {
         lifeCycleManager.waitUntilLocalStorageIsEmpty();
     }
 

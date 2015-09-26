@@ -61,7 +61,7 @@ class RollingReadOpenedFile implements ByteStore {
             try {
                 int bytesToRead = (int) Math.min(count - read, entry.rightOffset - offset - read);
                 read += entry.reader.read(buffer, (int) (offset + read - entry.offset), bytesToRead);
-            } catch (Exception e) {
+            } catch (IOException e) {
                 readers.remove(entry);
                 throw e;
             }
@@ -187,7 +187,7 @@ class RollingReadOpenedFile implements ByteStore {
                 entries.remove(indexToRemove);
                 try {
                     entryToRemove.reader.close();
-                } catch (Exception e) {
+                } catch (IOException e) {
                     logger.error("an error occured while closing an evicted reader", e);
                 }
             }

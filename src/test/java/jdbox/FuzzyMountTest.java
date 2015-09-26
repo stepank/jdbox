@@ -49,14 +49,14 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
     );
 
     @Before
-    public void setUp() throws Exception {
+    public void setUp() {
         logger.debug("entering set up");
         super.setUp();
         logger.debug("leaving set up");
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void tearDown() throws InterruptedException {
         logger.debug("entering tear down");
         lifeCycleManager.waitUntilUploaderIsDone();
         super.tearDown();
@@ -105,7 +105,7 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
         assertThat(dumpDir(fileSystem2.getMountPoint()), equalTo(dumpDir(tempDirPath)));
     }
 
-    private Action getNextAction(final List<Path> dirs, final List<Path> files) throws Exception {
+    private Action getNextAction(final List<Path> dirs, final List<Path> files) {
 
         List<ActionFactory> candidates = new ArrayList<>();
 

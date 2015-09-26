@@ -8,6 +8,7 @@ import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
@@ -31,7 +32,7 @@ public class OpenedFilesTruncateTest extends BaseOpenedFilesTest {
     public final TestFileProvider testFileProvider = new TestFileProvider(lifeCycleManager, testFolderProvider, 11);
 
     @Test
-    public void truncate() throws Exception {
+    public void truncate() throws InterruptedException, IOException {
 
         File file = testFileProvider.getFile();
         byte[] content = testFileProvider.getContent();

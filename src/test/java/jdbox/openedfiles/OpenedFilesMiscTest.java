@@ -6,6 +6,7 @@ import jdbox.utils.TestFileProvider;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
@@ -19,7 +20,7 @@ public class OpenedFilesMiscTest extends BaseOpenedFilesTest {
     public final TestFileProvider testFileProvider = new TestFileProvider(lifeCycleManager, testFolderProvider, 11);
 
     @Test
-    public void partialReadWrite() throws Exception {
+    public void partialReadWrite() throws InterruptedException, IOException {
 
         File file = testFileProvider.getFile();
         byte[] content = testFileProvider.getContent();
@@ -54,7 +55,7 @@ public class OpenedFilesMiscTest extends BaseOpenedFilesTest {
     }
 
     @Test
-    public void fileBecomesLarge() throws Exception {
+    public void fileBecomesLarge() throws InterruptedException, IOException {
 
         File file = testFileProvider.getFile();
         byte[] content = testFileProvider.getContent();

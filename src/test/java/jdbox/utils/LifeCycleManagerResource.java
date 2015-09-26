@@ -55,15 +55,15 @@ public class LifeCycleManagerResource extends ExternalResource {
         }
     }
 
-    public void waitUntilUploaderIsDone() throws Exception {
+    public void waitUntilUploaderIsDone() throws InterruptedException {
         getInstance(Uploader.class).waitUntilIsDone();
     }
 
-    public void waitUntilUploaderIsDoneOrBroken() throws Exception {
+    public void waitUntilUploaderIsDoneOrBroken() throws InterruptedException {
         getInstance(Uploader.class).waitUntilIsDoneOrBroken();
     }
 
-    public void waitUntilLocalStorageIsEmpty() throws Exception {
+    public void waitUntilLocalStorageIsEmpty() throws InterruptedException {
         waitUntilUploaderIsDone();
         Date start = new Date();
         while (getInstance(LocalStorage.class).getFilesCount() != 0) {

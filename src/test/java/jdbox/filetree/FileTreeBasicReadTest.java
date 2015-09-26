@@ -4,6 +4,7 @@ import jdbox.driveadapter.File;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
+import java.io.IOException;
 import java.nio.file.Path;
 
 import static jdbox.utils.TestUtils.*;
@@ -16,7 +17,7 @@ public class FileTreeBasicReadTest extends BaseFileTreeTest {
      * List all files, make sure the files are visible.
      */
     @Test
-    public void list() throws Exception {
+    public void list() throws IOException {
 
         drive.createFile(getTestFileName(), testFolder, getTestContent());
         File testChildFolder = drive.createFolder(getTestFolderName(), testFolder);
@@ -32,7 +33,7 @@ public class FileTreeBasicReadTest extends BaseFileTreeTest {
      * Create a file, make sure it appears.
      */
     @Test
-    public void create() throws Exception {
+    public void create() throws IOException {
         assertThat(fileTree, contains().nothing());
         drive.createFile(getTestFileName(), testFolder, getTestContent());
         assertThat(fileTree, contains().nothing());
@@ -45,7 +46,7 @@ public class FileTreeBasicReadTest extends BaseFileTreeTest {
      * Rename a file, make sure it has the new name.
      */
     @Test
-    public void rename() throws Exception {
+    public void rename() throws IOException {
 
         File testFile = createTestFileAndUpdate();
 
@@ -70,7 +71,7 @@ public class FileTreeBasicReadTest extends BaseFileTreeTest {
      * Rename a directory, make sure it has the new name and its contents are still known.
      */
     @Test
-    public void renameDir() throws Exception {
+    public void renameDir() throws IOException {
 
         Path testChildFolderPath = testDirPath.resolve(getTestFolderName());
         File testChildFolder = drive.createFolder(getTestFolderName(), testFolder);

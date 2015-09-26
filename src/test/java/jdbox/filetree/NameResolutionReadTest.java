@@ -5,6 +5,7 @@ import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 
@@ -45,7 +46,7 @@ public class NameResolutionReadTest extends BaseFileTreeTest {
      * List all files, make sure that a typed file w/o extension is listed with extension.
      */
     @Test
-    public void extensionIsAdded() throws Exception {
+    public void extensionIsAdded() throws IOException {
 
         tryAssertFileTreeContainsNothing();
 
@@ -65,7 +66,7 @@ public class NameResolutionReadTest extends BaseFileTreeTest {
      * List all files, make sure that a typed file with extension is listed with extension.
      */
     @Test
-    public void extensionIsPreserved() throws Exception {
+    public void extensionIsPreserved() throws IOException {
 
         tryAssertFileTreeContainsNothing();
 
@@ -79,7 +80,7 @@ public class NameResolutionReadTest extends BaseFileTreeTest {
     }
 
     @Test
-    public void sameNameNonTypedFiles() throws Exception {
+    public void sameNameNonTypedFiles() throws IOException {
 
         tryAssertFileTreeContainsNothing();
 
@@ -102,7 +103,7 @@ public class NameResolutionReadTest extends BaseFileTreeTest {
     }
 
     @Test
-    public void sameNameTypedFiles() throws Exception {
+    public void sameNameTypedFiles() throws IOException {
 
         tryAssertFileTreeContainsNothing();
 
@@ -126,7 +127,7 @@ public class NameResolutionReadTest extends BaseFileTreeTest {
     }
 
     @Test
-    public void sameNameMixedFiles() throws Exception {
+    public void sameNameMixedFiles() throws IOException {
 
         tryAssertFileTreeContainsNothing();
 
@@ -147,7 +148,7 @@ public class NameResolutionReadTest extends BaseFileTreeTest {
     }
 
     @Test
-    public void sameNameWithExtensions() throws Exception {
+    public void sameNameWithExtensions() throws IOException {
 
         tryAssertFileTreeContainsNothing();
 
@@ -169,7 +170,7 @@ public class NameResolutionReadTest extends BaseFileTreeTest {
     }
 
     @Test
-    public void sameNameWithAndWoExtension() throws Exception {
+    public void sameNameWithAndWoExtension() throws IOException {
 
         tryAssertFileTreeContainsNothing();
 

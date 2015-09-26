@@ -6,6 +6,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
+import java.io.IOException;
 import java.util.Date;
 
 import static jdbox.utils.TestUtils.*;
@@ -21,7 +22,7 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
     protected FileTree fileTree2;
 
     @Before
-    public void setUp() throws Exception {
+    public void setUp() {
 
         super.setUp();
 
@@ -35,7 +36,7 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
      * Create a file, make sure it appears.
      */
     @Test
-    public void createFile() throws Exception {
+    public void createFile() throws IOException, InterruptedException {
 
         fileTree.create(testDirPath.resolve(getTestFileName()), false);
         assertThat(fileTree, contains().defaultEmptyTestFile());
@@ -51,7 +52,7 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
      * Create a folder, make sure it appears.
      */
     @Test
-    public void createFolder() throws Exception {
+    public void createFolder() throws InterruptedException, IOException {
 
         fileTree.create(testDirPath.resolve(getTestFolderName()), true);
         assertThat(fileTree, contains().defaultTestFolder());
@@ -67,7 +68,7 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
      * Create a folder with a file in it, make sure both appear.
      */
     @Test
-    public void createFolderWithFile() throws Exception {
+    public void createFolderWithFile() throws InterruptedException, IOException {
 
         fileTree.create(testDirPath.resolve(getTestFolderName()), true);
         fileTree.create(testDirPath.resolve(getTestFolderName()).resolve(getTestFileName()), false);
@@ -86,7 +87,7 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
      * Create a file, change its accessed and modified dates, make sure they change.
      */
     @Test
-    public void setDates() throws Exception {
+    public void setDates() throws InterruptedException, IOException {
 
         Date newAccessedDate = new Date(new Date().getTime() + 3600 * 1000);
         Date newModifiedDate = new Date(new Date().getTime() + 7200 * 1000);
@@ -112,7 +113,7 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
      * Remove a file, make sure it disappears.
      */
     @Test
-    public void remove() throws Exception {
+    public void remove() throws InterruptedException, IOException {
 
         fileTree.create(testDirPath.resolve(getTestFileName()), false);
         assertThat(fileTree, contains().defaultEmptyTestFile());
@@ -137,7 +138,7 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
      * Move a file, make sure it disappears from the origin and appears in the destination.
      */
     @Test
-    public void move() throws Exception {
+    public void move() throws InterruptedException, IOException {
 
         final String source = "source";
         final String destination = "destination";
@@ -175,7 +176,7 @@ public class FileTreeWriteTest extends BaseFileTreeTest {
      * make sure it is renamed and represented correctly.
      */
     @Test
-    public void renameTyped() throws Exception {
+    public void renameTyped() throws InterruptedException, IOException {
 
         assertThat(fileTree, contains().nothing());
 

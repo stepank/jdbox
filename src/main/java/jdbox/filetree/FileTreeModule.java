@@ -4,6 +4,8 @@ import com.google.inject.Injector;
 import com.google.inject.Singleton;
 import jdbox.modules.ActiveModule;
 
+import java.io.IOException;
+
 public class FileTreeModule extends ActiveModule {
 
     private final boolean autoUpdateFileTree;
@@ -18,7 +20,7 @@ public class FileTreeModule extends ActiveModule {
     }
 
     @Override
-    public void init(Injector injector) throws Exception {
+    public void init(Injector injector) throws IOException {
         injector.getInstance(FileTree.class).init();
     }
 
@@ -29,7 +31,7 @@ public class FileTreeModule extends ActiveModule {
     }
 
     @Override
-    public void tearDown(Injector injector) throws Exception {
+    public void tearDown(Injector injector) throws InterruptedException {
         injector.getInstance(FileTree.class).tearDown();
     }
 }

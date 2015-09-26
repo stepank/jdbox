@@ -9,7 +9,7 @@ public class BaseRollingReadOpenedFileTest extends BaseOpenedFilesTest {
     protected RollingReadOpenedFileFactory factory;
 
     @Before
-    public void setUp() throws Exception {
+    public void setUp() {
         super.setUp();
         tempStoreFactory = lifeCycleManager.getInstance(InMemoryByteStoreFactory.class);
         readerFactory = lifeCycleManager.getInstance(StreamCachingByteSourceFactory.class);

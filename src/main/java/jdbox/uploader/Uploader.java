@@ -9,6 +9,7 @@ import rx.Observer;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
@@ -83,12 +84,12 @@ public class Uploader {
             updateStatus(uploadStatus.exception);
     }
 
-    public void waitUntilIsDone() throws Exception {
-        waitUntilIsDone(true);
+    public void waitUntilIsDone() throws InterruptedException {
+        waitUntilIsDone(false);
     }
 
-    public void waitUntilIsDoneOrBroken() throws Exception {
-        waitUntilIsDone(false);
+    public void waitUntilIsDoneOrBroken() throws InterruptedException {
+        waitUntilIsDone(true);
     }
 
     private boolean isBroken() {
@@ -109,7 +110,7 @@ public class Uploader {
         futures.add(executor.submit(new TaskRunner(item)));
     }
 
-    private void waitUntilIsDone(boolean throwWhenIsBroken) throws Exception {
+    private void waitUntilIsDone(boolean canBeBroken) throws InterruptedException {
 
         if (futures.size() == 0)
             return;
@@ -120,15 +121,19 @@ public class Uploader {
 
             synchronized (this) {
 
-                if (throwWhenIsBroken && isBroken())
-                    throw new Exception("upload is broken");
+                if (!canBeBroken && isBroken())
+                    throw new AssertionError("uploader is broken even though it is not allowed");
 
                 futures = new LinkedList<>(this.futures);
                 this.futures.clear();
             }
 
             for (Future future : futures)
-                future.get();
+                try {
+                    future.get();
+                } catch (ExecutionException e) {
+                    throw new AssertionError("an unexpected error occurred while waiting for a task to finish", e);
+                }
 
         } while (futures.size() > 0);
     }

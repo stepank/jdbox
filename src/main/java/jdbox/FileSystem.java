@@ -10,6 +10,7 @@ import net.fusejna.util.FuseFilesystemAdapterFull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Date;
 
@@ -67,7 +68,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
 
         } catch (FileTree.NoSuchFileException e) {
             return -ErrorCodes.ENOENT();
-        } catch (Exception e) {
+        } catch (IOException e) {
             logger.error("[{}] an error occured while getting attrs", path, e);
             return -ErrorCodes.EPIPE();
         }
@@ -88,7 +89,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
             return -ErrorCodes.ENOENT();
         } catch (FileTree.NotDirectoryException e) {
             return -ErrorCodes.ENOTDIR();
-        } catch (Exception e) {
+        } catch (IOException e) {
             logger.error("[{}] an error occured while reading directory", path, e);
             return -ErrorCodes.EPIPE();
         }
@@ -105,7 +106,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
             return 0;
         } catch (FileTree.NoSuchFileException e) {
             return -ErrorCodes.ENOENT();
-        } catch (Exception e) {
+        } catch (IOException e) {
             logger.error("[{}] an error occured while opening file", path, e);
             return -ErrorCodes.EPIPE();
         }
@@ -122,7 +123,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
 
             return 0;
 
-        } catch (Exception e) {
+        } catch (IOException e) {
             logger.error("[{}] an error occured while releasig file", path, e);
             return -ErrorCodes.EPIPE();
         }
@@ -135,7 +136,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
 
         try {
             return openedFiles.get(info.fh()).read(buffer, offset, (int) count);
-        } catch (Exception e) {
+        } catch (IOException e) {
             logger.error("[{}] an error occured while reading file", path, e);
             return -ErrorCodes.EPIPE();
         }
@@ -148,7 +149,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
 
         try {
             return openedFiles.get(info.fh()).write(buffer, offset, (int) count);
-        } catch (Exception e) {
+        } catch (IOException e) {
             logger.error("[{}] an error occured while writing file", path, e);
             return -ErrorCodes.EPIPE();
         }
@@ -168,7 +169,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
             return 0;
         } catch (FileTree.NoSuchFileException e) {
             return -ErrorCodes.ENOENT();
-        } catch (Exception e) {
+        } catch (IOException e) {
             logger.error("[{}] an error occured while creating file", path, e);
             return -ErrorCodes.EPIPE();
         }
@@ -184,7 +185,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
             return 0;
         } catch (FileTree.NoSuchFileException e) {
             return -ErrorCodes.ENOENT();
-        } catch (Exception e) {
+        } catch (IOException e) {
             logger.error("[{}] an error occured while creating file", path, e);
             return -ErrorCodes.EPIPE();
         }
@@ -206,7 +207,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
             return 0;
         } catch (FileTree.NoSuchFileException e) {
             return -ErrorCodes.ENOENT();
-        } catch (Exception e) {
+        } catch (IOException e) {
             logger.error("[{}] an error occured while opening file", path, e);
             return -ErrorCodes.EPIPE();
         }
@@ -222,7 +223,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
             return 0;
         } catch (FileTree.NoSuchFileException e) {
             return -ErrorCodes.ENOENT();
-        } catch (Exception e) {
+        } catch (IOException e) {
             logger.error("[{}] an error occured while setting times", path, e);
             return -ErrorCodes.EPIPE();
         }
@@ -242,7 +243,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
             return -ErrorCodes.ENOTEMPTY();
         } catch (FileTree.AccessDeniedException e) {
             return -ErrorCodes.EACCES();
-        } catch (Exception e) {
+        } catch (IOException e) {
             logger.error("[{}] an error occured while removing file", path, e);
             return -ErrorCodes.EPIPE();
         }
@@ -263,7 +264,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
             return 0;
         } catch (FileTree.NoSuchFileException e) {
             return -ErrorCodes.ENOENT();
-        } catch (Exception e) {
+        } catch (IOException e) {
             logger.error("[{}] an error occured while moving file", path, e);
             return -ErrorCodes.EPIPE();
         }

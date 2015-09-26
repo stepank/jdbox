@@ -14,6 +14,7 @@ import org.hamcrest.Description;
 import org.hamcrest.TypeSafeMatcher;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -48,21 +49,21 @@ public class BaseFileTreeTest extends BaseTest {
     }
 
     @Before
-    public void setUp() throws Exception {
+    public void setUp() {
         drive = lifeCycleManager.getInstance(DriveAdapter.class);
         fileTree = lifeCycleManager.getInstance(FileTree.class);
         testFolder = testFolderProvider.getTestFolder();
     }
 
-    protected File createTestFile(File parent) throws Exception {
+    protected File createTestFile(File parent) throws IOException {
         return drive.createFile(TestUtils.testFileName, parent, TestUtils.getTestContent());
     }
 
-    protected File createTestFileAndUpdate() throws Exception {
+    protected File createTestFileAndUpdate() throws IOException {
         return createTestFileAndUpdate(testFolderProvider.getTestFolder(), testDirPath);
     }
 
-    protected File createTestFileAndUpdate(File parent, Path parentPath) throws Exception {
+    protected File createTestFileAndUpdate(File parent, Path parentPath) throws IOException {
         File file = createTestFile(parent);
         fileTree.getChildren(parentPath);
         return file;
@@ -148,17 +149,17 @@ public class BaseFileTreeTest extends BaseTest {
             return this;
         }
 
-        public FileTreeMatcher defaultTestFile() throws Exception {
+        public FileTreeMatcher defaultTestFile() {
             return file()
                     .withName(TestUtils.testFileName)
                     .withSize(TestUtils.testContentString.length());
         }
 
-        public FileTreeMatcher defaultEmptyTestFile() throws Exception {
+        public FileTreeMatcher defaultEmptyTestFile() {
             return defaultTestFile().withSize(0);
         }
 
-        public FileTreeMatcher defaultTestFolder() throws Exception {
+        public FileTreeMatcher defaultTestFolder() {
             return folder()
                     .withName(TestUtils.testFolderName)
                     .withSize(0);

@@ -45,7 +45,7 @@ public class UploadFailureTest extends BaseMountFileSystemTest {
     }
 
     @Test
-    public void fullFlow() throws Exception {
+    public void fullFlow() throws InterruptedException, IOException {
 
         DriveAdapter drive = lifeCycleManager.getInstance(DriveAdapter.class);
 

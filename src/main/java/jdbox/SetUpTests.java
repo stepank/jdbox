@@ -2,7 +2,7 @@ package jdbox;
 
 public class SetUpTests {
 
-    public static Environment createEnvironment() throws Exception {
+    public static Environment createEnvironment() {
         return new Environment(".jdbox-test", "test");
     }
 

@@ -7,6 +7,7 @@ import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
@@ -40,7 +41,7 @@ public class FullAccessOpenedFileReadTest extends BaseFullAccessOpenedFileTest {
     public final TestFileProvider testFileProvider = new TestFileProvider(lifeCycleManager, testFolderProvider, 11);
 
     @Test
-    public void read() throws Exception {
+    public void read() throws IOException {
 
         byte[] content = testFileProvider.getContent();
 

@@ -4,6 +4,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
@@ -23,7 +24,7 @@ public class ByteSourcesCopyTest {
     public int length;
 
     @Test
-    public void copy() throws Exception {
+    public void copy() throws IOException {
 
         byte[] expected = "pysh-pysh-ololo".getBytes();
         byte[] actual = new byte[expected.length];

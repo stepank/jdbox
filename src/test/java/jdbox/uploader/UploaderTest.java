@@ -41,7 +41,7 @@ public class UploaderTest extends BaseTest {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void tearDown() throws InterruptedException {
 
         lifeCycleManager.waitUntilUploaderIsDone();
 
@@ -62,25 +62,25 @@ public class UploaderTest extends BaseTest {
     }
 
     @Test
-    public void singleTask() throws Exception {
+    public void singleTask() {
         uploader.submit(taskFactory.create(1, "hello"));
     }
 
     @Test
-    public void twoIndependentTasks() throws Exception {
+    public void twoIndependentTasks() {
         uploader.submit(taskFactory.create(1, "hello"));
         uploader.submit(taskFactory.create(2, "world"));
     }
 
     @Test
-    public void twoTasksWithSameFileId() throws Exception {
+    public void twoTasksWithSameFileId() {
         uploader.submit(taskFactory.create(1, "hello"));
         uploader.submit(taskFactory.create(2, "hello"));
         expectedOrders.add(Lists.newArrayList(1, 2));
     }
 
     @Test
-    public void threeTasksWithSameFileId() throws Exception {
+    public void threeTasksWithSameFileId() {
         uploader.submit(taskFactory.create(1, "hello"));
         uploader.submit(taskFactory.create(2, "hello"));
         uploader.submit(taskFactory.create(3, "hello"));
@@ -88,7 +88,7 @@ public class UploaderTest extends BaseTest {
     }
 
     @Test
-    public void fourTasksWithTwoFileIds() throws Exception {
+    public void fourTasksWithTwoFileIds() {
         uploader.submit(taskFactory.create(1, "hello"));
         uploader.submit(taskFactory.create(2, "hello"));
         uploader.submit(taskFactory.create(3, "world"));
@@ -98,14 +98,14 @@ public class UploaderTest extends BaseTest {
     }
 
     @Test
-    public void twoTasksWithDependency() throws Exception {
+    public void twoTasksWithDependency() {
         uploader.submit(taskFactory.create(1, "hello", null, true));
         uploader.submit(taskFactory.create(2, "world", "hello"));
         expectedOrders.add(Lists.newArrayList(1, 2));
     }
 
     @Test
-    public void threeTasksWithDependencies() throws Exception {
+    public void threeTasksWithDependencies() {
         uploader.submit(taskFactory.create(1, "hello", null, true));
         uploader.submit(taskFactory.create(2, "world", "hello", true));
         uploader.submit(taskFactory.create(3, "kitty", "world"));
@@ -113,7 +113,7 @@ public class UploaderTest extends BaseTest {
     }
 
     @Test
-    public void twoTasksDependenOnOne() throws Exception {
+    public void twoTasksDependenOnOne() {
         uploader.submit(taskFactory.create(1, "hello", null, true));
         uploader.submit(taskFactory.create(2, "world", "hello"));
         uploader.submit(taskFactory.create(3, "kitty", "hello"));
@@ -122,7 +122,7 @@ public class UploaderTest extends BaseTest {
     }
 
     @Test
-    public void concurrency() throws Exception {
+    public void concurrency() throws InterruptedException {
 
         Date start = new Date();
 
@@ -200,7 +200,7 @@ class TestTask extends Task {
     }
 
     @Override
-    public void run() throws Exception {
+    public void run() {
         synchronized (order) {
             order.add(label);
         }

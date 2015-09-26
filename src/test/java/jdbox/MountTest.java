@@ -4,6 +4,7 @@ import jdbox.driveadapter.File;
 import org.junit.Test;
 
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.DirectoryNotEmptyException;
 import java.nio.file.Files;
@@ -19,27 +20,27 @@ import static org.hamcrest.Matchers.is;
 public class MountTest extends BaseMountFileSystemTest {
 
     @Test
-    public void read() throws Exception {
+    public void read() throws InterruptedException, IOException {
         drive.createFile("test.txt", testFolder, getTestContent());
         resetFileTree();
         assertThat(Files.readAllBytes(mountPoint.resolve("test.txt")), equalTo(getTestContentBytes()));
     }
 
     @Test
-    public void writeAndRead() throws Exception {
+    public void writeAndRead() throws IOException {
         Files.write(mountPoint.resolve("test.txt"), getTestContentBytes());
         assertThat(Files.readAllBytes(mountPoint.resolve("test.txt")), equalTo(getTestContentBytes()));
     }
 
     @Test
-    public void writeAndReadAfterClose() throws Exception {
+    public void writeAndReadAfterClose() throws InterruptedException, IOException {
         Files.write(mountPoint.resolve("test.txt"), getTestContentBytes());
         lifeCycleManager.waitUntilLocalStorageIsEmpty();
         assertThat(Files.readAllBytes(mountPoint.resolve("test.txt")), equalTo(getTestContentBytes()));
     }
 
     @Test
-    public void writeAndTrackSize() throws Exception {
+    public void writeAndTrackSize() throws IOException {
 
         Path path = mountPoint.resolve("test.txt");
 
@@ -54,7 +55,7 @@ public class MountTest extends BaseMountFileSystemTest {
     }
 
     @Test
-    public void truncate() throws Exception {
+    public void truncate() throws InterruptedException, IOException {
         Path path = mountPoint.resolve("test.txt");
         Files.write(path, getTestContentBytes());
         lifeCycleManager.waitUntilLocalStorageIsEmpty();
@@ -63,7 +64,7 @@ public class MountTest extends BaseMountFileSystemTest {
     }
 
     @Test
-    public void remove() throws Exception {
+    public void remove() throws InterruptedException, IOException {
 
         File folder = drive.createFolder("test", testFolder);
         drive.createFile("test.txt", folder, getTestContent());
@@ -91,7 +92,7 @@ public class MountTest extends BaseMountFileSystemTest {
     }
 
     @Test
-    public void move() throws Exception {
+    public void move() throws InterruptedException, IOException {
 
         File source = drive.createFolder("source", testFolder);
         drive.createFolder("destination", testFolder);

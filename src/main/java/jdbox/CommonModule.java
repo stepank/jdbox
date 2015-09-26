@@ -22,7 +22,7 @@ public class CommonModule extends ActiveModule {
     }
 
     @Override
-    public void tearDown(Injector injector) throws Exception {
+    public void tearDown(Injector injector) throws InterruptedException {
         ExecutorService executor = injector.getInstance(ExecutorService.class);
         executor.shutdown();
         executor.awaitTermination(5, TimeUnit.SECONDS);

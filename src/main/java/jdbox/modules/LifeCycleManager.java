@@ -47,7 +47,7 @@ public class LifeCycleManager {
         }
     }
 
-    public void start() throws Exception {
+    public void start() {
 
         checkInitialized();
 

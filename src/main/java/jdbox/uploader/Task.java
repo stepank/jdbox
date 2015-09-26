@@ -2,6 +2,8 @@ package jdbox.uploader;
 
 import jdbox.models.fileids.FileId;
 
+import java.io.IOException;
+
 public abstract class Task {
 
     private final String label;
@@ -24,7 +26,7 @@ public abstract class Task {
         this.blocksDependentTasks = blocksDependentTasks;
     }
 
-    public abstract void run() throws Exception;
+    public abstract void run() throws IOException;
 
     public FileId getFileId() {
         return fileId;

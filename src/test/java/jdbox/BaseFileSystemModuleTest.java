@@ -38,7 +38,7 @@ public class BaseFileSystemModuleTest extends BaseTest {
     }
 
     @Before
-    public void setUp() throws Exception {
+    public void setUp() {
         drive = lifeCycleManager.getInstance(DriveAdapter.class);
         testFolder = testFolderProvider.getTestFolder();
     }

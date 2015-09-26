@@ -9,7 +9,7 @@ public class BaseFullAccessOpenedFileTest extends BaseOpenedFilesTest {
     protected StreamCachingByteSourceFactory readerFactory;
 
     @Before
-    public void setUp() throws Exception {
+    public void setUp() {
         super.setUp();
         tempStoreFactory = lifeCycleManager.getInstance(InMemoryByteStoreFactory.class);
         tempStoreFactory.setConfig(new InMemoryByteStoreFactory.Config(4));

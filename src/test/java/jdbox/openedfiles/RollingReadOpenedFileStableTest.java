@@ -7,6 +7,7 @@ import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
@@ -31,7 +32,7 @@ public class RollingReadOpenedFileStableTest extends BaseRollingReadOpenedFileTe
     public final TestFileProvider testFileProvider = new TestFileProvider(lifeCycleManager, testFolderProvider, 64 * 1024);
 
     @Test
-    public void read() throws Exception {
+    public void read() throws IOException {
 
         tempStoreFactory.setConfig(new InMemoryByteStoreFactory.Config(128));
         readerFactory.setConfig(new StreamCachingByteSourceFactory.Config(128));

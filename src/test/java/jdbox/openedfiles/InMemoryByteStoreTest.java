@@ -5,6 +5,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
@@ -18,7 +19,7 @@ public class InMemoryByteStoreTest extends BaseOpenedFilesModuleTest {
     protected InMemoryByteStoreFactory factory;
 
     @Before
-    public void setUp() throws Exception {
+    public void setUp() {
         factory = lifeCycleManager.getInstance(InMemoryByteStoreFactory.class);
         factory.setConfig(new InMemoryByteStoreFactory.Config(4));
     }
@@ -45,7 +46,7 @@ public class InMemoryByteStoreTest extends BaseOpenedFilesModuleTest {
     public int[] counts;
 
     @Test
-    public void writeAndRead() throws Exception {
+    public void writeAndRead() throws IOException {
 
         byte[] expectedFull = "pysh-pysh-ololo".getBytes();
         byte[] actualFull = new byte[expectedFull.length];

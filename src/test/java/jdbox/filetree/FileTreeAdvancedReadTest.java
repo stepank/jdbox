@@ -7,6 +7,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
@@ -31,7 +32,7 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
      * Update a file, make sure it has the new properties.
      */
     @Test
-    public void update() throws Exception {
+    public void update() throws IOException {
 
         File testFile = createTestFileAndUpdate();
 
@@ -58,7 +59,7 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
      * Trash a file, make sure it disappears.
      */
     @Test
-    public void trash() throws Exception {
+    public void trash() throws IOException {
         File testFile = createTestFileAndUpdate();
         if (rename) {
             testFile.setName("test_file_2");
@@ -75,7 +76,7 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
      * Delete a file, make sure it disappears.
      */
     @Test
-    public void delete() throws Exception {
+    public void delete() throws IOException {
         File testFile = createTestFileAndUpdate();
         if (rename) {
             testFile.setName("test_file_2");
@@ -92,7 +93,7 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
      * Delete a tracked directory, make sure it disappears.
      */
     @Test
-    public void deleteTrackedDir() throws Exception {
+    public void deleteTrackedDir() throws IOException {
 
         Path folderPath = testDirPath.resolve(getTestFolderName());
         File folder = drive.createFolder(getTestFolderName(), testFolder);
@@ -117,7 +118,7 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
      * Move a file from one directory into another, make sure the file disappears from one directory and appears in the other.
      */
     @Test
-    public void move() throws Exception {
+    public void move() throws IOException {
 
         Path sourcePath = testDirPath.resolve("source");
         File source = drive.createFolder("source", testFolder);
@@ -148,7 +149,7 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
      * Move a file from one directory into another one that is not tracked, make sure the file disappears.
      */
     @Test
-    public void moveToNotTrackedDir() throws Exception {
+    public void moveToNotTrackedDir() throws IOException {
 
         Path sourcePath = testDirPath.resolve("source");
         File source = drive.createFolder("source", testFolder);
@@ -174,7 +175,7 @@ public class FileTreeAdvancedReadTest extends BaseFileTreeTest {
      * Move a file from one directory that is not tracked into another one, make sure the file appears.
      */
     @Test
-    public void moveFromNotTrackedDir() throws Exception {
+    public void moveFromNotTrackedDir() throws IOException {
 
         File source = drive.createFolder("source", testFolder);
         File testFile = createTestFile(source);

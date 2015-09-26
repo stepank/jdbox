@@ -23,6 +23,7 @@ import rx.functions.Action1;
 
 import javax.annotation.Nullable;
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
@@ -134,7 +135,7 @@ public class FileTree {
         }
     }
 
-    public void init() throws Exception {
+    public void init() throws IOException {
 
         fileSizeUpdateEventSubscription = fileSizeUpdateEvent.subscribe(new Action1<FileSizeUpdateEvent>() {
             @Override
@@ -206,11 +207,11 @@ public class FileTree {
         retrieveAndApplyChanges();
     }
 
-    public File get(String path) throws Exception {
+    public File get(String path) throws IOException {
         return get(Paths.get(path));
     }
 
-    public File get(Path path) throws Exception {
+    public File get(Path path) throws IOException {
 
         File file = getOrNull(path);
 
@@ -220,7 +221,7 @@ public class FileTree {
         return file;
     }
 
-    public File getOrNull(Path path) throws Exception {
+    public File getOrNull(Path path) throws IOException {
 
         if (isRoot(path))
             return knownFiles.getRoot().toFile();
@@ -228,20 +229,20 @@ public class FileTree {
         return getOrFetch(path.getParent(), path.getFileName().toString(), singleFileGetter);
     }
 
-    public List<String> getChildren(String path) throws Exception {
+    public List<String> getChildren(String path) throws IOException {
         return getChildren(Paths.get(path));
     }
 
-    public List<String> getChildren(Path path) throws Exception {
+    public List<String> getChildren(Path path) throws IOException {
         logger.debug("[{}] getting children", path);
         return getOrFetch(path, null, namesGetter);
     }
 
-    public File create(String path, boolean isDirectory) throws Exception {
+    public File create(String path, boolean isDirectory) throws IOException {
         return create(Paths.get(path), isDirectory);
     }
 
-    public File create(final Path path, boolean isDirectory) throws Exception {
+    public File create(final Path path, boolean isDirectory) throws IOException {
 
         logger.debug("[{}] creating {}", path, isDirectory ? "folder" : "file");
 
@@ -276,7 +277,7 @@ public class FileTree {
 
             uploader.submit(new Task(label, file.getId(), parent.getId(), file.isDirectory()) {
                 @Override
-                public void run() throws Exception {
+                public void run() throws IOException {
 
                     syncWithRemoteLock.readLock().lock();
 
@@ -305,11 +306,11 @@ public class FileTree {
         }
     }
 
-    public void setDates(String path, Date modifiedDate, Date accessedDate) throws Exception {
+    public void setDates(String path, Date modifiedDate, Date accessedDate) throws IOException {
         setDates(Paths.get(path), modifiedDate, accessedDate);
     }
 
-    public void setDates(Path path, final Date modifiedDate, final Date accessedDate) throws Exception {
+    public void setDates(Path path, final Date modifiedDate, final Date accessedDate) throws IOException {
 
         logger.debug("[{}] setting dates", path);
 
@@ -330,7 +331,7 @@ public class FileTree {
 
             uploader.submit(new Task(label, file.getId()) {
                 @Override
-                public void run() throws Exception {
+                public void run() throws IOException {
                     drive.updateFile(file.toDaFile());
                 }
             });
@@ -340,11 +341,11 @@ public class FileTree {
         }
     }
 
-    public void remove(String path) throws Exception {
+    public void remove(String path) throws IOException {
         remove(Paths.get(path));
     }
 
-    public void remove(Path path) throws Exception {
+    public void remove(Path path) throws IOException {
 
         logger.debug("[{}] removing", path);
 
@@ -379,7 +380,7 @@ public class FileTree {
 
                 uploader.submit(new Task(path + ": remove file/directory", file.getId()) {
                     @Override
-                    public void run() throws Exception {
+                    public void run() throws IOException {
                         if (file.getParentIds().size() == 0)
                             drive.trashFile(file.toDaFile());
                         else
@@ -393,11 +394,11 @@ public class FileTree {
         }
     }
 
-    public void move(String path, String newPath) throws Exception {
+    public void move(String path, String newPath) throws IOException {
         move(Paths.get(path), Paths.get(newPath));
     }
 
-    public void move(Path path, Path newPath) throws Exception {
+    public void move(Path path, Path newPath) throws IOException {
 
         logger.debug("[{}] moving to {}", path, newPath);
 
@@ -452,7 +453,7 @@ public class FileTree {
 
             uploader.submit(new Task(path + ": move/rename to " + newPath, file.getId(), newParentId) {
                 @Override
-                public void run() throws Exception {
+                public void run() throws IOException {
                     drive.updateFile(file.toDaFile());
                 }
             });
@@ -462,7 +463,7 @@ public class FileTree {
         }
     }
 
-    private <T> T getOrFetch(Path path, String fileName, Getter<T> getter) throws Exception {
+    private <T> T getOrFetch(Path path, String fileName, Getter<T> getter) throws IOException {
 
         localStateLock.readLock().lock();
         try {
@@ -511,7 +512,7 @@ public class FileTree {
         return locateFile(child, path.subpath(1, path.getNameCount()));
     }
 
-    private KnownFile getUnsafe(KnownFile root, Path path) throws Exception {
+    private KnownFile getUnsafe(KnownFile root, Path path) throws IOException {
 
         KnownFile kf = getOrNullUnsafe(root, path);
 
@@ -521,7 +522,7 @@ public class FileTree {
         return kf;
     }
 
-    private KnownFile getOrNullUnsafe(KnownFile root, Path path) throws Exception {
+    private KnownFile getOrNullUnsafe(KnownFile root, Path path) throws IOException {
 
         if (isRoot(path))
             return root;
@@ -529,11 +530,11 @@ public class FileTree {
         return getOrFetchUnsafe(root, path.getParent(), path.getFileName().toString(), singleKnownFileGetter);
     }
 
-    private List<String> getChildrenUnsafe(KnownFile root, Path path) throws Exception {
+    private List<String> getChildrenUnsafe(KnownFile root, Path path) throws IOException {
         return getOrFetchUnsafe(root, path, null, namesGetter);
     }
 
-    private <T> T getOrFetchUnsafe(KnownFile root, Path path, String fileName, Getter<T> getter) throws Exception {
+    private <T> T getOrFetchUnsafe(KnownFile root, Path path, String fileName, Getter<T> getter) throws IOException {
 
         KnownFile dir = getUnsafe(root, path);
 
@@ -618,14 +619,14 @@ public class FileTree {
             for (DriveAdapter.Change change : changes.items)
                 tryApplyChange(change);
 
-        } catch (Exception e) {
+        } catch (IOException e) {
             logger.error("an error occured retrieving a list of changes", e);
         } finally {
             syncWithRemoteLock.writeLock().unlock();
         }
     }
 
-    private void tryApplyChange(DriveAdapter.Change change) throws Exception {
+    private void tryApplyChange(DriveAdapter.Change change) throws IOException {
 
         localStateLock.writeLock().lock();
 
@@ -691,31 +692,31 @@ public class FileTree {
         return path == null || path.equals(Paths.get("/"));
     }
 
-    public class NoSuchFileException extends Exception {
+    public class NoSuchFileException extends IOException {
         public NoSuchFileException(Path path) {
             super(path.toString());
         }
     }
 
-    public class NotDirectoryException extends Exception {
+    public class NotDirectoryException extends IOException {
         public NotDirectoryException(Path path) {
             super(path.toString());
         }
     }
 
-    public class FileAlreadyExistsException extends Exception {
+    public class FileAlreadyExistsException extends IOException {
         public FileAlreadyExistsException(Path path) {
             super(path.toString());
         }
     }
 
-    public class NonEmptyDirectoryException extends Exception {
+    public class NonEmptyDirectoryException extends IOException {
         public NonEmptyDirectoryException(Path path) {
             super(path.toString());
         }
     }
 
-    public class AccessDeniedException extends Exception {
+    public class AccessDeniedException extends IOException {
         public AccessDeniedException(Path path) {
             super(path.toString());
         }

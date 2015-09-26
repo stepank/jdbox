@@ -7,6 +7,7 @@ import org.junit.experimental.categories.Category;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Random;
 
@@ -19,10 +20,11 @@ public class FullAccessOpenedFileMiscTest extends BaseFullAccessOpenedFileTest {
     private static final Logger logger = LoggerFactory.getLogger(FullAccessOpenedFileMiscTest.class);
 
     @OrderedRule
-    public final TestFileProvider testFileProvider = new TestFileProvider(lifeCycleManager, testFolderProvider, 1024 * 1024);
+    public final TestFileProvider testFileProvider =
+            new TestFileProvider(lifeCycleManager, testFolderProvider, 1024 * 1024);
 
     @Test
-    public void fuzzyRead() throws Exception {
+    public void fuzzyRead() throws InterruptedException, IOException {
 
         tempStoreFactory.setConfig(new InMemoryByteStoreFactory.Config(1024));
         readerFactory.setConfig(new StreamCachingByteSourceFactory.Config(1024));

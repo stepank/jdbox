@@ -23,7 +23,7 @@ public class BaseOpenedFilesTest extends BaseOpenedFilesModuleTest {
     protected OpenedFiles openedFiles;
 
     @Before
-    public void setUp() throws Exception {
+    public void setUp() {
 
         fileIdStore = lifeCycleManager.getInstance(FileIdStore.class);
         drive = lifeCycleManager.getInstance(DriveAdapter.class);

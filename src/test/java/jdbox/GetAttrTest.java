@@ -7,6 +7,7 @@ import net.fusejna.types.TypeMode;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.nio.file.Paths;
 
 import static jdbox.utils.TestUtils.*;
@@ -18,18 +19,18 @@ public class GetAttrTest extends BaseFileSystemModuleTest {
     private FileSystem fs;
 
     @Before
-    public void setUp() throws Exception {
+    public void setUp() {
         super.setUp();
         fs = lifeCycleManager.getInstance(FileSystem.class);
     }
 
     @Test
-    public void nonExistent() throws Exception {
+    public void nonExistent() {
         assertThat(fs.getattr("/does_not_exist", Export.createStatHolder().wrapper), equalTo(-ErrorCodes.ENOENT()));
     }
 
     @Test
-    public void file() throws Exception {
+    public void file() throws IOException {
         drive.createFile(getTestFileName(), testFolder, getTestContent());
         StatHolder stat = Export.createStatHolder();
         String path = Paths.get("/").resolve(getTestFileName()).toString();
@@ -39,7 +40,7 @@ public class GetAttrTest extends BaseFileSystemModuleTest {
     }
 
     @Test
-    public void directory() throws Exception {
+    public void directory() throws IOException {
         drive.createFolder(getTestFolderName(), testFolder);
         StatHolder stat = Export.createStatHolder();
         String path = Paths.get("/").resolve(getTestFolderName()).toString();

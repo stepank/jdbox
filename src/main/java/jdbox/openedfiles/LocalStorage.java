@@ -174,7 +174,7 @@ public class LocalStorage {
 
                 uploader.submit(new Task(label, shared.file.getId()) {
                     @Override
-                    public void run() throws Exception {
+                    public void run() throws IOException {
 
                         drive.updateFileContent(shared.file.toDaFile(), ByteSources.toInputStream(capturedContent));
 
