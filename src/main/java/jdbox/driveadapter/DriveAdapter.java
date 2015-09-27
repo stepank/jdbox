@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Date;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 
 public class DriveAdapter {
@@ -26,12 +26,10 @@ public class DriveAdapter {
     private static final Logger logger = LoggerFactory.getLogger(DriveAdapter.class);
 
     private final Drive drive;
-    private final ExecutorService executor;
 
     @Inject
-    public DriveAdapter(Drive drive, ExecutorService executor) {
+    public DriveAdapter(Drive drive) {
         this.drive = drive;
-        this.executor = executor;
     }
 
     public BasicInfo getBasicInfo() throws IOException {
@@ -138,7 +136,8 @@ public class DriveAdapter {
         return response.getContent();
     }
 
-    public Future<InputStream> downloadFileRangeAsync(final File file, final long offset, final long length) {
+    public Future<InputStream> downloadFileRangeAsync(
+            final File file, final long offset, final long length, Executor executor) {
 
         logger.debug("requesting a stream of {}, offset {}, length {}", file, offset, length);
 

@@ -126,12 +126,12 @@ public class UploaderTest extends BaseTest {
 
         Date start = new Date();
 
-        for (int i = 1; i <= 10; i++) {
+        for (int i = 1; i <= 4; i++) {
             uploader.submit(taskFactory.create(i, Integer.toString(i), null, false, new Runnable() {
                 @Override
                 public void run() {
                     try {
-                        Thread.sleep(1000);
+                        Thread.sleep(2000);
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
@@ -145,7 +145,7 @@ public class UploaderTest extends BaseTest {
 
         logger.debug("time spent to run all the tasks is {} ms", elapsed);
 
-        assertThat(elapsed, lessThan(2000));
+        assertThat(elapsed, lessThan(3000));
     }
 }
 

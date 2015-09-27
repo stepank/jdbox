@@ -1,7 +1,7 @@
 package jdbox.utils;
 
 import com.google.inject.Module;
-import jdbox.TestCommonModule;
+import jdbox.CommonModule;
 import jdbox.modules.LifeCycleManager;
 import jdbox.modules.MultipleException;
 import jdbox.openedfiles.LocalStorage;
@@ -26,7 +26,7 @@ public class LifeCycleManagerResource extends ExternalResource {
         this.errorCollector = errorCollector;
         this.modules = modules;
         this.lifeCycleManager = new LifeCycleManager(new LinkedList<Module>() {{
-            add(new TestCommonModule());
+            add(new CommonModule());
             addAll(modules);
         }});
     }

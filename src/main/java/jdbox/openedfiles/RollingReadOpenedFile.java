@@ -11,6 +11,7 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.Executor;
 
 class RollingReadOpenedFile implements ByteStore {
 
@@ -26,18 +27,20 @@ class RollingReadOpenedFile implements ByteStore {
     private final int minPageSize;
     private final int maxPageSize;
     private final Readers readers = new Readers(PAGES_NUMBER);
+    private final Executor executor;
 
     private boolean closed = false;
 
     RollingReadOpenedFile(
             File file, DriveAdapter drive, StreamCachingByteSourceFactory readerFactory,
-            int minPageSize, int maxPageSize) {
+            int minPageSize, int maxPageSize, Executor executor) {
         this.file = file;
         this.daFile = file.toDaFile();
         this.drive = drive;
         this.readerFactory = readerFactory;
         this.minPageSize = minPageSize;
         this.maxPageSize = maxPageSize;
+        this.executor = executor;
     }
 
     @Override
@@ -165,7 +168,7 @@ class RollingReadOpenedFile implements ByteStore {
         public Entry create(long offset, int length) {
 
             Entry result = new Entry(
-                    readerFactory.create(drive.downloadFileRangeAsync(daFile, offset, length)),
+                    readerFactory.create(drive.downloadFileRangeAsync(daFile, offset, length, executor)),
                     offset, length, current++);
 
             entries.add(result);
@@ -242,14 +245,17 @@ class RollingReadOpenedFileFactory implements ByteStoreFactory {
 
     private final DriveAdapter drive;
     private final StreamCachingByteSourceFactory readerFactory;
+    private final Executor executor;
 
     private volatile Config config;
 
     @Inject
     public RollingReadOpenedFileFactory(
-            DriveAdapter drive, StreamCachingByteSourceFactory readerFactory, Config config) {
+            DriveAdapter drive, StreamCachingByteSourceFactory readerFactory,
+            @PackagePrivate Executor executor, Config config) {
         this.drive = drive;
         this.readerFactory = readerFactory;
+        this.executor = executor;
         this.config = config;
     }
 
@@ -264,7 +270,7 @@ class RollingReadOpenedFileFactory implements ByteStoreFactory {
 
     @Override
     public RollingReadOpenedFile create(File file) {
-        return new RollingReadOpenedFile(file, drive, readerFactory, config.minPageSize, config.maxPageSize);
+        return new RollingReadOpenedFile(file, drive, readerFactory, config.minPageSize, config.maxPageSize, executor);
     }
 
     public static class Config {

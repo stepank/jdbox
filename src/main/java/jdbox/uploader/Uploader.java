@@ -9,9 +9,7 @@ import rx.Observer;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
+import java.util.concurrent.*;
 
 public class Uploader {
 
@@ -20,16 +18,15 @@ public class Uploader {
     private static final Logger logger = LoggerFactory.getLogger(Uploader.class);
 
     private final Observer<UploadFailureEvent> uploadFailureEvent;
-    private final ExecutorService executor;
     private final Map<FileId, Queue> queues = new HashMap<>();
     private final List<Future> futures = new LinkedList<>();
 
     private volatile UploadStatus uploadStatus;
+    private volatile ExecutorService executor;
 
     @Inject
-    public Uploader(Observer<UploadFailureEvent> uploadFailureEvent, ExecutorService executor) {
+    public Uploader(Observer<UploadFailureEvent> uploadFailureEvent) {
         this.uploadFailureEvent = uploadFailureEvent;
-        this.executor = executor;
     }
 
     public UploadStatus getCurrentStatus() {
@@ -42,6 +39,20 @@ public class Uploader {
 
     public synchronized boolean fileIsQueued(FileId fileId) {
         return queues.get(fileId) != null;
+    }
+
+    public void init() {
+        executor = new ThreadPoolExecutor(4, 4, 60, TimeUnit.SECONDS, new LinkedBlockingDeque<Runnable>());
+    }
+
+    public void tearDown() throws InterruptedException {
+
+        if (executor != null) {
+            executor.shutdown();
+            executor.shutdown();
+            executor.awaitTermination(5, TimeUnit.SECONDS);
+            executor = null;
+        }
     }
 
     public synchronized void reset() {

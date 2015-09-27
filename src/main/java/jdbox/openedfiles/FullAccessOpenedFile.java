@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 
 class FullAccessOpenedFile implements ByteStore {
@@ -96,14 +97,16 @@ class FullAccessOpenedFileFactory implements ByteStoreFactory {
     private final DriveAdapter drive;
     private final InMemoryByteStoreFactory tempStoreFactory;
     private final StreamCachingByteSourceFactory readerFactory;
+    private final Executor executor;
 
     @Inject
     FullAccessOpenedFileFactory(
             DriveAdapter drive, InMemoryByteStoreFactory tempStoreFactory,
-            StreamCachingByteSourceFactory readerFactory) {
+            StreamCachingByteSourceFactory readerFactory, @PackagePrivate Executor executor) {
         this.drive = drive;
         this.tempStoreFactory = tempStoreFactory;
         this.readerFactory = readerFactory;
+        this.executor = executor;
     }
 
     @Override
@@ -114,7 +117,7 @@ class FullAccessOpenedFileFactory implements ByteStoreFactory {
     @Override
     public synchronized ByteStore create(File file) {
         Future<InputStream> stream = file.getId().isSet() && file.getSize() > 0 ?
-                drive.downloadFileRangeAsync(file.toDaFile(), 0, file.getSize()) : null;
+                drive.downloadFileRangeAsync(file.toDaFile(), 0, file.getSize(), executor) : null;
         return new FullAccessOpenedFile(tempStoreFactory.create(), stream, readerFactory);
     }
 }

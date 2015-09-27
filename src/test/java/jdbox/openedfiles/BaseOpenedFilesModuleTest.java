@@ -15,8 +15,7 @@ public class BaseOpenedFilesModuleTest extends BaseTest {
         return new ArrayList<Module>() {{
             add(new DriveAdapterModule(driveServiceProvider.getDriveService()));
             add(new UploaderModule());
-            add(new OpenedFilesModule());
-
+            add(new TestOpenedFilesModule());
         }};
     }
 }

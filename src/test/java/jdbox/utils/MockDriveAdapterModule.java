@@ -9,8 +9,6 @@ import com.google.inject.util.Modules;
 import jdbox.driveadapter.DriveAdapter;
 import jdbox.driveadapter.DriveAdapterModule;
 
-import java.util.concurrent.ExecutorService;
-
 import static org.mockito.Mockito.spy;
 
 public class MockDriveAdapterModule extends AbstractModule {
@@ -38,16 +36,14 @@ class MockDriveAdapterProviderModule extends AbstractModule {
 class MockDriveAdapterProvider implements Provider<DriveAdapter> {
 
     private final Drive drive;
-    private final ExecutorService executor;
 
     @Inject
-    public MockDriveAdapterProvider(Drive drive, ExecutorService executor) {
+    public MockDriveAdapterProvider(Drive drive) {
         this.drive = drive;
-        this.executor = executor;
     }
 
     @Override
     public DriveAdapter get() {
-        return spy(new DriveAdapter(drive, executor));
+        return spy(new DriveAdapter(drive));
     }
 }
