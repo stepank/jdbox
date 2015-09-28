@@ -8,6 +8,7 @@ import org.junit.experimental.categories.Category;
 import java.io.IOException;
 import java.nio.file.Path;
 
+import static jdbox.filetree.FileTreeMatcher.contains;
 import static jdbox.utils.TestUtils.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Matchers.notNull;

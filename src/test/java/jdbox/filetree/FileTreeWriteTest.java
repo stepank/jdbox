@@ -9,6 +9,7 @@ import org.junit.experimental.categories.Category;
 import java.io.IOException;
 import java.util.Date;
 
+import static jdbox.filetree.FileTreeMatcher.contains;
 import static jdbox.utils.TestUtils.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 

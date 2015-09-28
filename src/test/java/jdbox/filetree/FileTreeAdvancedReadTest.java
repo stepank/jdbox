@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 
+import static jdbox.filetree.FileTreeMatcher.contains;
 import static jdbox.utils.TestUtils.getTestFileName;
 import static jdbox.utils.TestUtils.getTestFolderName;
 import static org.hamcrest.MatcherAssert.assertThat;
