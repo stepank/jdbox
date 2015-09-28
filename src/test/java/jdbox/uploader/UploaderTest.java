@@ -184,27 +184,58 @@ class TestTaskFactory {
     }
 }
 
-class TestTask extends Task {
+class TestTask implements Task {
 
-    private Integer label;
+    private final Integer label;
+    private final FileId fileId;
+    private final FileId dependsOn;
+    private final boolean blocksDependentTasks;
     private final Runnable runnable;
     private final List<Integer> order;
 
     public TestTask(
             Integer label, FileId fileId, FileId dependsOn,
             boolean blocksDependentTasks, Runnable runnable, List<Integer> order) {
-        super(label.toString(), fileId, dependsOn, blocksDependentTasks);
         this.label = label;
+        this.fileId = fileId;
+        this.dependsOn = dependsOn;
+        this.blocksDependentTasks = blocksDependentTasks;
         this.runnable = runnable;
         this.order = order;
     }
 
     @Override
-    public void run() {
+    public String getLabel() {
+        return label.toString();
+    }
+
+    @Override
+    public FileId getFileId() {
+        return fileId;
+    }
+
+    @Override
+    public String getEtag() {
+        return null;
+    }
+
+    @Override
+    public FileId getDependsOn() {
+        return dependsOn;
+    }
+
+    @Override
+    public boolean blocksDependentTasks() {
+        return blocksDependentTasks;
+    }
+
+    @Override
+    public String run(String etag) {
         synchronized (order) {
             order.add(label);
         }
         if (runnable != null)
             runnable.run();
+        return "does not matter";
     }
 }

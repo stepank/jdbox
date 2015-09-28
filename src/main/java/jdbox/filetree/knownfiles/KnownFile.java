@@ -83,6 +83,10 @@ public class KnownFile {
         self.setSize(size);
     }
 
+    public void setEtag(String etag) {
+        self.setEtag(etag);
+    }
+
     public void setTracked() {
         children = new HashMap<>();
     }

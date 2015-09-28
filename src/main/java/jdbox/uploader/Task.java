@@ -4,53 +4,21 @@ import jdbox.models.fileids.FileId;
 
 import java.io.IOException;
 
-public abstract class Task {
+public interface Task {
 
-    private final String label;
-    private final FileId fileId;
-    private final FileId dependsOn;
-    private final boolean blocksDependentTasks;
+    String getLabel();
 
-    public Task(String label, FileId fileId) {
-        this(label, fileId, null);
-    }
+    FileId getFileId();
 
-    public Task(String label, FileId fileId, FileId dependsOn) {
-        this(label, fileId, dependsOn, false);
-    }
+    String getEtag();
 
-    public Task(String label, FileId fileId, FileId dependsOn, boolean blocksDependentTasks) {
-        this.label = label;
-        this.fileId = fileId;
-        this.dependsOn = dependsOn;
-        this.blocksDependentTasks = blocksDependentTasks;
-    }
+    FileId getDependsOn();
 
-    public abstract void run() throws IOException;
+    boolean blocksDependentTasks();
 
-    public FileId getFileId() {
-        return fileId;
-    }
-
-    public String getLabel() {
-        return label;
-    }
-
-    public FileId getDependsOn() {
-        return dependsOn;
-    }
-
-    public boolean blocksDependentTasks() {
-        return blocksDependentTasks;
-    }
-
-    @Override
-    public String toString() {
-        return "Task{" +
-                "label='" + label + '\'' +
-                ", fileId=" + fileId +
-                ", dependsOn=" + dependsOn +
-                ", blocksDependentTasks=" + blocksDependentTasks +
-                '}';
-    }
+    /**
+     * @param etag The current etag of the file.
+     * @return The file's etag obtained as a result of the performed operation.
+     */
+    String run(String etag) throws IOException;
 }

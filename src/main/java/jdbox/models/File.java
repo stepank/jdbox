@@ -23,6 +23,7 @@ public class File implements Cloneable {
 
     private final FileId id;
 
+    private String etag;
     private String name;
     private boolean isDirectory;
     private long size;
@@ -50,6 +51,7 @@ public class File implements Cloneable {
     public File(final FileIdStore fileIdStore, jdbox.driveadapter.File file) {
 
         id = fileIdStore.get(file.getId());
+        etag = file.getEtag();
         name = file.getName();
         size = file.getSize();
         isDirectory = file.isDirectory();
@@ -72,6 +74,14 @@ public class File implements Cloneable {
 
     public FileId getId() {
         return id;
+    }
+
+    public String getEtag() {
+        return etag;
+    }
+
+    public void setEtag(String etag) {
+        this.etag = etag;
     }
 
     public String getName() {
@@ -165,7 +175,7 @@ public class File implements Cloneable {
         file.setModifiedDate(getModifiedDate());
         file.setAccessedDate(getAccessedDate());
 
-        if (getParentIds() != null && getParentIds().size() > 0)
+        if (getParentIds() != null)
             file.setParentIds(new HashSet<>(
                     Collections2.transform(getParentIds(), new Function<FileId, String>() {
                         @Override
@@ -198,6 +208,7 @@ public class File implements Cloneable {
     public void update(File file, EnumSet<Field> fields) {
 
         setIsDirectory(file.isDirectory());
+        setEtag(file.getEtag());
 
         if (fields.contains(Field.NAME))
             setName(file.getName());
@@ -222,9 +233,10 @@ public class File implements Cloneable {
     public String toString() {
         return "j.m.File{" +
                 "id=" + id +
-                ", name='" + name + '\'' +
+                ", name=" + (name == null ? "null" : ('\'' + name + '\'')) +
                 ", isDirectory=" + isDirectory +
                 ", size=" + size +
+                ", etag=" + etag +
                 '}';
     }
 }

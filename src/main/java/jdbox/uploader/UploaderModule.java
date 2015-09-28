@@ -6,7 +6,7 @@ import com.google.inject.TypeLiteral;
 import jdbox.modules.ActiveModule;
 import rx.Observable;
 import rx.Observer;
-import rx.subjects.BehaviorSubject;
+import rx.subjects.PublishSubject;
 import rx.subjects.Subject;
 
 public class UploaderModule extends ActiveModule {
@@ -16,9 +16,13 @@ public class UploaderModule extends ActiveModule {
 
         bind(Uploader.class).in(Singleton.class);
 
-        Subject<UploadFailureEvent, UploadFailureEvent> uploadFailureEvent = BehaviorSubject.create();
+        Subject<UploadFailureEvent, UploadFailureEvent> uploadFailureEvent = PublishSubject.create();
         bind(new TypeLiteral<Observable<UploadFailureEvent>>() {}).toInstance(uploadFailureEvent);
         bind(new TypeLiteral<Observer<UploadFailureEvent>>() {}).toInstance(uploadFailureEvent);
+
+        Subject<FileEtagUpdateEvent, FileEtagUpdateEvent> fileEtagUpdateEvent = PublishSubject.create();
+        bind(new TypeLiteral<Observable<FileEtagUpdateEvent>>() {}).toInstance(fileEtagUpdateEvent);
+        bind(new TypeLiteral<Observer<FileEtagUpdateEvent>>() {}).toInstance(fileEtagUpdateEvent);
     }
 
     @Override

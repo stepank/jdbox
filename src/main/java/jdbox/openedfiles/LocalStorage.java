@@ -4,7 +4,7 @@ import com.google.inject.Inject;
 import jdbox.driveadapter.DriveAdapter;
 import jdbox.models.File;
 import jdbox.models.fileids.FileId;
-import jdbox.uploader.Task;
+import jdbox.uploader.DriveTask;
 import jdbox.uploader.Uploader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -172,11 +172,12 @@ class LocalStorage {
 
                 String label = shared.file.getName() + ": update content, content length is " + size;
 
-                uploader.submit(new Task(label, shared.file.getId()) {
+                uploader.submit(new DriveTask(label, shared.file) {
                     @Override
-                    public void run() throws IOException {
+                    public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
 
-                        drive.updateFileContent(shared.file.toDaFile(), ByteSources.toInputStream(capturedContent));
+                        jdbox.driveadapter.File updatedFile =
+                                drive.updateFileContent(file, ByteSources.toInputStream(capturedContent));
 
                         capturedContent.close();
 
@@ -184,11 +185,12 @@ class LocalStorage {
                             shared.refCount--;
                             if (shared.refCount == 0)
                                 synchronized (LocalStorage.this) {
-                                    fileSizeUpdateEvent.onNext(
-                                            new FileSizeUpdateEvent(shared.file.getId(), size));
+                                    fileSizeUpdateEvent.onNext(new FileSizeUpdateEvent(shared.file.getId(), size));
                                     files.remove(shared.file.getId()).content.close();
                                 }
                         }
+
+                        return updatedFile;
                     }
                 });
             }

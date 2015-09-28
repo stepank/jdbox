@@ -18,6 +18,7 @@ public class Uploader {
     private static final Logger logger = LoggerFactory.getLogger(Uploader.class);
 
     private final Observer<UploadFailureEvent> uploadFailureEvent;
+    private final Observer<FileEtagUpdateEvent> fileEtagUpdateEvent;
     private final Map<FileId, Queue> queues = new HashMap<>();
     private final List<Future> futures = new LinkedList<>();
 
@@ -25,8 +26,10 @@ public class Uploader {
     private volatile ExecutorService executor;
 
     @Inject
-    public Uploader(Observer<UploadFailureEvent> uploadFailureEvent) {
+    public Uploader(
+            Observer<UploadFailureEvent> uploadFailureEvent, Observer<FileEtagUpdateEvent> fileEtagUpdateEvent) {
         this.uploadFailureEvent = uploadFailureEvent;
+        this.fileEtagUpdateEvent = fileEtagUpdateEvent;
     }
 
     public UploadStatus getCurrentStatus() {
@@ -69,14 +72,12 @@ public class Uploader {
     public synchronized void submit(Task task) {
 
         FileId fileId = task.getFileId();
+        String etag = task.getEtag();
 
-        if (fileId == null)
-            throw new NullPointerException();
-
-        Queue queue = queues.get(task.getFileId());
+        Queue queue = queues.get(fileId);
 
         if (queue == null) {
-            queue = new Queue();
+            queue = new Queue(etag);
             queues.put(fileId, queue);
         }
 
@@ -139,12 +140,13 @@ public class Uploader {
                 this.futures.clear();
             }
 
-            for (Future future : futures)
+            for (Future future : futures) {
                 try {
                     future.get();
                 } catch (ExecutionException e) {
                     throw new AssertionError("an unexpected error occurred while waiting for a task to finish", e);
                 }
+            }
 
         } while (futures.size() > 0);
     }
@@ -221,14 +223,24 @@ public class Uploader {
 
                 logger.debug("starting {}", item.getTask());
 
-                item.getTask().run();
+                Queue queue = item.getQueue();
+
+                String etag = item.getTask().run(queue.getEtag());
+
+                if (etag == null)
+                    throw new AssertionError("etag must not be null");
+
+                queue.setEtag(etag);
 
                 logger.debug("completed {}", item.getTask());
 
                 synchronized (Uploader.this) {
 
-                    if (item.getQueue().removeHead())
-                        queues.remove(item.getTask().getFileId());
+                    if (item.getQueue().removeHead()) {
+                        FileId fileId = item.getTask().getFileId();
+                        queues.remove(fileId);
+                        fileEtagUpdateEvent.onNext(new FileEtagUpdateEvent(fileId, etag));
+                    }
 
                     for (Item dependent : new HashSet<>(item.getDependents())) {
                         if (dependent.removeDependency(item))
@@ -255,6 +267,20 @@ class Queue {
 
     private Item head;
     private Item tail;
+
+    private String etag;
+
+    public Queue(String etag) {
+        this.etag = etag;
+    }
+
+    public String getEtag() {
+        return etag;
+    }
+
+    public void setEtag(String etag) {
+        this.etag = etag;
+    }
 
     public Item getHead() {
         return head;

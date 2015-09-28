@@ -53,7 +53,7 @@ public class DriveAdapter {
         return Lists.transform(
                 drive.files().list()
                         .setQ("'" + file.getId() + "' in parents and trashed = false")
-                        .setFields(File.fields).setMaxResults(1000).execute().getItems(),
+                        .setFields("items(" + File.fields + ")").setMaxResults(1000).execute().getItems(),
                 new Function<com.google.api.services.drive.model.File, File>() {
                     @Override
                     public File apply(com.google.api.services.drive.model.File file) {
@@ -97,30 +97,49 @@ public class DriveAdapter {
 
     public void deleteFile(File file) throws IOException {
 
+        if (file.getEtag() == null)
+            throw new AssertionError("file.etag must not be null");
+
         logger.debug("deleting {}", file);
 
-        drive.files().delete(file.getId()).execute();
+        Drive.Files.Delete request = drive.files().delete(file.getId());
+
+        request.getRequestHeaders().setIfMatch(file.getEtag());
+
+        request.execute();
     }
 
-    public void trashFile(File file) throws IOException {
+    public File trashFile(File file) throws IOException {
+
+        if (file.getEtag() == null)
+            throw new AssertionError("file.etag must not be null");
 
         logger.debug("trashing {}", file);
 
-        drive.files().trash(file.getId()).execute();
+        Drive.Files.Trash request = drive.files().trash(file.getId());
+
+        request.getRequestHeaders().setIfMatch(file.getEtag());
+
+        return new File(request.execute());
     }
 
-    public void updateFile(File file) throws IOException {
+    public File updateFile(File file) throws IOException {
+
+        if (file.getEtag() == null)
+            throw new AssertionError("file.etag must not be null");
 
         logger.debug("updating {}", file);
 
         com.google.api.services.drive.model.File gdFile = file.toGdFile();
 
-        Drive.Files.Patch request = drive.files().patch(file.getId(), gdFile).setFields("");
+        Drive.Files.Patch request = drive.files().patch(file.getId(), gdFile).setFields(File.fields);
 
         if (file.getModifiedDate() != null)
             request.setSetModifiedDate(true);
 
-        request.execute();
+        request.getRequestHeaders().setIfMatch(file.getEtag());
+
+        return new File(request.execute());
     }
 
     public InputStream downloadFileRange(File file, long offset, long length) throws IOException {
@@ -128,7 +147,7 @@ public class DriveAdapter {
         logger.debug("downloading {}, offset {}, length {}", file, offset, length);
 
         if (file.getDownloadUrl() == null)
-            throw new NullPointerException("download url is null");
+            throw new AssertionError("file.etag must not be null");
 
         HttpRequest request = drive.getRequestFactory().buildGetRequest(new GenericUrl(file.getDownloadUrl()));
         request.getHeaders().setRange(String.format("bytes=%s-%s", offset, offset + length - 1));
@@ -164,11 +183,16 @@ public class DriveAdapter {
 
     public File updateFileContent(File file, InputStream content) throws IOException {
 
+        if (file.getEtag() == null)
+            throw new AssertionError("file.etag must not be null");
+
         logger.debug("updating {}", file);
 
         Drive.Files.Update request = drive.files().update(
                 file.getId(), new com.google.api.services.drive.model.File(), new InputStreamContent(null, content));
         request.getMediaHttpUploader().setDirectUploadEnabled(true);
+        request.getRequestHeaders().setIfMatch(file.getEtag());
+
         return new File(request.execute());
     }
 

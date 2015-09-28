@@ -13,9 +13,10 @@ import java.util.TreeSet;
 public class File implements Cloneable {
 
     public static String fields =
-            "items(id,title,mimeType,downloadUrl,fileSize,alternateLink,parents,labels,createdDate,modifiedDate,lastViewedByMeDate)";
+            "id,etag,title,mimeType,downloadUrl,fileSize,alternateLink,parents,labels,createdDate,modifiedDate,lastViewedByMeDate";
 
     private String id;
+    private String etag;
     private String name;
     private boolean isDirectory;
     private long size;
@@ -30,12 +31,12 @@ public class File implements Cloneable {
     private boolean isTrashed;
 
     public File() {
-        this.id = null;
     }
 
     public File(com.google.api.services.drive.model.File file) {
 
         id = file.getId();
+        etag = file.getEtag();
         name = file.getTitle();
         size = file.getFileSize() != null ? file.getFileSize() : 0;
         isDirectory = file.getMimeType().equals("application/vnd.google-apps.folder");
@@ -63,6 +64,14 @@ public class File implements Cloneable {
 
     public void setId(String id) {
         this.id = id;
+    }
+
+    public String getEtag() {
+        return etag;
+    }
+
+    public void setEtag(String etag) {
+        this.etag = etag;
     }
 
     public String getName() {
@@ -181,9 +190,10 @@ public class File implements Cloneable {
     public String toString() {
         return "j.d.File{" +
                 "id=" + id +
-                ", name='" + name + '\'' +
+                ", name=" + (name == null ? "null" : ('\'' + name + '\'')) +
                 ", isDirectory=" + isDirectory +
                 ", size=" + size +
+                ", etag=" + etag +
                 '}';
     }
 }

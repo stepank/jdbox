@@ -1,8 +1,5 @@
 package jdbox.filetree;
 
-import jdbox.utils.LifeCycleManagerResource;
-import jdbox.utils.OrderedRule;
-import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -14,24 +11,7 @@ import static jdbox.utils.TestUtils.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 @Category(FileTree.class)
-public class FileTreeWriteTest extends BaseFileTreeTest {
-
-    @OrderedRule
-    public final LifeCycleManagerResource lifeCycleManager2 =
-            new LifeCycleManagerResource(errorCollector, lifeCycleManager.getModules());
-
-    protected FileTree fileTree2;
-
-    @Before
-    public void setUp() {
-
-        super.setUp();
-
-        fileTree2 = lifeCycleManager2.getInstance(FileTree.class);
-        fileTree2.setRoot(testFolder.getId());
-
-        assertThat(fileTree2, contains().nothing());
-    }
+public class FileTreeWriteTest extends BaseFileTreeWriteTest {
 
     /**
      * Create a file, make sure it appears.

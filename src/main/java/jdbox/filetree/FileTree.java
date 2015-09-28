@@ -12,7 +12,8 @@ import jdbox.models.fileids.FileId;
 import jdbox.models.fileids.FileIdStore;
 import jdbox.openedfiles.FileSizeUpdateEvent;
 import jdbox.openedfiles.OpenedFilesManager;
-import jdbox.uploader.Task;
+import jdbox.uploader.DriveTask;
+import jdbox.uploader.FileEtagUpdateEvent;
 import jdbox.uploader.UploadFailureEvent;
 import jdbox.uploader.Uploader;
 import org.slf4j.Logger;
@@ -42,6 +43,7 @@ public class FileTree {
     private final DriveAdapter drive;
     private final FileIdStore fileIdStore;
     private final rx.Observable<FileSizeUpdateEvent> fileSizeUpdateEvent;
+    private final Observable<FileEtagUpdateEvent> fileEtagUpdateEvent;
     private final rx.Observable<UploadFailureEvent> uploadFailureEvent;
     private final OpenedFilesManager openedFilesManager;
     private final Uploader uploader;
@@ -61,14 +63,14 @@ public class FileTree {
     //      b. Implementing more fine-grained locking would require considerable effort.
     private final ReadWriteLock localStateLock = new ReentrantReadWriteLock();
 
-    // Read lock is acquired on upload operations that require feedback to prevent local state's modifications
-    // that can be introduced by retrieval of data from the cloud. Correctness of order of write operations
-    // is ensured by correctness of order of operations submitted to the Uploader (see above) and the Uploader itself.
-    // Write lock is acquired on any retrieval of data from the cloud to ensure consistent changes to the local state.
-    private final ReadWriteLock syncWithRemoteLock = new ReentrantReadWriteLock();
+    // Read lock is acquired on file creation operations to prevent concurrent creation of the same file id
+    // either by retrieval of the list of files or by retrieval of changes. Write lock is acquired on any retrieval
+    // of data from the cloud to ensure consistent creation of file ids.
+    private final ReadWriteLock fileIdStoreLock = new ReentrantReadWriteLock();
 
     private volatile ScheduledExecutorService scheduler;
     private volatile Subscription fileSizeUpdateEventSubscription;
+    private volatile Subscription fileEtagUpdateEventSubscription;
     private volatile Subscription uploadFailureEventSubscription;
     private volatile long largestChangeId;
 
@@ -105,13 +107,14 @@ public class FileTree {
 
     @Inject
     public FileTree(
-            DriveAdapter drive, FileIdStore fileIdStore,
-            Observable<FileSizeUpdateEvent> fileSizeUpdateEvent, Observable<UploadFailureEvent> uploadFailureEvent,
+            DriveAdapter drive, FileIdStore fileIdStore, Observable<FileSizeUpdateEvent> fileSizeUpdateEvent,
+            Observable<FileEtagUpdateEvent> fileEtagUpdateEvent, Observable<UploadFailureEvent> uploadFailureEvent,
             OpenedFilesManager openedFilesManager, Uploader uploader) {
 
         this.drive = drive;
         this.fileIdStore = fileIdStore;
         this.fileSizeUpdateEvent = fileSizeUpdateEvent;
+        this.fileEtagUpdateEvent = fileEtagUpdateEvent;
         this.uploadFailureEvent = uploadFailureEvent;
         this.openedFilesManager = openedFilesManager;
         this.uploader = uploader;
@@ -141,6 +144,13 @@ public class FileTree {
             @Override
             public void call(FileSizeUpdateEvent event) {
                 updateFileSize(event.fileId, event.fileSize);
+            }
+        });
+
+        fileEtagUpdateEventSubscription = fileEtagUpdateEvent.subscribe(new Action1<FileEtagUpdateEvent>() {
+            @Override
+            public void call(FileEtagUpdateEvent event) {
+                updateFileEtag(event.fileId, event.etag);
             }
         });
 
@@ -180,6 +190,9 @@ public class FileTree {
 
         if (fileSizeUpdateEventSubscription != null)
             fileSizeUpdateEventSubscription.unsubscribe();
+
+        if (fileEtagUpdateEventSubscription != null)
+            fileEtagUpdateEventSubscription.unsubscribe();
 
         if (uploadFailureEventSubscription != null)
             uploadFailureEventSubscription.unsubscribe();
@@ -261,30 +274,20 @@ public class FileTree {
 
             parent.tryAddChild(newFile);
 
-            // While with other types of tasks this conversion may not be important, with create file/dir tasks it is.
-            // By performing this conversion, we capture this file's current parent. Therefore, if the parent changes
-            // to another directory, we will still create this file in the original directory and only then move it to
-            // the new one. Not doing so can lead to a race, consider the following scenario:
-            // 1. Make uplader busy with a lot of work.
-            // 2. Create file F in some dir.
-            // 3. Create dir D.
-            // 4. Move file F to dir D.
-            // Now, if uploader starts working on creation of file F before creation of dir D (which is likely),
-            // the operation will fail because D's id is not known yet.
-            final File file = newFile.toFile();
+            File file = newFile.toFile();
 
             String label = path + ": create " + (isDirectory ? "directory" : "file");
 
-            uploader.submit(new Task(label, file.getId(), parent.getId(), file.isDirectory()) {
+            uploader.submit(new DriveTask(label, file, parent.getId(), file.isDirectory()) {
                 @Override
-                public void run() throws IOException {
+                public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
 
-                    syncWithRemoteLock.readLock().lock();
+                    fileIdStoreLock.readLock().lock();
 
                     try {
 
                         jdbox.driveadapter.File createdFile =
-                                drive.createFile(file.toDaFile(), new ByteArrayInputStream(new byte[0]));
+                                drive.createFile(file, new ByteArrayInputStream(new byte[0]));
 
                         localStateLock.writeLock().lock();
                         try {
@@ -293,8 +296,10 @@ public class FileTree {
                             localStateLock.writeLock().unlock();
                         }
 
+                        return createdFile;
+
                     } finally {
-                        syncWithRemoteLock.readLock().unlock();
+                        fileIdStoreLock.readLock().unlock();
                     }
                 }
             });
@@ -325,14 +330,15 @@ public class FileTree {
 
             existing.setDates(modifiedDate, accessedDate);
 
-            final File file = existing.toFile(EnumSet.of(File.Field.MODIFIED_DATE, File.Field.ACCESSED_DATE));
+            File file = existing.toFile(EnumSet.of(File.Field.MODIFIED_DATE, File.Field.ACCESSED_DATE));
 
-            String label = path + ": set modified date to " + modifiedDate.toString() + " and accessed date to " + accessedDate;
+            String label = path + ": set modified date to " + modifiedDate.toString() +
+                    " and accessed date to " + accessedDate;
 
-            uploader.submit(new Task(label, file.getId()) {
+            uploader.submit(new DriveTask(label, file) {
                 @Override
-                public void run() throws IOException {
-                    drive.updateFile(file.toDaFile());
+                public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
+                    return drive.updateFile(file);
                 }
             });
 
@@ -376,15 +382,15 @@ public class FileTree {
 
             } else {
 
-                final File file = existing.toFile(EnumSet.of(File.Field.PARENT_IDS));
+                File file = existing.toFile(EnumSet.of(File.Field.PARENT_IDS));
 
-                uploader.submit(new Task(path + ": remove file/directory", file.getId()) {
+                uploader.submit(new DriveTask(path + ": remove file/directory", file) {
                     @Override
-                    public void run() throws IOException {
+                    public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
                         if (file.getParentIds().size() == 0)
-                            drive.trashFile(file.toDaFile());
+                            return drive.trashFile(file);
                         else
-                            drive.updateFile(file.toDaFile());
+                            return drive.updateFile(file);
                     }
                 });
             }
@@ -449,12 +455,12 @@ public class FileTree {
                 existing.rename(newFileName.toString());
             }
 
-            final File file = existing.toFile(fields);
+            File file = existing.toFile(fields);
 
-            uploader.submit(new Task(path + ": move/rename to " + newPath, file.getId(), newParentId) {
+            uploader.submit(new DriveTask(path + ": move/rename to " + newPath, file, newParentId) {
                 @Override
-                public void run() throws IOException {
-                    drive.updateFile(file.toDaFile());
+                public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
+                    return drive.updateFile(file);
                 }
             });
 
@@ -484,13 +490,13 @@ public class FileTree {
             localStateLock.readLock().unlock();
         }
 
-        syncWithRemoteLock.writeLock().lock();
+        fileIdStoreLock.writeLock().lock();
         localStateLock.writeLock().lock();
         try {
             return getOrFetchUnsafe(knownFiles.getRoot(), path, fileName, getter);
         } finally {
             localStateLock.writeLock().unlock();
-            syncWithRemoteLock.writeLock().unlock();
+            fileIdStoreLock.writeLock().unlock();
         }
     }
 
@@ -579,6 +585,17 @@ public class FileTree {
         }
     }
 
+    private void updateFileEtag(FileId fileId, String etag) {
+        localStateLock.writeLock().lock();
+        try {
+            KnownFile file = knownFiles.get(fileId);
+            if (file != null)
+                file.setEtag(etag);
+        } finally {
+            localStateLock.writeLock().unlock();
+        }
+    }
+
     private void createOrUpdateUploadFailureNotificationFile(Uploader.UploadStatus uploadStatus) {
 
         localStateLock.writeLock().lock();
@@ -609,7 +626,7 @@ public class FileTree {
         boolean locked = false;
 
         try {
-            locked = syncWithRemoteLock.writeLock().tryLock(5, TimeUnit.SECONDS);
+            locked = fileIdStoreLock.writeLock().tryLock(5, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             logger.debug("lock acquisition has been interrupted", e);
         }
@@ -623,75 +640,84 @@ public class FileTree {
 
             largestChangeId = changes.largestChangeId;
 
+            localStateLock.writeLock().lock();
+
             for (DriveAdapter.Change change : changes.items)
                 tryApplyChange(change);
+
+            localStateLock.writeLock().unlock();
 
         } catch (IOException e) {
             logger.error("an error occured retrieving a list of changes", e);
         } finally {
-            syncWithRemoteLock.writeLock().unlock();
+            fileIdStoreLock.writeLock().unlock();
         }
     }
 
-    private void tryApplyChange(DriveAdapter.Change change) throws IOException {
+    private void tryApplyChange(DriveAdapter.Change change) {
 
-        localStateLock.writeLock().lock();
+        FileId changedFileId = fileIdStore.get(change.fileId);
 
-        try {
+        // Strictly speaking, this is not correct. There is a chance of a race condition here.
+        // Consider the following scenario:
+        // 1. A file is changed locally and is scheduled for upload.
+        // 2. The request for upload is sent to the network.
+        // 3. Google Drive processes the request and sends back the response.
+        // 4. The response gots stuck in the network for a while.
+        // 5. The file is changed in the cloud.
+        // 6. FileTree retrieves changes (both 1 & 5) from the cloud, but does not apply them, because the operation is
+        //    still pending on this file due to 4.
+        // 7. The response gots unstuck and the upload operation is complete, but the changes (including the new etag)
+        //    introduced in 5 will not be visible. Consequently, the next local change to this file will break down
+        //    the uploader.
+        if (uploader.fileIsQueued(changedFileId))
+            return;
 
-            FileId changedFileId = fileIdStore.get(change.fileId);
+        File changedFile = change.file != null ? new File(fileIdStore, change.file) : null;
 
-            if (uploader.fileIsQueued(changedFileId))
-                return;
+        KnownFile currentFile = knownFiles.get(changedFileId);
 
-            File changedFile = change.file != null ? new File(fileIdStore, change.file) : null;
+        if (currentFile == null && changedFile != null && !changedFile.isTrashed()) {
 
-            KnownFile currentFile = knownFiles.get(changedFileId);
+            logger.debug("adding {} to tree", changedFile);
 
-            if (currentFile == null && changedFile != null && !changedFile.isTrashed()) {
+            KnownFile file = knownFiles.create(changedFile);
 
-                logger.debug("adding {} to tree", changedFile);
+            for (FileId parentId : changedFile.getParentIds()) {
+                KnownFile parent = knownFiles.get(parentId);
+                if (parent != null)
+                    parent.tryAddChild(file);
+            }
 
-                KnownFile file = knownFiles.create(changedFile);
+        } else if (currentFile != null && knownFiles.getRoot() != currentFile) {
+
+            if (changedFile == null || changedFile.isTrashed()) {
+
+                logger.debug("removing {} from tree", currentFile);
+
+                for (KnownFile parent : currentFile.getParents())
+                    parent.tryRemoveChild(currentFile);
+
+            } else {
+
+                logger.debug("updating existing file with {}", changedFile);
+
+                currentFile.rename(changedFile.getName());
+                currentFile.update(changedFile);
+
+                logger.debug("ensuring that {} is correctly placed in tree", changedFile);
 
                 for (FileId parentId : changedFile.getParentIds()) {
                     KnownFile parent = knownFiles.get(parentId);
                     if (parent != null)
-                        parent.tryAddChild(file);
+                        parent.tryAddChild(currentFile);
                 }
 
-            } else if (currentFile != null && knownFiles.getRoot() != currentFile) {
-
-                if (changedFile == null || changedFile.isTrashed()) {
-
-                    logger.debug("removing {} from tree", currentFile);
-
-                    for (KnownFile parent : currentFile.getParents())
+                for (KnownFile parent : new HashSet<>(currentFile.getParents())) {
+                    if (!changedFile.getParentIds().contains(parent.getId()))
                         parent.tryRemoveChild(currentFile);
-
-                } else {
-
-                    logger.debug("updating existing file with {}", changedFile);
-
-                    currentFile.rename(changedFile.getName());
-                    currentFile.update(changedFile);
-
-                    logger.debug("ensuring that {} is correctly placed in tree", changedFile);
-
-                    for (FileId parentId : changedFile.getParentIds()) {
-                        KnownFile parent = knownFiles.get(parentId);
-                        if (parent != null)
-                            parent.tryAddChild(currentFile);
-                    }
-
-                    for (KnownFile parent : new HashSet<>(currentFile.getParents())) {
-                        if (!changedFile.getParentIds().contains(parent.getId()))
-                            parent.tryRemoveChild(currentFile);
-                    }
                 }
             }
-        } finally {
-            localStateLock.writeLock().unlock();
         }
     }
 
