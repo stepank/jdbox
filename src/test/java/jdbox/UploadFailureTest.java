@@ -5,7 +5,7 @@ import jdbox.driveadapter.DriveAdapter;
 import jdbox.driveadapter.File;
 import jdbox.filetree.FileTree;
 import jdbox.filetree.FileTreeModule;
-import jdbox.openedfiles.LocalStorage;
+import jdbox.openedfiles.OpenedFiles;
 import jdbox.openedfiles.OpenedFilesModule;
 import jdbox.uploader.Uploader;
 import jdbox.uploader.UploaderModule;
@@ -122,7 +122,7 @@ public class UploadFailureTest extends BaseMountFileSystemTest {
         logger.debug("check that the local state is empty");
         assertThat(lifeCycleManager.getInstance(FileTree.class).getKnownFileCount(), equalTo(1));
         assertThat(lifeCycleManager.getInstance(FileTree.class).getTrackedDirCount(), equalTo(0));
-        assertThat(lifeCycleManager.getInstance(LocalStorage.class).getFilesCount(), equalTo(0));
+        assertThat(lifeCycleManager.getInstance(OpenedFiles.class).getLocalFilesCount(), equalTo(0));
         assertThat(lifeCycleManager.getInstance(Uploader.class).getQueueCount(), equalTo(0));
 
         logger.debug("repair the DriveAdapter");
@@ -142,7 +142,7 @@ public class UploadFailureTest extends BaseMountFileSystemTest {
 
         logger.debug("reset local state");
         lifeCycleManager.getInstance(FileTree.class).reset();
-        lifeCycleManager.getInstance(LocalStorage.class).reset();
+        lifeCycleManager.getInstance(OpenedFiles.class).reset();
         lifeCycleManager.getInstance(Uploader.class).reset();
 
         logger.debug("check that the first created file is present and has the new content");

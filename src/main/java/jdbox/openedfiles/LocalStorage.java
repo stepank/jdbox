@@ -15,7 +15,7 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 
-public class LocalStorage {
+class LocalStorage {
 
     private static final Logger logger = LoggerFactory.getLogger(LocalStorage.class);
 

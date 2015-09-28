@@ -3,7 +3,6 @@ package jdbox.filetree;
 import com.google.inject.Module;
 import jdbox.BaseTest;
 import jdbox.driveadapter.DriveAdapter;
-import jdbox.driveadapter.DriveAdapterModule;
 import jdbox.driveadapter.File;
 import jdbox.uploader.UploaderModule;
 import jdbox.utils.*;
@@ -30,7 +29,8 @@ public class BaseFileTreeTest extends BaseTest {
     public final TestFolderProvider testFolderProvider = new TestFolderProvider(errorCollector, lifeCycleManager);
 
     @OrderedRule(2)
-    public final TestFolderIsolation testFolderIsolation = new TestFolderIsolation(lifeCycleManager, testFolderProvider);
+    public final TestFolderIsolation testFolderIsolation =
+            new TestFolderIsolation(lifeCycleManager, testFolderProvider);
 
     protected DriveAdapter drive;
     protected FileTree fileTree;

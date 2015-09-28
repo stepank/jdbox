@@ -4,7 +4,7 @@ import com.google.inject.Module;
 import jdbox.CommonModule;
 import jdbox.modules.LifeCycleManager;
 import jdbox.modules.MultipleException;
-import jdbox.openedfiles.LocalStorage;
+import jdbox.openedfiles.OpenedFiles;
 import jdbox.uploader.Uploader;
 import org.junit.rules.ErrorCollector;
 import org.junit.rules.ExternalResource;
@@ -66,7 +66,7 @@ public class LifeCycleManagerResource extends ExternalResource {
     public void waitUntilLocalStorageIsEmpty() throws InterruptedException {
         waitUntilUploaderIsDone();
         Date start = new Date();
-        while (getInstance(LocalStorage.class).getFilesCount() != 0) {
+        while (getInstance(OpenedFiles.class).getLocalFilesCount() != 0) {
             Thread.sleep(100);
             assertThat(new Date().getTime() - start.getTime(), lessThan((long) 5000));
         }

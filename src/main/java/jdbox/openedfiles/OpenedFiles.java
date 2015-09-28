@@ -52,6 +52,10 @@ public class OpenedFiles implements OpenedFilesManager {
         this.config = config;
     }
 
+    public int getLocalFilesCount() {
+        return localStorage.getFilesCount();
+    }
+
     @Override
     public synchronized int getOpenedFilesCount() {
         return fileHandlers.size();
