@@ -66,7 +66,7 @@ public class FileTree {
     // Read lock is acquired on file creation operations to prevent concurrent creation of the same file id
     // either by retrieval of the list of files or by retrieval of changes. Write lock is acquired on any retrieval
     // of data from the cloud to ensure consistent creation of file ids.
-    private final ReadWriteLock fileIdStoreLock = new ReentrantReadWriteLock();
+    private final ReadWriteLock fileIdStoreLock = new ReentrantReadWriteLock(true);
 
     private volatile ScheduledExecutorService scheduler;
     private volatile Subscription fileSizeUpdateEventSubscription;

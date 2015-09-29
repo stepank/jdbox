@@ -52,7 +52,6 @@ public class Uploader {
 
         if (executor != null) {
             executor.shutdown();
-            executor.shutdown();
             executor.awaitTermination(5, TimeUnit.SECONDS);
             executor = null;
         }
