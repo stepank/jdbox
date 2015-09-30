@@ -147,7 +147,7 @@ public class DriveAdapter {
         logger.debug("downloading {}, offset {}, length {}", file, offset, length);
 
         if (file.getDownloadUrl() == null)
-            throw new AssertionError("file.etag must not be null");
+            throw new AssertionError("file.downloadUrl must not be null");
 
         HttpRequest request = drive.getRequestFactory().buildGetRequest(new GenericUrl(file.getDownloadUrl()));
         request.getHeaders().setRange(String.format("bytes=%s-%s", offset, offset + length - 1));

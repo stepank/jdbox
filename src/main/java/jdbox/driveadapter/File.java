@@ -10,7 +10,7 @@ import java.util.LinkedList;
 import java.util.Set;
 import java.util.TreeSet;
 
-public class File implements Cloneable {
+public class File {
 
     public static String fields =
             "id,etag,title,mimeType,downloadUrl,fileSize,alternateLink,parents,labels,createdDate,modifiedDate,lastViewedByMeDate";
@@ -26,9 +26,8 @@ public class File implements Cloneable {
     private Date modifiedDate;
     private Date accessedDate;
     private String mimeType;
-    private Set<String> parentIds;
-
     private boolean isTrashed;
+    private Set<String> parentIds;
 
     public File() {
     }
@@ -46,6 +45,7 @@ public class File implements Cloneable {
         modifiedDate = file.getModifiedDate() != null ? new Date(file.getModifiedDate().getValue()) : null;
         accessedDate = file.getLastViewedByMeDate() != null ? new Date(file.getLastViewedByMeDate().getValue()) : null;
         mimeType = file.getMimeType();
+        isTrashed = file.getLabels().getTrashed();
 
         parentIds = new TreeSet<>(
                 Collections2.transform(file.getParents(), new Function<ParentReference, String>() {
@@ -54,8 +54,6 @@ public class File implements Cloneable {
                         return parentReference.getId();
                     }
                 }));
-
-        isTrashed = file.getLabels().getTrashed();
     }
 
     public String getId() {
@@ -138,6 +136,10 @@ public class File implements Cloneable {
         return mimeType;
     }
 
+    public boolean isTrashed() {
+        return isTrashed;
+    }
+
     public Set<String> getParentIds() {
         return parentIds;
     }
@@ -148,17 +150,17 @@ public class File implements Cloneable {
     }
 
     public void setParentIds(Set<String> parentIds) {
+        if (parentIds == null || parentIds.size() == 0)
+            throw new IllegalArgumentException("parentIds must not be empty");
         this.parentIds = parentIds;
-    }
-
-    public boolean isTrashed() {
-        return isTrashed;
     }
 
     public com.google.api.services.drive.model.File toGdFile() {
 
-        com.google.api.services.drive.model.File file =
-                new com.google.api.services.drive.model.File().setTitle(getName());
+        com.google.api.services.drive.model.File file = new com.google.api.services.drive.model.File();
+
+        if (getName() != null)
+            file.setTitle(getName());
 
         if (isDirectory())
             file.setMimeType("application/vnd.google-apps.folder");
@@ -174,9 +176,9 @@ public class File implements Cloneable {
         if (getAccessedDate() != null)
             file.setLastViewedByMeDate(new DateTime(getAccessedDate()));
 
-        if (getParentIds() != null && getParentIds().size() > 0)
-            file.setParents(new LinkedList<>(
-                    Collections2.transform(getParentIds(), new Function<String, ParentReference>() {
+        if (getParentIds() != null)
+            file.setParents(
+                    new LinkedList<>(Collections2.transform(getParentIds(), new Function<String, ParentReference>() {
                         @Override
                         public ParentReference apply(String parentId) {
                             return new ParentReference().setId(parentId);

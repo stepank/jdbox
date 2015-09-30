@@ -2,6 +2,7 @@ package jdbox.models;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Collections2;
+import jdbox.driveadapter.Field;
 import jdbox.models.fileids.FileId;
 import jdbox.models.fileids.FileIdStore;
 
@@ -11,15 +12,6 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class File implements Cloneable {
-
-    public enum Field {
-        NAME,
-        SIZE,
-        CREATED_DATE,
-        MODIFIED_DATE,
-        ACCESSED_DATE,
-        PARENT_IDS
-    }
 
     private final FileId id;
 
@@ -33,8 +25,8 @@ public class File implements Cloneable {
     private Date modifiedDate;
     private Date accessedDate;
     private String mimeType;
-    private Set<FileId> parentIds;
     private boolean isTrashed;
+    private Set<FileId> parentIds = new HashSet<>();
 
     public File() {
         this.id = null;
@@ -61,15 +53,14 @@ public class File implements Cloneable {
         modifiedDate = file.getModifiedDate();
         accessedDate = file.getAccessedDate();
         mimeType = file.getMimeType();
+        isTrashed = file.isTrashed();
 
-        parentIds = new HashSet<>(Collections2.transform(file.getParentIds(), new Function<String, FileId>() {
+        parentIds.addAll(Collections2.transform(file.getParentIds(), new Function<String, FileId>() {
             @Override
             public FileId apply(String parentId) {
                 return fileIdStore.get(parentId);
             }
         }));
-
-        isTrashed = file.isTrashed();
     }
 
     public FileId getId() {
@@ -148,34 +139,53 @@ public class File implements Cloneable {
         return mimeType;
     }
 
+    public boolean isTrashed() {
+        return isTrashed;
+    }
+
     public Set<FileId> getParentIds() {
         return parentIds;
     }
 
     public void setParentIds(Set<FileId> parentIds) {
+        if (parentIds == null)
+            throw new IllegalArgumentException("parentIds must not be empty");
         this.parentIds = parentIds;
     }
 
-    public boolean isTrashed() {
-        return isTrashed;
+    public jdbox.driveadapter.File toDaFile() {
+        return toDaFile(EnumSet.noneOf(Field.class));
     }
 
-    public jdbox.driveadapter.File toDaFile() {
+    public jdbox.driveadapter.File toDaFile(EnumSet<Field> fields) {
 
         jdbox.driveadapter.File file = new jdbox.driveadapter.File();
 
         if (id.isSet())
             file.setId(id.get());
 
-        file.setName(getName());
-        file.setIsDirectory(isDirectory());
-        file.setSize(getSize());
-        file.setDownloadUrl(getDownloadUrl());
-        file.setCreatedDate(getCreatedDate());
-        file.setModifiedDate(getModifiedDate());
-        file.setAccessedDate(getAccessedDate());
+        if (fields.contains(Field.NAME))
+            file.setName(getName());
 
-        if (getParentIds() != null)
+        if (fields.contains(Field.IS_DIRECTORY))
+            file.setIsDirectory(isDirectory());
+
+        if (fields.contains(Field.SIZE))
+            file.setSize(getSize());
+
+        if (fields.contains(Field.CREATED_DATE))
+            file.setCreatedDate(getCreatedDate());
+
+        if (fields.contains(Field.MODIFIED_DATE))
+            file.setModifiedDate(getModifiedDate());
+
+        if (fields.contains(Field.ACCESSED_DATE))
+            file.setAccessedDate(getAccessedDate());
+
+        if (fields.contains(Field.DOWNLOAD_URL))
+            file.setDownloadUrl(getDownloadUrl());
+
+        if (fields.contains(Field.PARENT_IDS))
             file.setParentIds(new HashSet<>(
                     Collections2.transform(getParentIds(), new Function<FileId, String>() {
                         @Override
@@ -191,42 +201,20 @@ public class File implements Cloneable {
     public File clone() {
         try {
             File clone = (File) super.clone();
-            if (getParentIds() != null)
-                clone.setParentIds(new HashSet<>(getParentIds()));
+            clone.setParentIds(new HashSet<>(getParentIds()));
             return clone;
         } catch (CloneNotSupportedException e) {
             throw new RuntimeException(e);
         }
     }
 
-    public File clone(EnumSet<Field> fields) {
-        File file = new File(getId());
-        file.update(this, fields);
-        return file;
-    }
-
-    public void update(File file, EnumSet<Field> fields) {
-
+    public void update(File file) {
         setIsDirectory(file.isDirectory());
         setEtag(file.getEtag());
-
-        if (fields.contains(Field.NAME))
-            setName(file.getName());
-
-        if (fields.contains(Field.SIZE))
-            setSize(file.getSize());
-
-        if (fields.contains(Field.CREATED_DATE))
-            setCreatedDate(file.getCreatedDate());
-
-        if (fields.contains(Field.MODIFIED_DATE))
-            setModifiedDate(file.getModifiedDate());
-
-        if (fields.contains(Field.ACCESSED_DATE))
-            setAccessedDate(file.getAccessedDate());
-
-        if (fields.contains(Field.PARENT_IDS) && file.getParentIds() != null)
-            setParentIds(new HashSet<>(file.getParentIds()));
+        setSize(file.getSize());
+        setCreatedDate(file.getCreatedDate());
+        setModifiedDate(file.getModifiedDate());
+        setAccessedDate(file.getAccessedDate());
     }
 
     @Override
@@ -236,6 +224,7 @@ public class File implements Cloneable {
                 ", name=" + (name == null ? "null" : ('\'' + name + '\'')) +
                 ", isDirectory=" + isDirectory +
                 ", size=" + size +
+                ", parents=" + parentIds.size() +
                 ", etag=" + etag +
                 '}';
     }

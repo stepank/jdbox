@@ -8,7 +8,6 @@ import org.junit.experimental.categories.Category;
 import static jdbox.filetree.FileTreeMatcher.contains;
 import static org.hamcrest.MatcherAssert.assertThat;
 
-@Category(FileTree.class)
 public class BaseFileTreeWriteTest extends BaseFileTreeTest {
 
     @OrderedRule

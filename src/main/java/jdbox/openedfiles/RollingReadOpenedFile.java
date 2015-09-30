@@ -2,12 +2,14 @@ package jdbox.openedfiles;
 
 import com.google.inject.Inject;
 import jdbox.driveadapter.DriveAdapter;
+import jdbox.driveadapter.Field;
 import jdbox.models.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -35,7 +37,7 @@ class RollingReadOpenedFile implements ByteStore {
             File file, DriveAdapter drive, StreamCachingByteSourceFactory readerFactory,
             int minPageSize, int maxPageSize, Executor executor) {
         this.file = file;
-        this.daFile = file.toDaFile();
+        this.daFile = file.toDaFile(EnumSet.of(Field.DOWNLOAD_URL));
         this.drive = drive;
         this.readerFactory = readerFactory;
         this.minPageSize = minPageSize;

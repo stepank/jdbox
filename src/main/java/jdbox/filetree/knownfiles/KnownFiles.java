@@ -23,7 +23,7 @@ public class KnownFiles {
     public void setRoot(FileId rootId) {
         if (root != null)
             entries.clear();
-        root = new KnownFile(rootId, true, this);
+        root = new KnownFile(rootId, "{root}", true, null, this);
         put(root);
     }
 

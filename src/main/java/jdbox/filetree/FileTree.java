@@ -5,6 +5,7 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableList;
 import com.google.inject.Inject;
 import jdbox.driveadapter.DriveAdapter;
+import jdbox.driveadapter.Field;
 import jdbox.filetree.knownfiles.KnownFile;
 import jdbox.filetree.knownfiles.KnownFiles;
 import jdbox.models.File;
@@ -276,9 +277,9 @@ public class FileTree {
 
             File file = newFile.toFile();
 
-            String label = path + ": create " + (isDirectory ? "directory" : "file");
-
-            uploader.submit(new DriveTask(label, file, parent.getId(), file.isDirectory()) {
+            uploader.submit(new DriveTask(
+                    path + ": create " + (isDirectory ? "directory" : "file"),
+                    file, EnumSet.allOf(Field.class), parent.getId(), isDirectory) {
                 @Override
                 public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
 
@@ -330,12 +331,9 @@ public class FileTree {
 
             existing.setDates(modifiedDate, accessedDate);
 
-            File file = existing.toFile(EnumSet.of(File.Field.MODIFIED_DATE, File.Field.ACCESSED_DATE));
-
-            String label = path + ": set modified date to " + modifiedDate.toString() +
-                    " and accessed date to " + accessedDate;
-
-            uploader.submit(new DriveTask(label, file) {
+            uploader.submit(new DriveTask(
+                    path + ": set modified to " + modifiedDate.toString() + " and accessed to " + accessedDate,
+                    existing.toFile(), EnumSet.of(Field.MODIFIED_DATE, Field.ACCESSED_DATE)) {
                 @Override
                 public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
                     return drive.updateFile(file);
@@ -382,17 +380,30 @@ public class FileTree {
 
             } else {
 
-                File file = existing.toFile(EnumSet.of(File.Field.PARENT_IDS));
+                File file = existing.toFile();
 
-                uploader.submit(new DriveTask(path + ": remove file/directory", file) {
-                    @Override
-                    public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
-                        if (file.getParentIds().size() == 0)
+                if (file.getParentIds().size() == 0) {
+
+                    uploader.submit(new DriveTask(
+                            path + ": remove file/directory completely",
+                            file, EnumSet.noneOf(Field.class)) {
+                        @Override
+                        public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
                             return drive.trashFile(file);
-                        else
+                        }
+                    });
+
+                } else {
+
+                    uploader.submit(new DriveTask(
+                            path + ": remove file/directory from " + path.getParent(),
+                            file, EnumSet.of(Field.PARENT_IDS)) {
+                        @Override
+                        public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
                             return drive.updateFile(file);
-                    }
-                });
+                        }
+                    });
+                }
             }
 
         } finally {
@@ -436,13 +447,13 @@ public class FileTree {
             if (getOrNullUnsafe(newParent, newFileName) != null)
                 throw new FileAlreadyExistsException(newPath);
 
-            EnumSet<File.Field> fields = EnumSet.noneOf(File.Field.class);
+            EnumSet<Field> fields = EnumSet.noneOf(Field.class);
 
             FileId newParentId = null;
 
             if (!parentPath.equals(newParentPath)) {
 
-                fields.add(File.Field.PARENT_IDS);
+                fields.add(Field.PARENT_IDS);
 
                 newParent.tryAddChild(existing);
                 parent.tryRemoveChild(existing);
@@ -451,13 +462,12 @@ public class FileTree {
             }
 
             if (!fileName.equals(newFileName)) {
-                fields.add(File.Field.NAME);
+                fields.add(Field.NAME);
                 existing.rename(newFileName.toString());
             }
 
-            File file = existing.toFile(fields);
-
-            uploader.submit(new DriveTask(path + ": move/rename to " + newPath, file, newParentId) {
+            uploader.submit(new DriveTask(
+                    path + ": move/rename to " + newPath, existing.toFile(), fields, newParentId) {
                 @Override
                 public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
                     return drive.updateFile(file);

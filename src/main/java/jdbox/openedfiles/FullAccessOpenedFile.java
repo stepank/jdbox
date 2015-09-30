@@ -2,6 +2,7 @@ package jdbox.openedfiles;
 
 import com.google.inject.Inject;
 import jdbox.driveadapter.DriveAdapter;
+import jdbox.driveadapter.Field;
 import jdbox.models.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.EnumSet;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 
@@ -116,8 +118,10 @@ class FullAccessOpenedFileFactory implements ByteStoreFactory {
 
     @Override
     public synchronized ByteStore create(File file) {
-        Future<InputStream> stream = file.getId().isSet() && file.getSize() > 0 ?
-                drive.downloadFileRangeAsync(file.toDaFile(), 0, file.getSize(), executor) : null;
+        Future<InputStream> stream = null;
+        if (file.getId().isSet() && file.getSize() > 0)
+            stream = drive.downloadFileRangeAsync(
+                    file.toDaFile(EnumSet.of(Field.DOWNLOAD_URL)), 0, file.getSize(), executor);
         return new FullAccessOpenedFile(tempStoreFactory.create(), stream, readerFactory);
     }
 }

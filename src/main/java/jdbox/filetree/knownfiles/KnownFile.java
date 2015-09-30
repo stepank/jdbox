@@ -8,6 +8,8 @@ import java.util.*;
 
 /**
  * This class is not thread safe, all synchronization should be done externally.
+ * This class wraps j.m.File by making a copy of it or by creating a new instance and must not allow this new instance
+ * to leak anywhere.
  */
 public class KnownFile {
 
@@ -29,21 +31,12 @@ public class KnownFile {
 
     private final KnownFiles knownFiles;
 
-    KnownFile(FileId fileId, boolean isDirectory, KnownFiles knownFiles) {
-
-        self = new File(fileId);
-        self.setIsDirectory(isDirectory);
-
-        this.knownFiles = knownFiles;
-    }
-
     KnownFile(FileId fileId, String name, boolean isDirectory, Date createdDate, KnownFiles knownFiles) {
 
         self = new File(fileId);
         self.setName(name);
         self.setIsDirectory(isDirectory);
         self.setCreatedDate(createdDate);
-        self.setParentIds(new HashSet<FileId>());
 
         this.knownFiles = knownFiles;
     }
@@ -159,18 +152,11 @@ public class KnownFile {
     }
 
     public void update(File file) {
-        EnumSet<File.Field> fields = EnumSet.allOf(File.Field.class);
-        fields.remove(File.Field.NAME);
-        fields.remove(File.Field.PARENT_IDS);
-        self.update(file, fields);
+        self.update(file);
     }
 
     public File toFile() {
         return self.clone();
-    }
-
-    public File toFile(EnumSet<File.Field> fields) {
-        return self.clone(fields);
     }
 
     private void tryRemoveChild(KnownFile child, boolean cleanUp) {

@@ -1,28 +1,32 @@
 package jdbox.uploader;
 
+import jdbox.driveadapter.Field;
 import jdbox.models.File;
 import jdbox.models.fileids.FileId;
 
 import java.io.IOException;
+import java.util.EnumSet;
 
 public abstract class DriveTask implements Task {
 
     private final String label;
     private final File file;
+    private final EnumSet<Field> fields;
     private final FileId dependsOn;
     private final boolean blocksDependentTasks;
 
-    public DriveTask(String label, File file) {
-        this(label, file, null);
+    public DriveTask(String label, File file, EnumSet<Field> fields) {
+        this(label, file, fields, null);
     }
 
-    public DriveTask(String label, File file, FileId dependsOn) {
-        this(label, file, dependsOn, false);
+    public DriveTask(String label, File file, EnumSet<Field> fields, FileId dependsOn) {
+        this(label, file, fields, dependsOn, false);
     }
 
-    public DriveTask(String label, File file, FileId dependsOn, boolean blocksDependentTasks) {
+    public DriveTask(String label, File file, EnumSet<Field> fields, FileId dependsOn, boolean blocksDependentTasks) {
         this.label = label;
         this.file = file;
+        this.fields = fields;
         this.dependsOn = dependsOn;
         this.blocksDependentTasks = blocksDependentTasks;
     }
@@ -60,7 +64,7 @@ public abstract class DriveTask implements Task {
      */
     @Override
     public String run(String etag) throws IOException {
-        jdbox.driveadapter.File file = this.file.toDaFile();
+        jdbox.driveadapter.File file = this.file.toDaFile(fields);
         file.setEtag(etag);
         return run(file).getEtag();
     }

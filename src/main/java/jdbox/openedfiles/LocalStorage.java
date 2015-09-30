@@ -2,6 +2,7 @@ package jdbox.openedfiles;
 
 import com.google.inject.Inject;
 import jdbox.driveadapter.DriveAdapter;
+import jdbox.driveadapter.Field;
 import jdbox.models.File;
 import jdbox.models.fileids.FileId;
 import jdbox.uploader.DriveTask;
@@ -12,6 +13,7 @@ import rx.Observer;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -172,7 +174,7 @@ class LocalStorage {
 
                 String label = shared.file.getName() + ": update content, content length is " + size;
 
-                uploader.submit(new DriveTask(label, shared.file) {
+                uploader.submit(new DriveTask(label, shared.file, EnumSet.noneOf(Field.class)) {
                     @Override
                     public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
 

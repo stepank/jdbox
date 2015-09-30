@@ -53,6 +53,7 @@ class FileTreeMatcher extends TypeSafeMatcher<FileTree> {
             return true;
 
         } catch (Exception e) {
+            e.printStackTrace();
             return false;
         }
     }
