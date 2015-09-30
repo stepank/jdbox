@@ -15,7 +15,7 @@ import java.util.Random;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-@Category(RollingReadOpenedFile.class)
+@Category({RollingReadOpenedFile.class, OpenedFiles.class})
 public class RollingReadOpenedFileFuzzyTest extends BaseRollingReadOpenedFileTest {
 
     private static final Logger logger = LoggerFactory.getLogger(RollingReadOpenedFileFuzzyTest.class);

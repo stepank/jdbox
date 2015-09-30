@@ -3,7 +3,6 @@ package jdbox.filetree;
 import jdbox.utils.LifeCycleManagerResource;
 import jdbox.utils.OrderedRule;
 import org.junit.Before;
-import org.junit.experimental.categories.Category;
 
 import static jdbox.filetree.FileTreeMatcher.contains;
 import static org.hamcrest.MatcherAssert.assertThat;

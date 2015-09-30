@@ -15,7 +15,7 @@ import java.util.Collection;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-@Category(RollingReadOpenedFile.class)
+@Category({RollingReadOpenedFile.class, OpenedFiles.class})
 @RunWith(Parameterized.class)
 public class RollingReadOpenedFileStableTest extends BaseRollingReadOpenedFileTest {
 

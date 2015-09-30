@@ -1,6 +1,7 @@
 package jdbox.openedfiles;
 
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
@@ -12,6 +13,7 @@ import java.util.Collection;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 
+@Category(OpenedFiles.class)
 @RunWith(Parameterized.class)
 public class ByteSourcesCopyTest {
 

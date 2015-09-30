@@ -14,7 +14,7 @@ import java.util.Random;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-@Category(FullAccessOpenedFile.class)
+@Category({FullAccessOpenedFile.class, OpenedFiles.class})
 public class FullAccessOpenedFileMiscTest extends BaseFullAccessOpenedFileTest {
 
     private static final Logger logger = LoggerFactory.getLogger(FullAccessOpenedFileMiscTest.class);
