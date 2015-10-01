@@ -1,5 +1,7 @@
 package jdbox;
 
+import com.google.api.client.googleapis.testing.json.GoogleJsonResponseExceptionFactoryTesting;
+import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.inject.Module;
 import jdbox.driveadapter.DriveAdapter;
 import jdbox.driveadapter.File;
@@ -44,7 +46,7 @@ public class UploadFailureTest extends BaseMountFileSystemTest {
         }};
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void fullFlow() throws InterruptedException, IOException {
 
         DriveAdapter drive = lifeCycleManager.getInstance(DriveAdapter.class);
@@ -62,7 +64,8 @@ public class UploadFailureTest extends BaseMountFileSystemTest {
         lifeCycleManager.waitUntilUploaderIsDone();
 
         logger.debug("make the DriveAdapter throw exceptions on content update");
-        doThrow(new IOException("something bad happened"))
+        doThrow(GoogleJsonResponseExceptionFactoryTesting
+                .newMock(JacksonFactory.getDefaultInstance(), 412, "Precondition failed"))
                 .when(drive).updateFileContent((File) notNull(), (InputStream) notNull());
 
         logger.debug("write some data to another file");
@@ -86,10 +89,11 @@ public class UploadFailureTest extends BaseMountFileSystemTest {
         logger.debug("check its content");
         String content = new String(Files.readAllBytes(mountPoint.resolve(uploadNotificationFilePath)));
         assertThat(content.indexOf("Upload is broken"), greaterThanOrEqualTo(0));
-        assertThat(content.indexOf("something bad happened"), greaterThanOrEqualTo(0));
+        assertThat(content.indexOf("412"), greaterThanOrEqualTo(0));
+        assertThat(content.indexOf("Precondition failed"), greaterThanOrEqualTo(0));
         assertThat(content.indexOf("test2.txt"), greaterThanOrEqualTo(0));
 
-        logger.debug("wait do the clock to advance a little");
+        logger.debug("wait for the clock to advance a little");
         Thread.sleep(2000);
 
         logger.debug("upload some more data to another file");
@@ -111,7 +115,8 @@ public class UploadFailureTest extends BaseMountFileSystemTest {
         logger.debug("check its content again");
         content = new String(Files.readAllBytes(mountPoint.resolve(uploadNotificationFilePath)));
         assertThat(content.indexOf("Upload is broken"), greaterThanOrEqualTo(0));
-        assertThat(content.indexOf("something bad happened"), greaterThanOrEqualTo(0));
+        assertThat(content.indexOf("412"), greaterThanOrEqualTo(0));
+        assertThat(content.indexOf("Precondition failed"), greaterThanOrEqualTo(0));
         assertThat(content.indexOf("test2.txt"), greaterThanOrEqualTo(0));
         assertThat(content.indexOf("test3.txt"), greaterThanOrEqualTo(0));
 

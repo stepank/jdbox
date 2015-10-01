@@ -11,7 +11,9 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -127,7 +129,7 @@ public class UploaderTest extends BaseTest {
         Date start = new Date();
 
         for (int i = 1; i <= 4; i++) {
-            uploader.submit(taskFactory.create(i, Integer.toString(i), null, false, new Runnable() {
+            uploader.submit(taskFactory.create(i, Integer.toString(i), null, false, new IORunnable() {
                 @Override
                 public void run() {
                     try {
@@ -146,6 +148,30 @@ public class UploaderTest extends BaseTest {
         logger.debug("time spent to run all the tasks is {} ms", elapsed);
 
         assertThat(elapsed, lessThan(3000));
+    }
+
+    @Test
+    public void retries() throws InterruptedException {
+
+        Date start = new Date();
+
+        final AtomicInteger counter = new AtomicInteger();
+
+        uploader.submit(taskFactory.create(0, "0", null, false, new IORunnable() {
+            @Override
+            public void run() throws IOException {
+                if (counter.getAndIncrement() == 0)
+                    throw new IOException("something bad happened");
+            }
+        }));
+
+        uploader.waitUntilIsDone();
+
+        int elapsed = (int) (new Date().getTime() - start.getTime());
+
+        logger.debug("time spent to run the tasks is {} ms", elapsed);
+
+        assertThat(elapsed, allOf(greaterThan(1000), lessThan(2200)));
     }
 }
 
@@ -176,7 +202,7 @@ class TestTaskFactory {
     }
 
     public Task create(
-            Integer label, String fileId, String dependsOn, boolean blocksDependentTasks, Runnable runnable) {
+            Integer label, String fileId, String dependsOn, boolean blocksDependentTasks, IORunnable runnable) {
         labels.add(label);
         return new TestTask(
                 label, fileIdStore.get(fileId), dependsOn != null ? fileIdStore.get(dependsOn) : null,
@@ -190,12 +216,12 @@ class TestTask implements Task {
     private final FileId fileId;
     private final FileId dependsOn;
     private final boolean blocksDependentTasks;
-    private final Runnable runnable;
+    private final IORunnable runnable;
     private final List<Integer> order;
 
     public TestTask(
             Integer label, FileId fileId, FileId dependsOn,
-            boolean blocksDependentTasks, Runnable runnable, List<Integer> order) {
+            boolean blocksDependentTasks, IORunnable runnable, List<Integer> order) {
         this.label = label;
         this.fileId = fileId;
         this.dependsOn = dependsOn;
@@ -230,12 +256,16 @@ class TestTask implements Task {
     }
 
     @Override
-    public String run(String etag) {
+    public String run(String etag) throws IOException {
+        if (runnable != null)
+            runnable.run();
         synchronized (order) {
             order.add(label);
         }
-        if (runnable != null)
-            runnable.run();
         return "does not matter";
     }
+}
+
+interface IORunnable {
+    void run() throws IOException;
 }

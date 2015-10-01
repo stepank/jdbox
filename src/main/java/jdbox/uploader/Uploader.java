@@ -1,11 +1,13 @@
 package jdbox.uploader;
 
+import com.google.api.client.http.HttpResponseException;
 import com.google.inject.Inject;
 import jdbox.models.fileids.FileId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rx.Observer;
 
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.*;
@@ -218,41 +220,70 @@ public class Uploader {
         @Override
         public void run() {
 
-            try {
+            int delay = 1;
+            Random random = new Random();
 
-                logger.debug("starting {}", item.getTask());
+            while (true) {
 
-                Queue queue = item.getQueue();
+                try {
 
-                String etag = item.getTask().run(queue.getEtag());
+                    logger.debug("starting {}", item.getTask());
 
-                if (etag == null)
-                    throw new AssertionError("etag must not be null");
+                    Queue queue = item.getQueue();
 
-                queue.setEtag(etag);
+                    String etag = item.getTask().run(queue.getEtag());
 
-                logger.debug("completed {}", item.getTask());
+                    if (etag == null)
+                        throw new AssertionError("etag must not be null");
 
-                synchronized (Uploader.this) {
+                    queue.setEtag(etag);
 
-                    if (item.getQueue().removeHead()) {
-                        FileId fileId = item.getTask().getFileId();
-                        queues.remove(fileId);
-                        fileEtagUpdateEvent.onNext(new FileEtagUpdateEvent(fileId, etag));
+                    logger.debug("completed {}", item.getTask());
+
+                    synchronized (Uploader.this) {
+
+                        if (item.getQueue().removeHead()) {
+                            FileId fileId = item.getTask().getFileId();
+                            queues.remove(fileId);
+                            fileEtagUpdateEvent.onNext(new FileEtagUpdateEvent(fileId, etag));
+                        }
+
+                        for (Item dependent : new HashSet<>(item.getDependents())) {
+                            if (dependent.removeDependency(item))
+                                trySubmitToExecutor(dependent);
+                        }
                     }
 
-                    for (Item dependent : new HashSet<>(item.getDependents())) {
-                        if (dependent.removeDependency(item))
-                            trySubmitToExecutor(dependent);
+                    return;
+
+                } catch (IOException e) {
+
+                    logger.error("an error occured while executing {}", item.getTask(), e);
+
+                    if (e instanceof HttpResponseException && ((HttpResponseException) e).getStatusCode() == 412) {
+
+                        synchronized (Uploader.this) {
+                            updateStatus(e);
+                        }
+
+                        return;
                     }
-                }
 
-            } catch (Exception e) {
+                    try {
+                        Thread.sleep(delay * 1000 + random.nextInt(1000));
+                    } catch (InterruptedException ie) {
 
-                logger.error("an error occured while executing {}", item.getTask(), e);
+                        logger.error("an interruption has been unexpectedly requested on task {}", item.getTask(), ie);
 
-                synchronized (Uploader.this) {
-                    updateStatus(e);
+                        synchronized (Uploader.this) {
+                            updateStatus(ie);
+                        }
+
+                        return;
+                    }
+
+                    if (delay < 60)
+                        delay *= 2;
                 }
             }
         }
