@@ -13,6 +13,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -124,7 +126,7 @@ public class UploaderTest extends BaseTest {
     }
 
     @Test
-    public void concurrency() throws InterruptedException {
+    public void concurrency() throws InterruptedException, TimeoutException {
 
         Date start = new Date();
 
@@ -141,7 +143,7 @@ public class UploaderTest extends BaseTest {
             }));
         }
 
-        uploader.waitUntilIsDone();
+        uploader.waitUntilIsDone(5, TimeUnit.SECONDS);
 
         int elapsed = (int) (new Date().getTime() - start.getTime());
 
@@ -151,7 +153,7 @@ public class UploaderTest extends BaseTest {
     }
 
     @Test
-    public void retries() throws InterruptedException {
+    public void retries() throws InterruptedException, TimeoutException {
 
         Date start = new Date();
 
@@ -165,7 +167,7 @@ public class UploaderTest extends BaseTest {
             }
         }));
 
-        uploader.waitUntilIsDone();
+        uploader.waitUntilIsDone(5, TimeUnit.SECONDS);
 
         int elapsed = (int) (new Date().getTime() - start.getTime());
 

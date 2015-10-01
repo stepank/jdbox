@@ -97,12 +97,12 @@ public class Uploader {
             updateStatus(uploadStatus.exception);
     }
 
-    public void waitUntilIsDone() throws InterruptedException {
-        waitUntilIsDone(false);
+    public void waitUntilIsDone(long period, TimeUnit units) throws InterruptedException, TimeoutException {
+        waitUntilIsDone(false, period, units);
     }
 
-    public void waitUntilIsDoneOrBroken() throws InterruptedException {
-        waitUntilIsDone(true);
+    public void waitUntilIsDoneOrBroken(long period, TimeUnit units) throws InterruptedException, TimeoutException {
+        waitUntilIsDone(true, period, units);
     }
 
     private boolean isBroken() {
@@ -123,10 +123,13 @@ public class Uploader {
         futures.add(executor.submit(new TaskRunner(item)));
     }
 
-    private void waitUntilIsDone(boolean canBeBroken) throws InterruptedException {
+    private void waitUntilIsDone(
+            boolean canBeBroken, long period, TimeUnit units) throws InterruptedException, TimeoutException {
 
         if (futures.size() == 0)
             return;
+
+        Date start = new Date();
 
         List<Future> futures;
 
@@ -142,8 +145,10 @@ public class Uploader {
             }
 
             for (Future future : futures) {
+                long timeToWait =
+                        TimeUnit.MILLISECONDS.convert(period, units) - (new Date().getTime() - start.getTime());
                 try {
-                    future.get();
+                    future.get(timeToWait, TimeUnit.MILLISECONDS);
                 } catch (ExecutionException e) {
                     throw new AssertionError("an unexpected error occurred while waiting for a task to finish", e);
                 }

@@ -16,6 +16,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -98,7 +99,7 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
 
         assertThat(dumpDir(mountPoint), equalTo(dumpDir(tempDirPath)));
 
-        lifeCycleManager.waitUntilUploaderIsDone();
+        lifeCycleManager.waitUntilUploaderIsDone(30, TimeUnit.SECONDS);
 
         fileSystem2.mount();
 
