@@ -43,8 +43,8 @@
     <dependencies>
         <dependency>
             <groupId>net.java.dev.jna</groupId>
-            <artifactId>platform</artifactId>
-            <version>3.5.2</version>
+            <artifactId>jna</artifactId>
+            <version>4.2.1</version>
         </dependency>
         <dependency>
             <groupId>com.google.api-client</groupId>
