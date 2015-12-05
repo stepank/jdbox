@@ -4,7 +4,6 @@ import com.google.inject.Injector;
 import com.google.inject.Singleton;
 import com.google.inject.TypeLiteral;
 import jdbox.content.bytestores.InMemoryByteStoreFactory;
-import jdbox.content.bytestores.StreamCachingByteSourceFactory;
 import jdbox.content.filetypes.FullAccessOpenedFileFactory;
 import jdbox.content.filetypes.NonDownloadableOpenedFileFactory;
 import jdbox.content.filetypes.RollingReadOpenedFileFactory;
@@ -44,9 +43,7 @@ public class ContentModule extends ActiveModule {
         bind(InMemoryByteStoreFactory.Config.class).toInstance(InMemoryByteStoreFactory.defaultConfig);
         bind(InMemoryByteStoreFactory.class).in(Singleton.class);
 
-        bind(StreamCachingByteSourceFactory.Config.class).toInstance(StreamCachingByteSourceFactory.defaultConfig);
-        bind(StreamCachingByteSourceFactory.class).in(Singleton.class);
-
+        bind(FullAccessOpenedFileFactory.Config.class).toInstance(FullAccessOpenedFileFactory.defaultConfig);
         bind(FullAccessOpenedFileFactory.class).in(Singleton.class);
 
         bind(RollingReadOpenedFileFactory.Config.class).toInstance(RollingReadOpenedFileFactory.defaultConfig);

@@ -3,7 +3,6 @@ package jdbox.content.filetypes;
 import jdbox.content.OpenedFiles;
 import jdbox.content.bytestores.ByteStore;
 import jdbox.content.bytestores.InMemoryByteStoreFactory;
-import jdbox.content.bytestores.StreamCachingByteSourceFactory;
 import jdbox.utils.OrderedRule;
 import jdbox.utils.TestFileProvider;
 import org.junit.Test;
@@ -19,7 +18,7 @@ import java.util.Collection;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-@Category({RollingReadOpenedFile.class, OpenedFiles.class})
+@Category({RollingReadOpenedFileFactory.class, OpenedFiles.class})
 @RunWith(Parameterized.class)
 public class RollingReadOpenedFileStableTest extends BaseRollingReadOpenedFileTest {
 
@@ -39,8 +38,7 @@ public class RollingReadOpenedFileStableTest extends BaseRollingReadOpenedFileTe
     public void read() throws IOException {
 
         tempStoreFactory.setConfig(new InMemoryByteStoreFactory.Config(128));
-        readerFactory.setConfig(new StreamCachingByteSourceFactory.Config(128));
-        factory.setConfig(new RollingReadOpenedFileFactory.Config(1024, 4096));
+        factory.setConfig(new RollingReadOpenedFileFactory.Config(128, 1024, 4096));
 
         byte[] content = testFileProvider.getContent();
 

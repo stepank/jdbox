@@ -3,7 +3,6 @@ package jdbox.content.filetypes;
 import jdbox.content.OpenedFiles;
 import jdbox.content.bytestores.ByteStore;
 import jdbox.content.bytestores.InMemoryByteStoreFactory;
-import jdbox.content.bytestores.StreamCachingByteSourceFactory;
 import jdbox.utils.OrderedRule;
 import jdbox.utils.TestFileProvider;
 import org.junit.Test;
@@ -18,7 +17,7 @@ import java.util.Random;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-@Category({FullAccessOpenedFile.class, OpenedFiles.class})
+@Category({FullAccessOpenedFileFactory.class, OpenedFiles.class})
 public class FullAccessOpenedFileMiscTest extends BaseFullAccessOpenedFileTest {
 
     private static final Logger logger = LoggerFactory.getLogger(FullAccessOpenedFileMiscTest.class);
@@ -31,7 +30,7 @@ public class FullAccessOpenedFileMiscTest extends BaseFullAccessOpenedFileTest {
     public void fuzzyRead() throws InterruptedException, IOException {
 
         tempStoreFactory.setConfig(new InMemoryByteStoreFactory.Config(1024));
-        readerFactory.setConfig(new StreamCachingByteSourceFactory.Config(1024));
+        factory.setConfig(new FullAccessOpenedFileFactory.Config(1024));
 
         byte[] content = testFileProvider.getContent();
 

@@ -17,7 +17,7 @@ import java.util.Collection;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-@Category({FullAccessOpenedFile.class, OpenedFiles.class})
+@Category({FullAccessOpenedFileFactory.class, OpenedFiles.class})
 @RunWith(Parameterized.class)
 public class FullAccessOpenedFileReadTest extends BaseFullAccessOpenedFileTest {
 

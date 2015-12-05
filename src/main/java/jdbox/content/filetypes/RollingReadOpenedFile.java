@@ -2,20 +2,14 @@ package jdbox.content.filetypes;
 
 import jdbox.content.bytestores.ByteSource;
 import jdbox.content.bytestores.ByteStore;
-import jdbox.content.bytestores.StreamCachingByteSourceFactory;
-import jdbox.driveadapter.DriveAdapter;
-import jdbox.driveadapter.Field;
-import jdbox.models.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.Executor;
 
 class RollingReadOpenedFile implements ByteStore {
 
@@ -24,38 +18,30 @@ class RollingReadOpenedFile implements ByteStore {
 
     private static final Logger logger = LoggerFactory.getLogger(RollingReadOpenedFile.class);
 
-    private final File file;
-    private final jdbox.driveadapter.File daFile;
-    private final DriveAdapter drive;
-    private final StreamCachingByteSourceFactory readerFactory;
+    private final long size;
+    private final ReaderFactory readerFactory;
     private final int minPageSize;
     private final int maxPageSize;
     private final Readers readers = new Readers(PAGES_NUMBER);
-    private final Executor executor;
 
     private boolean closed = false;
 
-    RollingReadOpenedFile(
-            File file, DriveAdapter drive, StreamCachingByteSourceFactory readerFactory,
-            int minPageSize, int maxPageSize, Executor executor) {
-        this.file = file;
-        this.daFile = file.toDaFile(EnumSet.of(Field.DOWNLOAD_URL));
-        this.drive = drive;
-        this.readerFactory = readerFactory;
+    RollingReadOpenedFile(long size, int minPageSize, int maxPageSize, ReaderFactory readerFactory) {
+        this.size = size;
         this.minPageSize = minPageSize;
         this.maxPageSize = maxPageSize;
-        this.executor = executor;
+        this.readerFactory = readerFactory;
     }
 
     @Override
     public synchronized int read(ByteBuffer buffer, long offset, int count) throws IOException {
 
-        logger.debug("reading {}, offset {}, count {}", file, offset, count);
+        logger.debug("reading, offset {}, count {}", offset, count);
 
         assert !closed;
-        assert offset < file.getSize();
+        assert offset < size;
 
-        count = (int) Math.min(count, file.getSize() - offset);
+        count = (int) Math.min(count, size - offset);
 
         int read = 0;
 
@@ -74,7 +60,7 @@ class RollingReadOpenedFile implements ByteStore {
             }
         }
 
-        logger.debug("done reading {}, offset {}, count {}", file, offset, count);
+        logger.debug("done reading, offset {}, count {}", offset, count);
 
         return read;
     }
@@ -103,7 +89,7 @@ class RollingReadOpenedFile implements ByteStore {
 
         Readers.Entry entry = getOrCreateReader(offset);
 
-        if (entry.rightOffset == file.getSize())
+        if (entry.rightOffset == size)
             return entry;
 
         Readers.Entry nextEntry = readers.ceiling(entry.rightOffset);
@@ -111,7 +97,7 @@ class RollingReadOpenedFile implements ByteStore {
             int desiredLength = Integer.highestOneBit(entry.length);
             if (desiredLength < maxPageSize)
                 desiredLength *= 2;
-            long rightBoundary = nextEntry == null ? file.getSize() : nextEntry.offset;
+            long rightBoundary = nextEntry == null ? size : nextEntry.offset;
             createReader(entry.rightOffset, desiredLength, (int) (rightBoundary - entry.rightOffset));
         }
 
@@ -126,7 +112,7 @@ class RollingReadOpenedFile implements ByteStore {
 
         Readers.Entry ceilingEntry = readers.ceiling(offset);
         if (ceilingEntry == null)
-            return createReader(offset, minPageSize, (int) (file.getSize() - offset));
+            return createReader(offset, minPageSize, (int) (size - offset));
 
         return createReader(offset, minPageSize, (int) (ceilingEntry.offset - offset));
     }
@@ -134,10 +120,6 @@ class RollingReadOpenedFile implements ByteStore {
     private Readers.Entry createReader(long offset, int desiredLength, int maxLength) {
         int length = (desiredLength * MAX_STRETCH_FACTOR > maxLength) ? maxLength : desiredLength;
         return readers.create(offset, length);
-    }
-
-    public String toString() {
-        return String.format("RollingReadOpenedFile{file = %s}", file.getName());
     }
 
     private class Readers {
@@ -171,9 +153,7 @@ class RollingReadOpenedFile implements ByteStore {
 
         public Entry create(long offset, int length) {
 
-            Entry result = new Entry(
-                    readerFactory.create(drive.downloadFileRangeAsync(daFile, offset, length, executor)),
-                    offset, length, current++);
+            Entry result = new Entry(readerFactory.create(offset, length), offset, length, current++);
 
             entries.add(result);
 
@@ -241,5 +221,8 @@ class RollingReadOpenedFile implements ByteStore {
             }
         }
     }
-}
 
+    interface ReaderFactory {
+        ByteSource create(long offset, int length);
+    }
+}

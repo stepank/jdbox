@@ -69,7 +69,7 @@ public class OpenedFiles implements OpenedFilesManager {
         localStorage.reset();
     }
 
-    public synchronized FileHandlerRemovingProxyByteStore open(File file, OpenMode openMode) {
+    public synchronized FileHandlerRemovingProxyByteStore open(File file, OpenMode openMode) throws IOException {
 
         currentFileHandler++;
 
@@ -186,7 +186,7 @@ public class OpenedFiles implements OpenedFilesManager {
         }
 
         @Override
-        public ByteStore create(File file) {
+        public ByteStore create(File file) throws IOException {
             return localStorage.putContent(file, factory.create(file));
         }
     }

@@ -1,7 +1,6 @@
 package jdbox.content;
 
 import jdbox.content.bytestores.InMemoryByteStoreFactory;
-import jdbox.content.bytestores.StreamCachingByteSourceFactory;
 import jdbox.content.filetypes.FullAccessOpenedFileFactory;
 import jdbox.content.localstorage.LocalStorage;
 import jdbox.driveadapter.DriveAdapter;
@@ -23,7 +22,6 @@ public class BaseOpenedFilesTest extends BaseContentModuleTest {
 
     protected FullAccessOpenedFileFactory factory;
     protected InMemoryByteStoreFactory tempStoreFactory;
-    protected StreamCachingByteSourceFactory readerFactory;
     protected OpenedFiles openedFiles;
 
     @Before
@@ -34,9 +32,8 @@ public class BaseOpenedFilesTest extends BaseContentModuleTest {
 
         tempStoreFactory = lifeCycleManager.getInstance(InMemoryByteStoreFactory.class);
         tempStoreFactory.setConfig(new InMemoryByteStoreFactory.Config(4));
-        readerFactory = lifeCycleManager.getInstance(StreamCachingByteSourceFactory.class);
-        readerFactory.setConfig(new StreamCachingByteSourceFactory.Config(4));
         factory = lifeCycleManager.getInstance(FullAccessOpenedFileFactory.class);
+        factory.setConfig(new FullAccessOpenedFileFactory.Config(4));
         openedFiles = lifeCycleManager.getInstance(OpenedFiles.class);
 
         assertThat(lifeCycleManager.getInstance(LocalStorage.class).getFilesCount(), equalTo(0));
