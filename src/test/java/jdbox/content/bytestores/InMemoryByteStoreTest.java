@@ -1,5 +1,7 @@
-package jdbox.content;
+package jdbox.content.bytestores;
 
+import jdbox.content.BaseContentModuleTest;
+import jdbox.content.OpenedFiles;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -16,7 +18,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 @Category(OpenedFiles.class)
 @RunWith(Parameterized.class)
-public class InMemoryByteStoreTest extends BaseOpenedFilesModuleTest {
+public class InMemoryByteStoreTest extends BaseContentModuleTest {
 
     protected InMemoryByteStoreFactory factory;
 

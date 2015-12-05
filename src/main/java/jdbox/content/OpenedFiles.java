@@ -1,6 +1,9 @@
 package jdbox.content;
 
 import com.google.inject.Inject;
+import jdbox.content.bytestores.ByteStore;
+import jdbox.content.filetypes.*;
+import jdbox.content.localstorage.LocalStorage;
 import jdbox.models.File;
 import jdbox.uploader.Uploader;
 
@@ -19,10 +22,10 @@ public class OpenedFiles implements OpenedFilesManager {
         READ_WRITE
     }
 
-    private final ByteStoreFactory nonDownloadableOpenedFileFactory;
+    private final OpenedFileFactory nonDownloadableOpenedFileFactory;
     private final UploadStatusOpenedFileFactory uploadStatusOpenedFileFactory;
-    private final ByteStoreFactory fullAccessOpenedFileFactory;
-    private final ByteStoreFactory rollingReadOpenedFileFactory;
+    private final OpenedFileFactory fullAccessOpenedFileFactory;
+    private final OpenedFileFactory rollingReadOpenedFileFactory;
 
     private final LocalStorage localStorage;
 
@@ -102,7 +105,7 @@ public class OpenedFiles implements OpenedFilesManager {
         return isReal(file) && !isLargeFile(file);
     }
 
-    private ByteStoreFactory getOpenedFileFactory(File file, OpenMode openMode) {
+    private OpenedFileFactory getOpenedFileFactory(File file, OpenMode openMode) {
         if (file.getId().isSet() && file.getId().get().equals(Uploader.uploadFailureNotificationFileId))
             return uploadStatusOpenedFileFactory;
         if (!isReal(file) && openMode.equals(OpenMode.READ_ONLY))
@@ -169,11 +172,11 @@ public class OpenedFiles implements OpenedFilesManager {
         }
     }
 
-    class LocalStorageOpenedFileFactory implements ByteStoreFactory {
+    class LocalStorageOpenedFileFactory implements OpenedFileFactory {
 
-        private final ByteStoreFactory factory;
+        private final OpenedFileFactory factory;
 
-        LocalStorageOpenedFileFactory(ByteStoreFactory factory) {
+        LocalStorageOpenedFileFactory(OpenedFileFactory factory) {
             this.factory = factory;
         }
 

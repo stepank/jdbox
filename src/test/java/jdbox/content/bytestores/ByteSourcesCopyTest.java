@@ -1,5 +1,6 @@
-package jdbox.content;
+package jdbox.content.bytestores;
 
+import jdbox.content.OpenedFiles;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;

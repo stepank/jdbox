@@ -1,5 +1,6 @@
 package jdbox.content;
 
+import jdbox.content.bytestores.ByteStore;
 import jdbox.models.File;
 import jdbox.utils.OrderedRule;
 import jdbox.utils.TestFileProvider;

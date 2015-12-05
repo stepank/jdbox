@@ -1,5 +1,9 @@
-package jdbox.content;
+package jdbox.content.filetypes;
 
+import jdbox.content.OpenedFiles;
+import jdbox.content.bytestores.ByteStore;
+import jdbox.content.bytestores.InMemoryByteStoreFactory;
+import jdbox.content.bytestores.StreamCachingByteSourceFactory;
 import jdbox.utils.OrderedRule;
 import jdbox.utils.TestFileProvider;
 import org.junit.Test;
@@ -15,33 +19,28 @@ import java.util.Collection;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-@Category({FullAccessOpenedFile.class, OpenedFiles.class})
+@Category({RollingReadOpenedFile.class, OpenedFiles.class})
 @RunWith(Parameterized.class)
-public class FullAccessOpenedFileReadTest extends BaseFullAccessOpenedFileTest {
+public class RollingReadOpenedFileStableTest extends BaseRollingReadOpenedFileTest {
 
     @Parameterized.Parameters
     public static Collection<Object[]> data() {
-        return Arrays.asList(new Object[][]{
-                {new int[]{11}},
-                {new int[]{16}},
-                {new int[]{4, 4, 3}},
-                {new int[]{4, 4, 4}},
-                {new int[]{2, 4, 4, 1}},
-                {new int[]{8, 3}},
-                {new int[]{8, 8}},
-                {new int[]{2, 8, 1}},
-                {new int[]{2, 8, 8}},
-        });
+        return Arrays.asList(
+                new Object[][]{{64}, {128}, {192}, {256}, {1024}, {1536}, {2048}, {3072}, {4096}, {8192}});
     }
 
     @Parameterized.Parameter
-    public int[] counts;
+    public int count;
 
     @OrderedRule
-    public final TestFileProvider testFileProvider = new TestFileProvider(lifeCycleManager, testFolderProvider, 11);
+    public final TestFileProvider testFileProvider = new TestFileProvider(lifeCycleManager, testFolderProvider, 64 * 1024);
 
     @Test
     public void read() throws IOException {
+
+        tempStoreFactory.setConfig(new InMemoryByteStoreFactory.Config(128));
+        readerFactory.setConfig(new StreamCachingByteSourceFactory.Config(128));
+        factory.setConfig(new RollingReadOpenedFileFactory.Config(1024, 4096));
 
         byte[] content = testFileProvider.getContent();
 
@@ -50,7 +49,8 @@ public class FullAccessOpenedFileReadTest extends BaseFullAccessOpenedFileTest {
             byte[] bytes = new byte[content.length];
 
             int offset = 0;
-            for (int count : counts) {
+            int read = 0;
+            while (read < content.length) {
 
                 int expectedRead = Math.min(bytes.length - offset, count);
 
@@ -70,6 +70,7 @@ public class FullAccessOpenedFileReadTest extends BaseFullAccessOpenedFileTest {
                 buffer.get(bytes, offset, expectedRead);
 
                 offset += count;
+                read += count;
             }
 
             assertThat(bytes, equalTo(content));

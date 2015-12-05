@@ -1,25 +1,27 @@
 package jdbox.content;
 
-import com.google.inject.BindingAnnotation;
 import com.google.inject.Injector;
 import com.google.inject.Singleton;
 import com.google.inject.TypeLiteral;
+import jdbox.content.bytestores.InMemoryByteStoreFactory;
+import jdbox.content.bytestores.StreamCachingByteSourceFactory;
+import jdbox.content.filetypes.FullAccessOpenedFileFactory;
+import jdbox.content.filetypes.NonDownloadableOpenedFileFactory;
+import jdbox.content.filetypes.RollingReadOpenedFileFactory;
+import jdbox.content.localstorage.FileSizeUpdateEvent;
+import jdbox.content.localstorage.LocalStorage;
 import jdbox.modules.ActiveModule;
 import rx.Observable;
 import rx.Observer;
 import rx.subjects.PublishSubject;
 import rx.subjects.Subject;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-public class OpenedFilesModule extends ActiveModule {
+public class ContentModule extends ActiveModule {
 
     protected volatile ThreadPoolExecutor executor;
 
@@ -64,7 +66,3 @@ public class OpenedFilesModule extends ActiveModule {
     }
 }
 
-@BindingAnnotation
-@Target({ElementType.FIELD, ElementType.PARAMETER, ElementType.METHOD})
-@Retention(RetentionPolicy.RUNTIME)
-@interface PackagePrivate {}

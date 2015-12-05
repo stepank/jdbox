@@ -8,7 +8,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 
-public class TestOpenedFilesModule extends OpenedFilesModule {
+public class TestContentModule extends ContentModule {
 
     @Override
     public void tearDown(Injector injector) throws InterruptedException {

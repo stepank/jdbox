@@ -1,4 +1,4 @@
-package jdbox.content;
+package jdbox.content.localstorage;
 
 import jdbox.models.fileids.FileId;
 

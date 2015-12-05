@@ -1,6 +1,9 @@
-package jdbox.content;
+package jdbox.content.localstorage;
 
 import com.google.inject.Inject;
+import jdbox.content.bytestores.ByteSources;
+import jdbox.content.bytestores.ByteStore;
+import jdbox.content.bytestores.InMemoryByteStoreFactory;
 import jdbox.driveadapter.DriveAdapter;
 import jdbox.driveadapter.Field;
 import jdbox.models.File;
@@ -17,7 +20,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 
-class LocalStorage {
+public class LocalStorage {
 
     private static final Logger logger = LoggerFactory.getLogger(LocalStorage.class);
 

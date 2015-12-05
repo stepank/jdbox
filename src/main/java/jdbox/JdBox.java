@@ -11,11 +11,11 @@ import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.client.util.store.FileDataStoreFactory;
 import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.DriveScopes;
+import jdbox.content.ContentModule;
 import jdbox.driveadapter.DriveAdapterModule;
 import jdbox.filetree.FileTreeModule;
 import jdbox.modules.LifeCycleManager;
 import jdbox.modules.MultipleException;
-import jdbox.content.OpenedFilesModule;
 import jdbox.uploader.UploaderModule;
 import org.ini4j.Ini;
 import org.slf4j.Logger;
@@ -42,7 +42,7 @@ public class JdBox {
                 new CommonModule(),
                 new DriveAdapterModule(createDriveService(env)),
                 new UploaderModule(),
-                new OpenedFilesModule(),
+                new ContentModule(),
                 new FileTreeModule(true),
                 new FileSystemModule()
         );

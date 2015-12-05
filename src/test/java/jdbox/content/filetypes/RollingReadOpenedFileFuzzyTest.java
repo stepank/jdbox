@@ -1,5 +1,10 @@
-package jdbox.content;
+package jdbox.content.filetypes;
 
+import jdbox.content.OpenedFiles;
+import jdbox.content.bytestores.ByteStore;
+import jdbox.content.bytestores.InMemoryByteStoreFactory;
+import jdbox.content.bytestores.StreamCachingByteSourceFactory;
+import jdbox.models.File;
 import jdbox.utils.OrderedRule;
 import jdbox.utils.TestFileProvider;
 import org.junit.Test;
@@ -14,43 +19,44 @@ import java.util.Random;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-@Category({FullAccessOpenedFile.class, OpenedFiles.class})
-public class FullAccessOpenedFileMiscTest extends BaseFullAccessOpenedFileTest {
+@Category({RollingReadOpenedFile.class, OpenedFiles.class})
+public class RollingReadOpenedFileFuzzyTest extends BaseRollingReadOpenedFileTest {
 
-    private static final Logger logger = LoggerFactory.getLogger(FullAccessOpenedFileMiscTest.class);
+    private static final Logger logger = LoggerFactory.getLogger(RollingReadOpenedFileFuzzyTest.class);
 
     @OrderedRule
-    public final TestFileProvider testFileProvider =
-            new TestFileProvider(lifeCycleManager, testFolderProvider, 1024 * 1024);
+    public final TestFileProvider testFileProvider = new TestFileProvider(lifeCycleManager, testFolderProvider, 1024 * 1024);
 
     @Test
     public void fuzzyRead() throws InterruptedException, IOException {
 
-        tempStoreFactory.setConfig(new InMemoryByteStoreFactory.Config(1024));
-        readerFactory.setConfig(new StreamCachingByteSourceFactory.Config(1024));
-
-        byte[] content = testFileProvider.getContent();
+        tempStoreFactory.setConfig(new InMemoryByteStoreFactory.Config(512));
+        readerFactory.setConfig(new StreamCachingByteSourceFactory.Config(512));
+        factory.setConfig(new RollingReadOpenedFileFactory.Config(2048, 8192));
 
         Random random = new Random();
-        final int[] maxReadChunkSizes =
-                new int[]{10, 100, 1024, 4 * 1024, 16 * 1024, 64 * 1024, 256 * 1024, content.length};
+
+        File file = testFileProvider.getFile();
+        byte[] content = testFileProvider.getContent();
+
+        final int[] maxReadChunkSizes = new int[]{1024, 4 * 1024, 16 * 1024};
 
         for (int maxReadChunkSize : maxReadChunkSizes) {
 
             logger.info("max read chunk size is {}", maxReadChunkSize);
 
-            try (ByteStore openedFile = factory.create(testFileProvider.getFile())) {
+            try (ByteStore openedFile = factory.create(file)) {
 
                 ByteBuffer buffer = ByteBuffer.allocate(maxReadChunkSize);
 
-                for (int i = 0; i < 100; i++) {
+                for (int i = 0; i < 50; i++) {
 
                     int offset = random.nextInt(content.length);
                     int bytesToRead = 1 + random.nextInt(maxReadChunkSize);
                     int expectedRead = Math.min(content.length - offset, bytesToRead);
 
                     buffer.rewind();
-                    assertThat(openedFile.read(buffer, offset, bytesToRead), equalTo(expectedRead));
+                    assertThat(openedFile.read(buffer, offset, expectedRead), equalTo(expectedRead));
 
                     byte[] actual = new byte[expectedRead];
                     buffer.rewind();

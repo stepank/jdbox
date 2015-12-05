@@ -1,11 +1,11 @@
 package jdbox;
 
 import com.google.inject.Module;
+import jdbox.content.ContentModule;
 import jdbox.driveadapter.DriveAdapter;
 import jdbox.driveadapter.DriveAdapterModule;
 import jdbox.driveadapter.File;
 import jdbox.filetree.FileTreeModule;
-import jdbox.content.OpenedFilesModule;
 import jdbox.uploader.UploaderModule;
 import jdbox.utils.OrderedRule;
 import jdbox.utils.TestFolderIsolation;
@@ -31,7 +31,7 @@ public class BaseFileSystemModuleTest extends BaseTest {
         return new ArrayList<Module>() {{
             add(new DriveAdapterModule(driveServiceProvider.getDriveService()));
             add(new UploaderModule());
-            add(new OpenedFilesModule());
+            add(new ContentModule());
             add(new FileTreeModule(true));
             add(new FileSystemModule());
         }};

@@ -1,20 +1,11 @@
-package jdbox.content;
-
-import jdbox.models.File;
+package jdbox.content.bytestores;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-interface ByteStore extends ByteSource {
+public interface ByteStore extends ByteSource {
 
     int write(ByteBuffer buffer, long offset, int count) throws IOException;
 
     void truncate(long offset) throws IOException;
-}
-
-interface ByteStoreFactory {
-
-    long getSize(File file);
-
-    ByteStore create(File file);
 }

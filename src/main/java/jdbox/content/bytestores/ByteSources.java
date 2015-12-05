@@ -1,10 +1,10 @@
-package jdbox.content;
+package jdbox.content.bytestores;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 
-class ByteSources {
+public class ByteSources {
 
     public static int copy(ByteSource source, ByteStore destination) throws IOException {
         return copy(source, destination, 16 * 1024);
@@ -54,7 +54,8 @@ class ByteSources {
         }
 
         @Override
-        public synchronized int read(byte[] bytes, int offset, int count) throws IOException {
+        public synchronized int read(
+                @SuppressWarnings("NullableProblems") byte[] bytes, int offset, int count) throws IOException {
             if (source == null)
                 throw new IOException("read on a closed InputStream");
             ByteBuffer buffer = ByteBuffer.wrap(bytes);

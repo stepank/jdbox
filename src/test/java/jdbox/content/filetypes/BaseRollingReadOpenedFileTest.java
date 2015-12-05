@@ -1,5 +1,8 @@
-package jdbox.content;
+package jdbox.content.filetypes;
 
+import jdbox.content.BaseOpenedFilesTest;
+import jdbox.content.bytestores.InMemoryByteStoreFactory;
+import jdbox.content.bytestores.StreamCachingByteSourceFactory;
 import org.junit.Before;
 
 public class BaseRollingReadOpenedFileTest extends BaseOpenedFilesTest {

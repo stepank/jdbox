@@ -3,12 +3,12 @@ package jdbox;
 import com.google.api.client.googleapis.testing.json.GoogleJsonResponseExceptionFactoryTesting;
 import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.inject.Module;
+import jdbox.content.ContentModule;
+import jdbox.content.OpenedFiles;
 import jdbox.driveadapter.DriveAdapter;
 import jdbox.driveadapter.File;
 import jdbox.filetree.FileTree;
 import jdbox.filetree.FileTreeModule;
-import jdbox.content.OpenedFiles;
-import jdbox.content.OpenedFilesModule;
 import jdbox.uploader.Uploader;
 import jdbox.uploader.UploaderModule;
 import jdbox.utils.MockDriveAdapterModule;
@@ -40,7 +40,7 @@ public class UploadFailureTest extends BaseMountFileSystemTest {
         return new ArrayList<Module>() {{
             add(new MockDriveAdapterModule(driveServiceProvider.getDriveService()));
             add(new UploaderModule());
-            add(new OpenedFilesModule());
+            add(new ContentModule());
             add(new FileTreeModule(true));
             add(new FileSystemModule());
         }};

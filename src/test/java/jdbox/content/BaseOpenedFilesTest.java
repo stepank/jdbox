@@ -1,5 +1,9 @@
 package jdbox.content;
 
+import jdbox.content.bytestores.InMemoryByteStoreFactory;
+import jdbox.content.bytestores.StreamCachingByteSourceFactory;
+import jdbox.content.filetypes.FullAccessOpenedFileFactory;
+import jdbox.content.localstorage.LocalStorage;
 import jdbox.driveadapter.DriveAdapter;
 import jdbox.models.fileids.FileIdStore;
 import jdbox.utils.OrderedRule;
@@ -9,7 +13,7 @@ import org.junit.Before;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 
-public class BaseOpenedFilesTest extends BaseOpenedFilesModuleTest {
+public class BaseOpenedFilesTest extends BaseContentModuleTest {
 
     @OrderedRule
     public final TestFolderProvider testFolderProvider = new TestFolderProvider(errorCollector, lifeCycleManager);
