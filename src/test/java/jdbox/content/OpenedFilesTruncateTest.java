@@ -1,4 +1,4 @@
-package jdbox.openedfiles;
+package jdbox.content;
 
 import jdbox.models.File;
 import jdbox.utils.OrderedRule;

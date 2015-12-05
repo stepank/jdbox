@@ -1,4 +1,4 @@
-package jdbox.openedfiles;
+package jdbox.content;
 
 import com.google.inject.BindingAnnotation;
 import com.google.inject.Injector;

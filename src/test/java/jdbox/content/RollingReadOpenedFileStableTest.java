@@ -1,4 +1,4 @@
-package jdbox.openedfiles;
+package jdbox.content;
 
 import jdbox.utils.OrderedRule;
 import jdbox.utils.TestFileProvider;

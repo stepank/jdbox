@@ -1,4 +1,4 @@
-package jdbox.openedfiles;
+package jdbox.content;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;

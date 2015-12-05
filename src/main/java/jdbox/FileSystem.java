@@ -3,7 +3,7 @@ package jdbox;
 import com.google.inject.Inject;
 import jdbox.filetree.FileTree;
 import jdbox.models.File;
-import jdbox.openedfiles.OpenedFiles;
+import jdbox.content.OpenedFiles;
 import net.fusejna.*;
 import net.fusejna.types.TypeMode;
 import net.fusejna.util.FuseFilesystemAdapterFull;

@@ -4,7 +4,7 @@ import com.google.inject.Module;
 import jdbox.CommonModule;
 import jdbox.modules.LifeCycleManager;
 import jdbox.modules.MultipleException;
-import jdbox.openedfiles.OpenedFiles;
+import jdbox.content.OpenedFiles;
 import jdbox.uploader.Uploader;
 import org.junit.rules.ErrorCollector;
 import org.junit.rules.ExternalResource;

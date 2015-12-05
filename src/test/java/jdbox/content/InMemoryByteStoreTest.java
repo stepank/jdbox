@@ -1,4 +1,4 @@
-package jdbox.openedfiles;
+package jdbox.content;
 
 import org.junit.Before;
 import org.junit.Test;

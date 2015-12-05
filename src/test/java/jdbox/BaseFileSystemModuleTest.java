@@ -5,7 +5,7 @@ import jdbox.driveadapter.DriveAdapter;
 import jdbox.driveadapter.DriveAdapterModule;
 import jdbox.driveadapter.File;
 import jdbox.filetree.FileTreeModule;
-import jdbox.openedfiles.OpenedFilesModule;
+import jdbox.content.OpenedFilesModule;
 import jdbox.uploader.UploaderModule;
 import jdbox.utils.OrderedRule;
 import jdbox.utils.TestFolderIsolation;

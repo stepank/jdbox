@@ -2,8 +2,8 @@ package jdbox.filetree;
 
 import com.google.inject.Singleton;
 import com.google.inject.TypeLiteral;
-import jdbox.openedfiles.FileSizeUpdateEvent;
-import jdbox.openedfiles.OpenedFilesManager;
+import jdbox.content.FileSizeUpdateEvent;
+import jdbox.content.OpenedFilesManager;
 import rx.Observable;
 import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 

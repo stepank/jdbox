@@ -1,4 +1,4 @@
-package jdbox.openedfiles;
+package jdbox.content;
 
 public interface OpenedFilesManager {
 

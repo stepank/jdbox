@@ -1,4 +1,4 @@
-package jdbox.openedfiles;
+package jdbox.content;
 
 import jdbox.driveadapter.DriveAdapter;
 import jdbox.models.fileids.FileIdStore;

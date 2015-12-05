@@ -15,7 +15,7 @@ import jdbox.driveadapter.DriveAdapterModule;
 import jdbox.filetree.FileTreeModule;
 import jdbox.modules.LifeCycleManager;
 import jdbox.modules.MultipleException;
-import jdbox.openedfiles.OpenedFilesModule;
+import jdbox.content.OpenedFilesModule;
 import jdbox.uploader.UploaderModule;
 import org.ini4j.Ini;
 import org.slf4j.Logger;

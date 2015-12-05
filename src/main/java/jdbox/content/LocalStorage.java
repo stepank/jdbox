@@ -1,4 +1,4 @@
-package jdbox.openedfiles;
+package jdbox.content;
 
 import com.google.inject.Inject;
 import jdbox.driveadapter.DriveAdapter;
