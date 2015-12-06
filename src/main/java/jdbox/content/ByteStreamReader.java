@@ -43,7 +43,7 @@ public class ByteStreamReader {
         int read = 0;
 
         try {
-            while (available < required && (read = source.get().read(buffer)) > -1) {
+            while ((available < required || required == 0) && (read = source.get().read(buffer)) > -1) {
                 destination.write(ByteBuffer.wrap(buffer), available, read);
                 available += read;
             }

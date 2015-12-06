@@ -52,7 +52,7 @@ public class LocalStorage {
         SharedOpenedFile shared = files.get(file.getId());
         if (shared == null)
             return null;
-        return files.get(file.getId()).file.getSize();
+        return files.get(file.getId()).content.getSize();
     }
 
     public synchronized ByteStore getContent(File file) {
@@ -118,15 +118,8 @@ public class LocalStorage {
                 if (closed)
                     throw new IOException("write on a closed ByteStore");
 
-                int written = shared.content.write(buffer, offset, count);
-
-                if (written > 0) {
-                    shared.hasChanged = true;
-                    if (shared.file.getSize() < offset + written)
-                        shared.file.setSize(offset + written);
-                }
-
-                return written;
+                shared.hasChanged = true;
+                return shared.content.write(buffer, offset, count);
             }
         }
 
@@ -139,9 +132,14 @@ public class LocalStorage {
                     throw new IOException("truncate on a closed ByteStore");
 
                 shared.hasChanged = true;
-                shared.file.setSize(offset);
-
                 shared.content.truncate(offset);
+            }
+        }
+
+        @Override
+        public long getSize() {
+            synchronized (shared) {
+                return shared.content.getSize();
             }
         }
 
@@ -172,8 +170,6 @@ public class LocalStorage {
 
                 final ByteStore capturedContent = tempStoreFactory.create();
                 final int size = ByteSources.copy(shared.content, capturedContent);
-
-                shared.file.setSize(size);
 
                 String label = shared.file.getName() + ": update content, content length is " + size;
 

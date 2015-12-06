@@ -150,7 +150,8 @@ public class DriveAdapter {
             throw new AssertionError("file.downloadUrl must not be null");
 
         HttpRequest request = drive.getRequestFactory().buildGetRequest(new GenericUrl(file.getDownloadUrl()));
-        request.getHeaders().setRange(String.format("bytes=%s-%s", offset, offset + length - 1));
+        if (length > 0)
+            request.getHeaders().setRange(String.format("bytes=%s-%s", offset, offset + length - 1));
         HttpResponse response = request.execute();
         return response.getContent();
     }

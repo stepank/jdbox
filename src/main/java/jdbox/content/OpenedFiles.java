@@ -164,6 +164,11 @@ public class OpenedFiles implements OpenedFilesManager {
         }
 
         @Override
+        public long getSize() {
+            return content.getSize();
+        }
+
+        @Override
         public void close() throws IOException {
             synchronized (OpenedFiles.this) {
                 fileHandlers.remove(handler);

@@ -75,6 +75,11 @@ class RollingReadOpenedFile implements ByteStore {
         throw new UnsupportedOperationException("truncate is not supported");
     }
 
+    @Override
+    public long getSize() {
+        return size;
+    }
+
     public synchronized void close() throws IOException {
 
         if (closed)

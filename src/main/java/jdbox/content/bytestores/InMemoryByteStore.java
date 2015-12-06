@@ -107,6 +107,11 @@ class InMemoryByteStore implements ByteStore {
     }
 
     @Override
+    public synchronized long getSize() {
+        return length;
+    }
+
+    @Override
     public synchronized void close() throws IOException {
 
         if (buffers == null)

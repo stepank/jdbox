@@ -49,9 +49,9 @@ public class FullAccessOpenedFileFactory implements OpenedFileFactory {
         ByteStore result = tempStoreFactory.create();
         if (file.getId().isSet() && file.getSize() > 0) {
             Future<InputStream> stream = drive.downloadFileRangeAsync(
-                    file.toDaFile(EnumSet.of(Field.DOWNLOAD_URL)), 0, file.getSize(), executor);
+                    file.toDaFile(EnumSet.of(Field.DOWNLOAD_URL)), 0, 0, executor);
             ByteStreamReader bsr = new ByteStreamReader(stream, result, config.bufferSize);
-            bsr.ensureStreamIsRead(file.getSize());
+            bsr.ensureStreamIsRead(0);
         }
         return result;
     }
