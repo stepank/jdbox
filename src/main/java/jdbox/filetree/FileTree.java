@@ -248,7 +248,7 @@ public class FileTree {
     }
 
     public List<String> getChildren(Path path) throws IOException {
-        logger.debug("[{}] getting children", path);
+        logger.debug("getting children");
         return getOrFetch(path, null, namesGetter);
     }
 
@@ -258,7 +258,7 @@ public class FileTree {
 
     public File create(final Path path, boolean isDirectory) throws IOException {
 
-        logger.debug("[{}] creating {}", path, isDirectory ? "folder" : "file");
+        logger.debug("creating {}", isDirectory ? "folder" : "file");
 
         localStateLock.writeLock().lock();
 
@@ -278,7 +278,7 @@ public class FileTree {
             File file = newFile.toFile();
 
             uploader.submit(new DriveTask(
-                    path + ": create " + (isDirectory ? "directory" : "file"),
+                    "create " + (isDirectory ? "directory" : "file"),
                     file, EnumSet.allOf(Field.class), parent.getId(), isDirectory) {
                 @Override
                 public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
@@ -318,7 +318,7 @@ public class FileTree {
 
     public void setDates(Path path, final Date modifiedDate, final Date accessedDate) throws IOException {
 
-        logger.debug("[{}] setting dates", path);
+        logger.debug("setting dates");
 
         localStateLock.writeLock().lock();
 
@@ -332,7 +332,7 @@ public class FileTree {
             existing.setDates(modifiedDate, accessedDate);
 
             uploader.submit(new DriveTask(
-                    path + ": set modified to " + modifiedDate.toString() + " and accessed to " + accessedDate,
+                    "set modified to " + modifiedDate.toString() + " and accessed to " + accessedDate,
                     existing.toFile(), EnumSet.of(Field.MODIFIED_DATE, Field.ACCESSED_DATE)) {
                 @Override
                 public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
@@ -351,7 +351,7 @@ public class FileTree {
 
     public void remove(Path path) throws IOException {
 
-        logger.debug("[{}] removing", path);
+        logger.debug("removing");
 
         localStateLock.writeLock().lock();
 
@@ -385,8 +385,7 @@ public class FileTree {
                 if (file.getParentIds().size() == 0) {
 
                     uploader.submit(new DriveTask(
-                            path + ": remove file/directory completely",
-                            file, EnumSet.noneOf(Field.class)) {
+                            "remove file/directory completely", file, EnumSet.noneOf(Field.class)) {
                         @Override
                         public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
                             return drive.trashFile(file);
@@ -396,8 +395,7 @@ public class FileTree {
                 } else {
 
                     uploader.submit(new DriveTask(
-                            path + ": remove file/directory from " + path.getParent(),
-                            file, EnumSet.of(Field.PARENT_IDS)) {
+                            "remove file/directory from one directory only", file, EnumSet.of(Field.PARENT_IDS)) {
                         @Override
                         public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
                             return drive.updateFile(file);
@@ -417,7 +415,7 @@ public class FileTree {
 
     public void move(Path path, Path newPath) throws IOException {
 
-        logger.debug("[{}] moving to {}", path, newPath);
+        logger.debug("moving to {}", newPath);
 
         if (path.equals(newPath))
             return;
@@ -466,8 +464,7 @@ public class FileTree {
                 existing.rename(newFileName.toString());
             }
 
-            uploader.submit(new DriveTask(
-                    path + ": move/rename to " + newPath, existing.toFile(), fields, newParentId) {
+            uploader.submit(new DriveTask("move/rename to " + newPath, existing.toFile(), fields, newParentId) {
                 @Override
                 public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
                     return drive.updateFile(file);

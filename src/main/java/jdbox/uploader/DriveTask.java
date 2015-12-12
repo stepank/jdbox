@@ -1,5 +1,6 @@
 package jdbox.uploader;
 
+import jdbox.OperationContext;
 import jdbox.driveadapter.Field;
 import jdbox.models.File;
 import jdbox.models.fileids.FileId;
@@ -24,7 +25,7 @@ public abstract class DriveTask implements Task {
     }
 
     public DriveTask(String label, File file, EnumSet<Field> fields, FileId dependsOn, boolean blocksDependentTasks) {
-        this.label = label;
+        this.label = OperationContext.get().path + ": " + label;
         this.file = file;
         this.fields = fields;
         this.dependsOn = dependsOn;

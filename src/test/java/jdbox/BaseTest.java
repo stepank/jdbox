@@ -20,9 +20,12 @@ public abstract class BaseTest {
     public final RepeatRule repeatRule = new RepeatRule();
 
     @OrderedRule(1)
-    public final ErrorCollector errorCollector = new ErrorCollector();
+    public final OperationContextSetter operationContextSetter = new OperationContextSetter();
 
     @OrderedRule(2)
+    public final ErrorCollector errorCollector = new ErrorCollector();
+
+    @OrderedRule(3)
     public final LifeCycleManagerResource lifeCycleManager =
             new LifeCycleManagerResource(errorCollector, getRequiredModules());
 

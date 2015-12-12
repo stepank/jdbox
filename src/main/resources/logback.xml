@@ -1,0 +1,12 @@
+<configuration>
+
+    <appender name="stdout" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %1.-1level %logger{0} - [%X{path} %X{operation}] %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="debug">
+        <appender-ref ref="stdout" />
+    </root>
+</configuration>

@@ -146,9 +146,7 @@ public class LocalStorage {
         @Override
         public void close() throws IOException {
 
-            logger.debug(
-                    "closing a proxy for {}, has changed {}, ref count {}",
-                    shared.file, shared.hasChanged, shared.refCount);
+            logger.debug("closing a proxy, has changed {}, ref count {}", shared.hasChanged, shared.refCount);
 
             synchronized (shared) {
 
@@ -171,7 +169,7 @@ public class LocalStorage {
                 final ByteStore capturedContent = tempStoreFactory.create();
                 final int size = ByteSources.copy(shared.content, capturedContent);
 
-                String label = shared.file.getName() + ": update content, content length is " + size;
+                String label = "update content, content length is " + size;
 
                 uploader.submit(new DriveTask(label, shared.file, EnumSet.noneOf(Field.class)) {
                     @Override

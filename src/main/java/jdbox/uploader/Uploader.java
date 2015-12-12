@@ -2,6 +2,7 @@ package jdbox.uploader;
 
 import com.google.api.client.http.HttpResponseException;
 import com.google.inject.Inject;
+import jdbox.OperationContext;
 import jdbox.models.fileids.FileId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -72,6 +73,8 @@ public class Uploader {
      */
     public synchronized void submit(Task task) {
 
+        logger.debug("submitting {}", task);
+
         FileId fileId = task.getFileId();
         String etag = task.getEtag();
 
@@ -82,7 +85,7 @@ public class Uploader {
             queues.put(fileId, queue);
         }
 
-        final Item item = queue.append(task);
+        final Item item = queue.append(task, OperationContext.get());
 
         if (task.getDependsOn() != null) {
             Queue dependency = queues.get(task.getDependsOn());
@@ -119,7 +122,7 @@ public class Uploader {
         if (isBroken())
             return;
 
-        logger.debug("submitting {}", item.getTask());
+        logger.debug("submitting to executor {}", item.getTask());
         futures.add(executor.submit(new TaskRunner(item)));
     }
 
@@ -232,18 +235,28 @@ public class Uploader {
 
                 try {
 
-                    logger.debug("starting {}", item.getTask());
+                    OperationContext.restore(item.getCtx());
 
-                    Queue queue = item.getQueue();
+                    String etag;
 
-                    String etag = item.getTask().run(queue.getEtag());
+                    try {
 
-                    if (etag == null)
-                        throw new AssertionError("etag must not be null");
+                        logger.debug("starting {}", item.getTask());
 
-                    queue.setEtag(etag);
+                        Queue queue = item.getQueue();
 
-                    logger.debug("completed {}", item.getTask());
+                        etag = item.getTask().run(queue.getEtag());
+
+                        if (etag == null)
+                            throw new AssertionError("etag must not be null");
+
+                        queue.setEtag(etag);
+
+                        logger.debug("completed {}", item.getTask());
+
+                    } finally {
+                        OperationContext.clear();
+                    }
 
                     synchronized (Uploader.this) {
 
@@ -321,9 +334,9 @@ class Queue {
         return head;
     }
 
-    public Item append(Task task) {
+    public Item append(Task task, OperationContext ctx) {
 
-        Item item = new Item(this, task);
+        Item item = new Item(this, task, ctx);
 
         if (head == null) {
             this.head = item;
@@ -348,14 +361,16 @@ class Item {
 
     private final Queue queue;
     private final Task task;
+    private final OperationContext ctx;
     private final Set<Item> dependencies = new HashSet<>();
     private final Set<Item> dependents = new HashSet<>();
 
     private Item next;
 
-    public Item(Queue queue, Task task) {
+    public Item(Queue queue, Task task, OperationContext ctx) {
         this.queue = queue;
         this.task = task;
+        this.ctx = ctx;
     }
 
     public Queue getQueue() {
@@ -364,6 +379,10 @@ class Item {
 
     public Task getTask() {
         return task;
+    }
+
+    public OperationContext getCtx() {
+        return ctx;
     }
 
     public Set<Item> getDependencies() {

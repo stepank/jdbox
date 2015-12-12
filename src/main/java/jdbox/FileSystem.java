@@ -36,7 +36,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
     @Override
     public int getattr(final String path, final StructStat.StatWrapper stat) {
 
-        logger.debug("[{}] getting attrs", path);
+        OperationContext.initialize(path, "getattr");
 
         try {
 
@@ -69,15 +69,17 @@ public class FileSystem extends FuseFilesystemAdapterFull {
         } catch (FileTree.NoSuchFileException e) {
             return -ErrorCodes.ENOENT();
         } catch (IOException e) {
-            logger.error("[{}] an error occured while getting attrs", path, e);
+            logger.error("an error occured while getting attrs", e);
             return -ErrorCodes.EPIPE();
+        } finally {
+            OperationContext.clear();
         }
     }
 
     @Override
     public int readdir(final String path, final DirectoryFiller filler) {
 
-        logger.debug("[{}] reading directory", path);
+        OperationContext.initialize(path, "readdir");
 
         try {
 
@@ -90,32 +92,36 @@ public class FileSystem extends FuseFilesystemAdapterFull {
         } catch (FileTree.NotDirectoryException e) {
             return -ErrorCodes.ENOTDIR();
         } catch (IOException e) {
-            logger.error("[{}] an error occured while reading directory", path, e);
+            logger.error("an error occured while reading directory", e);
             return -ErrorCodes.EPIPE();
+        } finally {
+            OperationContext.clear();
         }
     }
 
     @Override
     public int open(String path, StructFuseFileInfo.FileInfoWrapper info) {
 
-        logger.debug("[{}] opening, mode {}", path, info.openMode());
+        OperationContext.initialize(path, "open", "mode {}", info.openMode());
 
         try {
             info.fh(openedFiles.open(fileTree.get(path), getOpenMode(info.openMode())).handler);
-            logger.debug("[{}] opened file, fh {}, mode {}", path, info.fh(), info.openMode());
+            logger.debug("opened file, fh {}, mode {}", info.fh(), info.openMode());
             return 0;
         } catch (FileTree.NoSuchFileException e) {
             return -ErrorCodes.ENOENT();
         } catch (IOException e) {
-            logger.error("[{}] an error occured while opening file", path, e);
+            logger.error("an error occured while opening file", e);
             return -ErrorCodes.EPIPE();
+        } finally {
+            OperationContext.clear();
         }
     }
 
     @Override
     public int release(String path, StructFuseFileInfo.FileInfoWrapper info) {
 
-        logger.debug("[{}] releasing, fh {}", path, info.fh_old());
+        OperationContext.initialize(path, "release", "fh {}", info.fh_old());
 
         try {
 
@@ -124,61 +130,69 @@ public class FileSystem extends FuseFilesystemAdapterFull {
             return 0;
 
         } catch (IOException e) {
-            logger.error("[{}] an error occured while releasig file", path, e);
+            logger.error("an error occured while releasig file", e);
             return -ErrorCodes.EPIPE();
+        } finally {
+            OperationContext.clear();
         }
     }
 
     @Override
     public int read(String path, ByteBuffer buffer, long count, long offset, StructFuseFileInfo.FileInfoWrapper info) {
 
-        logger.debug("[{}] reading, fh {}, offset {}, count {}", path, info.fh(), offset, count);
+        OperationContext.initialize(path, "read", "fh {}, offset {}, count {}", info.fh(), offset, count);
 
         try {
             return openedFiles.get(info.fh()).read(buffer, offset, (int) count);
         } catch (IOException e) {
-            logger.error("[{}] an error occured while reading file", path, e);
+            logger.error("an error occured while reading file", e);
             return -ErrorCodes.EPIPE();
+        } finally {
+            OperationContext.clear();
         }
     }
 
     @Override
     public int write(String path, ByteBuffer buffer, long count, long offset, StructFuseFileInfo.FileInfoWrapper info) {
 
-        logger.debug("[{}] writing, fh {}, offset {}, count {}", path, info.fh(), offset, count);
+        OperationContext.initialize(path, "write", "fh {}, offset {}, count {}", info.fh(), offset, count);
 
         try {
             return openedFiles.get(info.fh()).write(buffer, offset, (int) count);
         } catch (IOException e) {
-            logger.error("[{}] an error occured while writing file", path, e);
+            logger.error("an error occured while writing file", e);
             return -ErrorCodes.EPIPE();
+        } finally {
+            OperationContext.clear();
         }
     }
 
     @Override
     public int create(String path, TypeMode.ModeWrapper mode, StructFuseFileInfo.FileInfoWrapper info) {
 
-        logger.debug("[{}] creating file", path);
+        OperationContext.initialize(path, "create");
 
         if (mode.type() != TypeMode.NodeType.FILE)
             return -ErrorCodes.ENOSYS();
 
         try {
             info.fh(openedFiles.open(fileTree.create(path, false), getOpenMode(info.openMode())).handler);
-            logger.debug("[{}] opened file, fh {}, mode {}", path, info.fh(), info.openMode());
+            logger.debug("opened file, fh {}, mode {}", info.fh(), info.openMode());
             return 0;
         } catch (FileTree.NoSuchFileException e) {
             return -ErrorCodes.ENOENT();
         } catch (IOException e) {
-            logger.error("[{}] an error occured while creating file", path, e);
+            logger.error("an error occured while creating file", e);
             return -ErrorCodes.EPIPE();
+        } finally {
+            OperationContext.clear();
         }
     }
 
     @Override
     public int mkdir(String path, TypeMode.ModeWrapper mode) {
 
-        logger.debug("[{}] creating directory", path);
+        OperationContext.initialize(path, "mkdir");
 
         try {
             fileTree.create(path, true);
@@ -186,21 +200,23 @@ public class FileSystem extends FuseFilesystemAdapterFull {
         } catch (FileTree.NoSuchFileException e) {
             return -ErrorCodes.ENOENT();
         } catch (IOException e) {
-            logger.error("[{}] an error occured while creating file", path, e);
+            logger.error("an error occured while creating file", e);
             return -ErrorCodes.EPIPE();
+        } finally {
+            OperationContext.clear();
         }
     }
 
     @Override
     public int truncate(String path, long offset) {
 
-        logger.debug("[{}] truncating, offset {}", path, offset);
+        OperationContext.initialize(path, "truncate", "offset {}", offset);
 
         try {
             try (OpenedFiles.FileHandlerRemovingProxyByteStore openedFile =
                          openedFiles.open(fileTree.get(path), OpenedFiles.OpenMode.WRITE_ONLY)) {
                 logger.debug(
-                        "[{}] opened file for truncate, fh {}, mode {}",
+                        "opened file for truncate, fh {}, mode {}",
                         path, openedFile.handler, OpenedFiles.OpenMode.WRITE_ONLY);
                 openedFile.truncate(offset);
             }
@@ -208,15 +224,17 @@ public class FileSystem extends FuseFilesystemAdapterFull {
         } catch (FileTree.NoSuchFileException e) {
             return -ErrorCodes.ENOENT();
         } catch (IOException e) {
-            logger.error("[{}] an error occured while opening file", path, e);
+            logger.error("an error occured while opening file", e);
             return -ErrorCodes.EPIPE();
+        } finally {
+            OperationContext.clear();
         }
     }
 
     @Override
     public int utimens(String path, StructTimeBuffer.TimeBufferWrapper wrapper) {
 
-        logger.debug("[{}] setting times", path);
+        OperationContext.initialize(path, "utimens");
 
         try {
             fileTree.setDates(path, new Date(wrapper.mod_sec() * 1000), new Date(wrapper.ac_sec() * 1000));
@@ -224,15 +242,17 @@ public class FileSystem extends FuseFilesystemAdapterFull {
         } catch (FileTree.NoSuchFileException e) {
             return -ErrorCodes.ENOENT();
         } catch (IOException e) {
-            logger.error("[{}] an error occured while setting times", path, e);
+            logger.error("an error occured while setting times", e);
             return -ErrorCodes.EPIPE();
+        } finally {
+            OperationContext.clear();
         }
     }
 
     @Override
     public int unlink(String path) {
 
-        logger.debug("[{}] removing file", path);
+        OperationContext.initialize(path, "unlink");
 
         try {
             fileTree.remove(path);
@@ -244,8 +264,10 @@ public class FileSystem extends FuseFilesystemAdapterFull {
         } catch (FileTree.AccessDeniedException e) {
             return -ErrorCodes.EACCES();
         } catch (IOException e) {
-            logger.error("[{}] an error occured while removing file", path, e);
+            logger.error("an error occured while removing file", e);
             return -ErrorCodes.EPIPE();
+        } finally {
+            OperationContext.clear();
         }
     }
 
@@ -257,7 +279,7 @@ public class FileSystem extends FuseFilesystemAdapterFull {
     @Override
     public int rename(String path, String newPath) {
 
-        logger.debug("[{}] moving to {}", path, newPath);
+        OperationContext.initialize(path, "rename", "to {}", newPath);
 
         try {
             fileTree.move(path, newPath);
@@ -265,8 +287,10 @@ public class FileSystem extends FuseFilesystemAdapterFull {
         } catch (FileTree.NoSuchFileException e) {
             return -ErrorCodes.ENOENT();
         } catch (IOException e) {
-            logger.error("[{}] an error occured while moving file", path, e);
+            logger.error("an error occured while moving file", e);
             return -ErrorCodes.EPIPE();
+        } finally {
+            OperationContext.clear();
         }
     }
 
