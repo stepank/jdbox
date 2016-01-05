@@ -1,35 +1,37 @@
 package jdbox.models.fileids;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 public class FileId {
 
     private final FileIdStore store;
-
-    private volatile String id;
+    private final AtomicReference<String> id = new AtomicReference<>();
 
     FileId(FileIdStore store) {
         this.store = store;
     }
 
-    FileId(String id) {
+    FileId(String value) {
         store = null;
-        this.id = id;
+        id.set(value);
     }
 
     public String get() {
-        if (!isSet())
+        String result = id.get();
+        if (result == null)
             throw new UnsupportedOperationException("id is null");
-        return id;
+        return result;
     }
 
-    public void set(String id) {
-        if (isSet())
+    public void set(String value) {
+        if (!id.compareAndSet(null, value))
             throw new UnsupportedOperationException("id can be set only once");
-        store.put(id, this);
-        this.id = id;
+        assert store != null;
+        store.put(value, this);
     }
 
     public boolean isSet() {
-        return id != null;
+        return id.get() != null;
     }
 
     @Override

@@ -4,8 +4,12 @@ import com.google.inject.Module;
 import jdbox.BaseTest;
 import jdbox.driveadapter.DriveAdapter;
 import jdbox.driveadapter.File;
+import jdbox.localstate.LocalStateModule;
 import jdbox.uploader.UploaderModule;
-import jdbox.utils.*;
+import jdbox.utils.MockDriveAdapterModule;
+import jdbox.utils.OrderedRule;
+import jdbox.utils.TestFolderProvider;
+import jdbox.utils.TestUtils;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -21,12 +25,8 @@ public class BaseFileTreeTest extends BaseTest {
 
     protected final static Path testDirPath = Paths.get("/");
 
-    @OrderedRule(1)
+    @OrderedRule
     public final TestFolderProvider testFolderProvider = new TestFolderProvider(errorCollector, lifeCycleManager);
-
-    @OrderedRule(2)
-    public final TestFolderIsolation testFolderIsolation =
-            new TestFolderIsolation(lifeCycleManager, testFolderProvider);
 
     protected DriveAdapter drive;
     protected FileTree fileTree;
@@ -37,6 +37,7 @@ public class BaseFileTreeTest extends BaseTest {
         return new ArrayList<Module>() {{
             add(new MockDriveAdapterModule(driveServiceProvider.getDriveService()));
             add(new UploaderModule());
+            add(new LocalStateModule());
             add(new TestFileTreeModule(false));
         }};
     }

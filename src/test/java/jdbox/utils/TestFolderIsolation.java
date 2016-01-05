@@ -1,6 +1,6 @@
 package jdbox.utils;
 
-import jdbox.filetree.FileTree;
+import jdbox.localstate.LocalState;
 import org.junit.rules.ExternalResource;
 
 public class TestFolderIsolation extends ExternalResource {
@@ -13,7 +13,7 @@ public class TestFolderIsolation extends ExternalResource {
         this.testFolderProvider = testFolderProvider;
     }
 
-    public void before() throws InterruptedException {
-        lifeCycleManager.getInstance(FileTree.class).setRoot(testFolderProvider.getTestFolder().getId());
+    public void before() {
+        lifeCycleManager.getInstance(LocalState.class).setRoot(testFolderProvider.getTestFolder().getId());
     }
 }

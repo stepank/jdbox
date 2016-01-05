@@ -19,7 +19,8 @@ public class MountedFileSystem extends ExternalResource {
         this(errorCollector, lifeCycleManager, true);
     }
 
-    public MountedFileSystem(ErrorCollector errorCollector, LifeCycleManagerResource lifeCycleManager, boolean mountOnBefore) {
+    public MountedFileSystem(
+            ErrorCollector errorCollector, LifeCycleManagerResource lifeCycleManager, boolean mountOnBefore) {
         this.errorCollector = errorCollector;
         this.lifeCycleManager = lifeCycleManager;
         this.mountOnBefore = mountOnBefore;

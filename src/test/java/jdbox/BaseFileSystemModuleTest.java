@@ -6,9 +6,9 @@ import jdbox.driveadapter.DriveAdapter;
 import jdbox.driveadapter.DriveAdapterModule;
 import jdbox.driveadapter.File;
 import jdbox.filetree.FileTreeModule;
+import jdbox.localstate.LocalStateModule;
 import jdbox.uploader.UploaderModule;
 import jdbox.utils.OrderedRule;
-import jdbox.utils.TestFolderIsolation;
 import jdbox.utils.TestFolderProvider;
 import org.junit.Before;
 
@@ -17,11 +17,8 @@ import java.util.List;
 
 public class BaseFileSystemModuleTest extends BaseTest {
 
-    @OrderedRule(1)
+    @OrderedRule
     public final TestFolderProvider testFolderProvider = new TestFolderProvider(errorCollector, lifeCycleManager);
-
-    @OrderedRule(2)
-    public final TestFolderIsolation testFolderIsolation = new TestFolderIsolation(lifeCycleManager, testFolderProvider);
 
     protected DriveAdapter drive;
     protected File testFolder;
@@ -31,6 +28,7 @@ public class BaseFileSystemModuleTest extends BaseTest {
         return new ArrayList<Module>() {{
             add(new DriveAdapterModule(driveServiceProvider.getDriveService()));
             add(new UploaderModule());
+            add(new LocalStateModule());
             add(new ContentModule());
             add(new FileTreeModule(true));
             add(new FileSystemModule());

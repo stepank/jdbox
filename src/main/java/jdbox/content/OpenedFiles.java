@@ -73,7 +73,7 @@ public class OpenedFiles implements OpenedFilesManager {
 
         currentFileHandler++;
 
-        ByteStore openedFile = localStorage.getContent(file);
+        ByteStore openedFile = localStorage.getContent(file.getId());
         if (openedFile == null)
             openedFile = getOpenedFileFactory(file, openMode).create(file);
 
@@ -94,7 +94,7 @@ public class OpenedFiles implements OpenedFilesManager {
         if (file.isDirectory())
             return 0;
 
-        Long size = localStorage.getSize(file);
+        Long size = localStorage.getSize(file.getId());
         if (size != null)
             return size;
 
@@ -192,7 +192,7 @@ public class OpenedFiles implements OpenedFilesManager {
 
         @Override
         public ByteStore create(File file) throws IOException {
-            return localStorage.putContent(file, factory.create(file));
+            return localStorage.putContent(file.getId(), factory.create(file));
         }
     }
 }

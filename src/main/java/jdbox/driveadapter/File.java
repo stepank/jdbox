@@ -150,8 +150,8 @@ public class File {
     }
 
     public void setParentIds(Set<String> parentIds) {
-        if (parentIds == null || parentIds.size() == 0)
-            throw new IllegalArgumentException("parentIds must not be empty");
+        if (parentIds == null)
+            throw new IllegalArgumentException("parentIds must not be null");
         this.parentIds = parentIds;
     }
 

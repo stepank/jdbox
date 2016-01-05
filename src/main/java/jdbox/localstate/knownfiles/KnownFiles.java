@@ -1,4 +1,4 @@
-package jdbox.filetree.knownfiles;
+package jdbox.localstate.knownfiles;
 
 import jdbox.models.File;
 import jdbox.models.fileids.FileId;

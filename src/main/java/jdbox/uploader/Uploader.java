@@ -3,6 +3,7 @@ package jdbox.uploader;
 import com.google.api.client.http.HttpResponseException;
 import com.google.inject.Inject;
 import jdbox.OperationContext;
+import jdbox.models.File;
 import jdbox.models.fileids.FileId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -75,8 +76,9 @@ public class Uploader {
 
         logger.debug("submitting {}", task);
 
-        FileId fileId = task.getFileId();
-        String etag = task.getEtag();
+        File file = task.getFile();
+        FileId fileId = file.getId();
+        String etag = file.getEtag();
 
         Queue queue = queues.get(fileId);
 
@@ -261,7 +263,7 @@ public class Uploader {
                     synchronized (Uploader.this) {
 
                         if (item.getQueue().removeHead()) {
-                            FileId fileId = item.getTask().getFileId();
+                            FileId fileId = item.getTask().getFile().getId();
                             queues.remove(fileId);
                             fileEtagUpdateEvent.onNext(new FileEtagUpdateEvent(fileId, etag));
                         }

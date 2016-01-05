@@ -22,7 +22,7 @@ public class MountTest extends BaseMountFileSystemTest {
     @Test
     public void read() throws InterruptedException, IOException {
         drive.createFile("test.txt", testFolder, getTestContent());
-        resetFileTree();
+        resetLocalState();
         assertThat(Files.readAllBytes(mountPoint.resolve("test.txt")), equalTo(getTestContentBytes()));
     }
 
@@ -69,7 +69,7 @@ public class MountTest extends BaseMountFileSystemTest {
         File folder = drive.createFolder("test", testFolder);
         drive.createFile("test.txt", folder, getTestContent());
 
-        resetFileTree();
+        resetLocalState();
 
         Path dirPath = mountPoint.resolve("test");
         Path filePath = dirPath.resolve("test.txt");
@@ -98,7 +98,7 @@ public class MountTest extends BaseMountFileSystemTest {
         drive.createFolder("destination", testFolder);
         drive.createFile("test.txt", source, getTestContent());
 
-        resetFileTree();
+        resetLocalState();
 
         Path sourcePath = mountPoint.resolve("source").resolve("test.txt");
         Path destinationPath = mountPoint.resolve("destination").resolve("test_2.txt");

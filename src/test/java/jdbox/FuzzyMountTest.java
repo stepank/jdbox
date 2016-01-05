@@ -1,6 +1,7 @@
 package jdbox;
 
 import com.google.common.collect.ImmutableList;
+import jdbox.localstate.LocalState;
 import jdbox.utils.*;
 import org.junit.After;
 import org.junit.Before;
@@ -35,7 +36,8 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
             new LifeCycleManagerResource(errorCollector, lifeCycleManager.getModules());
 
     @OrderedRule(2)
-    public final TestFolderIsolation testFolderIsolation = new TestFolderIsolation(lifeCycleManager2, testFolderProvider);
+    public final TestFolderIsolation testFolderIsolation =
+            new TestFolderIsolation(lifeCycleManager2, testFolderProvider);
 
     @OrderedRule(3)
     public final MountedFileSystem fileSystem2 = new MountedFileSystem(errorCollector, lifeCycleManager2, false);
@@ -53,6 +55,7 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
     public void setUp() {
         logger.debug("entering set up");
         super.setUp();
+        lifeCycleManager.getInstance(LocalState.class).setRoot(testFolder.getId());
         logger.debug("leaving set up");
     }
 

@@ -40,13 +40,8 @@ public abstract class DriveTask implements Task {
     }
 
     @Override
-    public FileId getFileId() {
-        return file.getId();
-    }
-
-    @Override
-    public String getEtag() {
-        return file.getEtag();
+    public File getFile() {
+        return file;
     }
 
     @Override

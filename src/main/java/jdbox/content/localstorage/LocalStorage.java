@@ -6,7 +6,10 @@ import jdbox.content.bytestores.ByteStore;
 import jdbox.content.bytestores.InMemoryByteStoreFactory;
 import jdbox.driveadapter.DriveAdapter;
 import jdbox.driveadapter.Field;
-import jdbox.models.File;
+import jdbox.localstate.LocalState;
+import jdbox.localstate.LocalUpdateSafe;
+import jdbox.localstate.knownfiles.KnownFile;
+import jdbox.localstate.knownfiles.KnownFiles;
 import jdbox.models.fileids.FileId;
 import jdbox.uploader.DriveTask;
 import jdbox.uploader.Uploader;
@@ -27,17 +30,17 @@ public class LocalStorage {
     private final DriveAdapter drive;
     private final InMemoryByteStoreFactory tempStoreFactory;
     private final Observer<FileSizeUpdateEvent> fileSizeUpdateEvent;
-    private final Uploader uploader;
+    private final LocalState localState;
     private final Map<FileId, SharedOpenedFile> files = new HashMap<>();
 
     @Inject
     LocalStorage(
             DriveAdapter drive, InMemoryByteStoreFactory tempStoreFactory,
-            Observer<FileSizeUpdateEvent> fileSizeUpdateEvent, Uploader uploader) {
+            Observer<FileSizeUpdateEvent> fileSizeUpdateEvent, LocalState localState) {
         this.drive = drive;
         this.tempStoreFactory = tempStoreFactory;
         this.fileSizeUpdateEvent = fileSizeUpdateEvent;
-        this.uploader = uploader;
+        this.localState = localState;
     }
 
     public void reset() {
@@ -48,16 +51,16 @@ public class LocalStorage {
         return files.size();
     }
 
-    public synchronized Long getSize(File file) {
-        SharedOpenedFile shared = files.get(file.getId());
+    public synchronized Long getSize(FileId fileId) {
+        SharedOpenedFile shared = files.get(fileId);
         if (shared == null)
             return null;
-        return files.get(file.getId()).content.getSize();
+        return files.get(fileId).content.getSize();
     }
 
-    public synchronized ByteStore getContent(File file) {
+    public synchronized ByteStore getContent(FileId fileId) {
 
-        SharedOpenedFile shared = files.get(file.getId());
+        SharedOpenedFile shared = files.get(fileId);
 
         if (shared == null)
             return null;
@@ -67,24 +70,25 @@ public class LocalStorage {
         return new ContentUpdatingProxyOpenedFile(shared);
     }
 
-    public synchronized ByteStore putContent(File file, ByteStore content) {
+    public synchronized ByteStore putContent(FileId fileId, ByteStore content) {
 
-        SharedOpenedFile shared = new SharedOpenedFile(file, content);
+        SharedOpenedFile shared = new SharedOpenedFile(fileId, content);
 
-        files.put(file.getId(), shared);
+        files.put(fileId, shared);
+
+        shared.refCount++;
 
         return new ContentUpdatingProxyOpenedFile(shared);
     }
 
     private class SharedOpenedFile {
 
-        public final File file;
+        public final FileId fileId;
         public final ByteStore content;
-        public volatile int refCount = 1;
-        public volatile boolean hasChanged = false;
+        public volatile int refCount = 0;
 
-        private SharedOpenedFile(File file, ByteStore content) {
-            this.file = file;
+        private SharedOpenedFile(FileId fileId, ByteStore content) {
+            this.fileId = fileId;
             this.content = content;
         }
     }
@@ -92,6 +96,10 @@ public class LocalStorage {
     private class ContentUpdatingProxyOpenedFile implements ByteStore {
 
         private final SharedOpenedFile shared;
+        private boolean hasChanged = false;
+
+        // this flag is used to make sure that every instance is closed only once and
+        // therefore refcount is decreased only once for each instance
         private boolean closed = false;
 
         public ContentUpdatingProxyOpenedFile(SharedOpenedFile shared) {
@@ -99,100 +107,97 @@ public class LocalStorage {
         }
 
         @Override
-        public int read(ByteBuffer buffer, long offset, int count) throws IOException {
+        public synchronized int read(ByteBuffer buffer, long offset, int count) throws IOException {
 
-            synchronized (shared) {
+            if (closed)
+                throw new IOException("read on a closed ByteStore");
 
-                if (closed)
-                    throw new IOException("read on a closed ByteStore");
-
-                return shared.content.read(buffer, offset, count);
-            }
+            return shared.content.read(buffer, offset, count);
         }
 
         @Override
-        public int write(ByteBuffer buffer, long offset, int count) throws IOException {
+        public synchronized int write(ByteBuffer buffer, long offset, int count) throws IOException {
 
-            synchronized (shared) {
+            if (closed)
+                throw new IOException("write on a closed ByteStore");
 
-                if (closed)
-                    throw new IOException("write on a closed ByteStore");
-
-                shared.hasChanged = true;
-                return shared.content.write(buffer, offset, count);
-            }
+            hasChanged = true;
+            return shared.content.write(buffer, offset, count);
         }
 
         @Override
-        public void truncate(long offset) throws IOException {
+        public synchronized void truncate(long offset) throws IOException {
 
-            synchronized (shared) {
+            if (closed)
+                throw new IOException("truncate on a closed ByteStore");
 
-                if (closed)
-                    throw new IOException("truncate on a closed ByteStore");
-
-                shared.hasChanged = true;
-                shared.content.truncate(offset);
-            }
+            hasChanged = true;
+            shared.content.truncate(offset);
         }
 
         @Override
         public long getSize() {
-            synchronized (shared) {
-                return shared.content.getSize();
-            }
+            return shared.content.getSize();
         }
 
         @Override
-        public void close() throws IOException {
+        public synchronized void close() throws IOException {
 
-            logger.debug("closing a proxy, has changed {}, ref count {}", shared.hasChanged, shared.refCount);
+            logger.debug("closing a proxy, has changed {}, ref count {}", hasChanged, shared.refCount);
 
-            synchronized (shared) {
+            if (closed)
+                return;
 
-                if (closed)
-                    return;
+            closed = true;
 
-                if (!shared.hasChanged) {
+            if (!hasChanged) {
 
+                synchronized (LocalStorage.this) {
                     assert shared.refCount > 0;
-
                     shared.refCount--;
                     if (shared.refCount == 0)
-                        synchronized (LocalStorage.this) {
-                            files.remove(shared.file.getId()).content.close();
-                        }
-
-                    return;
+                        files.remove(shared.fileId).content.close();
                 }
 
-                final ByteStore capturedContent = tempStoreFactory.create();
-                final int size = ByteSources.copy(shared.content, capturedContent);
-
-                String label = "update content, content length is " + size;
-
-                uploader.submit(new DriveTask(label, shared.file, EnumSet.noneOf(Field.class)) {
-                    @Override
-                    public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
-
-                        jdbox.driveadapter.File updatedFile =
-                                drive.updateFileContent(file, ByteSources.toInputStream(capturedContent));
-
-                        capturedContent.close();
-
-                        synchronized (shared) {
-                            shared.refCount--;
-                            if (shared.refCount == 0)
-                                synchronized (LocalStorage.this) {
-                                    fileSizeUpdateEvent.onNext(new FileSizeUpdateEvent(shared.file.getId(), size));
-                                    files.remove(shared.file.getId()).content.close();
-                                }
-                        }
-
-                        return updatedFile;
-                    }
-                });
+                return;
             }
+
+            final ByteStore capturedContent = tempStoreFactory.create();
+            final int size = ByteSources.copy(shared.content, capturedContent);
+
+            localState.update(new LocalUpdateSafe() {
+                @Override
+                public Void run(KnownFiles knownFiles, Uploader uploader) {
+
+                    KnownFile existing = knownFiles.get(shared.fileId);
+                    assert existing != null;
+
+                    uploader.submit(new DriveTask(
+                            "update content, content length is " + size,
+                            existing.toFile(), EnumSet.noneOf(Field.class)) {
+                        @Override
+                        public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
+
+                            jdbox.driveadapter.File updatedFile =
+                                    drive.updateFileContent(file, ByteSources.toInputStream(capturedContent));
+
+                            capturedContent.close();
+
+                            synchronized (LocalStorage.this) {
+                                assert shared.refCount > 0;
+                                shared.refCount--;
+                                if (shared.refCount == 0) {
+                                    fileSizeUpdateEvent.onNext(new FileSizeUpdateEvent(shared.fileId, size));
+                                    files.remove(shared.fileId).content.close();
+                                }
+                            }
+
+                            return updatedFile;
+                        }
+                    });
+                    return null;
+                }
+            });
         }
     }
 }

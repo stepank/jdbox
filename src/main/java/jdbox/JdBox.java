@@ -14,6 +14,7 @@ import com.google.api.services.drive.DriveScopes;
 import jdbox.content.ContentModule;
 import jdbox.driveadapter.DriveAdapterModule;
 import jdbox.filetree.FileTreeModule;
+import jdbox.localstate.LocalStateModule;
 import jdbox.modules.LifeCycleManager;
 import jdbox.modules.MultipleException;
 import jdbox.uploader.UploaderModule;
@@ -42,6 +43,7 @@ public class JdBox {
                 new CommonModule(),
                 new DriveAdapterModule(createDriveService(env)),
                 new UploaderModule(),
+                new LocalStateModule(),
                 new ContentModule(),
                 new FileTreeModule(true),
                 new FileSystemModule()

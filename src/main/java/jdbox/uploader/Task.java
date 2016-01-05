@@ -1,5 +1,6 @@
 package jdbox.uploader;
 
+import jdbox.models.File;
 import jdbox.models.fileids.FileId;
 
 import java.io.IOException;
@@ -8,9 +9,7 @@ public interface Task {
 
     String getLabel();
 
-    FileId getFileId();
-
-    String getEtag();
+    File getFile();
 
     FileId getDependsOn();
 

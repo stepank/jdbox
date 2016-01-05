@@ -9,6 +9,8 @@ import jdbox.driveadapter.DriveAdapter;
 import jdbox.driveadapter.File;
 import jdbox.filetree.FileTree;
 import jdbox.filetree.FileTreeModule;
+import jdbox.localstate.LocalState;
+import jdbox.localstate.LocalStateModule;
 import jdbox.uploader.Uploader;
 import jdbox.uploader.UploaderModule;
 import jdbox.utils.MockDriveAdapterModule;
@@ -39,6 +41,7 @@ public class UploadFailureTest extends BaseMountFileSystemTest {
     protected List<Module> getRequiredModules() {
         return new ArrayList<Module>() {{
             add(new MockDriveAdapterModule(driveServiceProvider.getDriveService()));
+            add(new LocalStateModule());
             add(new UploaderModule());
             add(new ContentModule());
             add(new FileTreeModule(true));
@@ -146,7 +149,7 @@ public class UploadFailureTest extends BaseMountFileSystemTest {
         lifeCycleManager.waitUntilUploaderIsDone();
 
         logger.debug("reset local state");
-        lifeCycleManager.getInstance(FileTree.class).reset();
+        lifeCycleManager.getInstance(LocalState.class).reset();
         lifeCycleManager.getInstance(OpenedFiles.class).reset();
         lifeCycleManager.getInstance(Uploader.class).reset();
 

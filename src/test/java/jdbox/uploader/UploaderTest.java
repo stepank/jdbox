@@ -3,6 +3,7 @@ package jdbox.uploader;
 import com.google.common.collect.Lists;
 import com.google.inject.Module;
 import jdbox.BaseTest;
+import jdbox.models.File;
 import jdbox.models.fileids.FileId;
 import jdbox.models.fileids.FileIdStore;
 import org.junit.After;
@@ -207,7 +208,7 @@ class TestTaskFactory {
             Integer label, String fileId, String dependsOn, boolean blocksDependentTasks, IORunnable runnable) {
         labels.add(label);
         return new TestTask(
-                label, fileIdStore.get(fileId), dependsOn != null ? fileIdStore.get(dependsOn) : null,
+                label, new File(fileIdStore.get(fileId)), dependsOn != null ? fileIdStore.get(dependsOn) : null,
                 blocksDependentTasks, runnable, order);
     }
 }
@@ -215,17 +216,17 @@ class TestTaskFactory {
 class TestTask implements Task {
 
     private final Integer label;
-    private final FileId fileId;
+    private final File file;
     private final FileId dependsOn;
     private final boolean blocksDependentTasks;
     private final IORunnable runnable;
     private final List<Integer> order;
 
     public TestTask(
-            Integer label, FileId fileId, FileId dependsOn,
+            Integer label, File file, FileId dependsOn,
             boolean blocksDependentTasks, IORunnable runnable, List<Integer> order) {
         this.label = label;
-        this.fileId = fileId;
+        this.file = file;
         this.dependsOn = dependsOn;
         this.blocksDependentTasks = blocksDependentTasks;
         this.runnable = runnable;
@@ -238,13 +239,8 @@ class TestTask implements Task {
     }
 
     @Override
-    public FileId getFileId() {
-        return fileId;
-    }
-
-    @Override
-    public String getEtag() {
-        return null;
+    public File getFile() {
+        return file;
     }
 
     @Override

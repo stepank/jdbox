@@ -3,6 +3,7 @@ package jdbox.content;
 import com.google.inject.Module;
 import jdbox.BaseTest;
 import jdbox.driveadapter.DriveAdapterModule;
+import jdbox.localstate.LocalStateModule;
 import jdbox.uploader.UploaderModule;
 
 import java.util.ArrayList;
@@ -15,6 +16,7 @@ public class BaseContentModuleTest extends BaseTest {
         return new ArrayList<Module>() {{
             add(new DriveAdapterModule(driveServiceProvider.getDriveService()));
             add(new UploaderModule());
+            add(new LocalStateModule());
             add(new TestContentModule());
         }};
     }

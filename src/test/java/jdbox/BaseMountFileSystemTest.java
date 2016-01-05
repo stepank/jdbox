@@ -1,6 +1,6 @@
 package jdbox;
 
-import jdbox.filetree.FileTree;
+import jdbox.localstate.LocalState;
 import jdbox.utils.MountedFileSystem;
 import jdbox.utils.OrderedRule;
 import org.junit.After;
@@ -26,7 +26,7 @@ public class BaseMountFileSystemTest extends BaseFileSystemModuleTest {
         lifeCycleManager.waitUntilLocalStorageIsEmpty();
     }
 
-    protected void resetFileTree() throws InterruptedException {
-        lifeCycleManager.getInstance(FileTree.class).reset();
+    protected void resetLocalState() throws InterruptedException {
+        lifeCycleManager.getInstance(LocalState.class).reset();
     }
 }

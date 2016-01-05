@@ -28,6 +28,7 @@ public class TestFolderProvider extends ExternalResource {
     public void before() throws IOException {
         drive = lifeCycleManager.getInstance(DriveAdapter.class);
         testFolder = drive.createFolder(UUID.randomUUID().toString(), null);
+        new TestFolderIsolation(lifeCycleManager, this).before();
     }
 
     public void after() {

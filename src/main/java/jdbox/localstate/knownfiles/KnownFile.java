@@ -1,4 +1,4 @@
-package jdbox.filetree.knownfiles;
+package jdbox.localstate.knownfiles;
 
 import com.google.common.collect.ImmutableMap;
 import jdbox.models.File;

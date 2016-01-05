@@ -8,8 +8,9 @@ import jdbox.content.OpenedFilesManager;
 import jdbox.content.localstorage.FileSizeUpdateEvent;
 import jdbox.driveadapter.DriveAdapter;
 import jdbox.driveadapter.Field;
-import jdbox.filetree.knownfiles.KnownFile;
-import jdbox.filetree.knownfiles.KnownFiles;
+import jdbox.localstate.*;
+import jdbox.localstate.knownfiles.KnownFile;
+import jdbox.localstate.knownfiles.KnownFiles;
 import jdbox.models.File;
 import jdbox.models.fileids.FileId;
 import jdbox.models.fileids.FileIdStore;
@@ -47,22 +48,8 @@ public class FileTree {
     private final Observable<FileEtagUpdateEvent> fileEtagUpdateEvent;
     private final rx.Observable<UploadFailureEvent> uploadFailureEvent;
     private final OpenedFilesManager openedFilesManager;
-    private final Uploader uploader;
 
-    private final KnownFiles knownFiles = new KnownFiles();
-
-    // Read lock is acquired for reading from knownFiles to prevent modification of its state
-    // while read operations are in progress.
-    // Write lock is acquired on:
-    // 1. knownFiles modifications. This ensures consistent modification of its state.
-    // 1. FileTree public write operations. This ensures consistent modification of knownFiles and
-    //    correct order of operations submitted to the Uploader.
-    // 2. Retrieval of the list of files in a directory. The primary goal is to prevent concurrent retrieval of
-    //    the list of files in one directory. Although this also prevents any other write & read operations
-    //    on the FileTree, it is not considered a problem at the moment, because:
-    //      a. Directory contents are cached and retrieval do not seem to be frequent.
-    //      b. Implementing more fine-grained locking would require considerable effort.
-    private final ReadWriteLock localStateLock = new ReentrantReadWriteLock();
+    private final LocalState localState;
 
     // Read lock is acquired on file creation operations to prevent concurrent creation of the same file id
     // either by retrieval of the list of files or by retrieval of changes. Write lock is acquired on any retrieval
@@ -110,7 +97,7 @@ public class FileTree {
     public FileTree(
             DriveAdapter drive, FileIdStore fileIdStore, Observable<FileSizeUpdateEvent> fileSizeUpdateEvent,
             Observable<FileEtagUpdateEvent> fileEtagUpdateEvent, Observable<UploadFailureEvent> uploadFailureEvent,
-            OpenedFilesManager openedFilesManager, Uploader uploader) {
+            OpenedFilesManager openedFilesManager, LocalState localState) {
 
         this.drive = drive;
         this.fileIdStore = fileIdStore;
@@ -118,25 +105,25 @@ public class FileTree {
         this.fileEtagUpdateEvent = fileEtagUpdateEvent;
         this.uploadFailureEvent = uploadFailureEvent;
         this.openedFilesManager = openedFilesManager;
-        this.uploader = uploader;
+        this.localState = localState;
     }
 
     public int getKnownFileCount() {
-        localStateLock.readLock().lock();
-        try {
-            return knownFiles.getFileCount();
-        } finally {
-            localStateLock.readLock().unlock();
-        }
+        return localState.read(new LocalReadSafe<Integer>() {
+            @Override
+            public Integer run(KnownFiles knownFiles) {
+                return knownFiles.getFileCount();
+            }
+        });
     }
 
     public int getTrackedDirCount() {
-        localStateLock.readLock().lock();
-        try {
-            return knownFiles.getTrackedDirCount();
-        } finally {
-            localStateLock.readLock().unlock();
-        }
+        return localState.read(new LocalReadSafe<Integer>() {
+            @Override
+            public Integer run(KnownFiles knownFiles) {
+                return knownFiles.getTrackedDirCount();
+            }
+        });
     }
 
     public void init() throws IOException {
@@ -166,7 +153,7 @@ public class FileTree {
 
         largestChangeId = info.largestChangeId;
 
-        setRoot(info.rootFolderId);
+        localState.setRoot(info.rootFolderId);
     }
 
     public void start() {
@@ -199,19 +186,6 @@ public class FileTree {
             uploadFailureEventSubscription.unsubscribe();
     }
 
-    public void setRoot(String id) {
-        localStateLock.writeLock().lock();
-        try {
-            knownFiles.setRoot(fileIdStore.get(id));
-        } finally {
-            localStateLock.writeLock().unlock();
-        }
-    }
-
-    public void reset() {
-        setRoot(knownFiles.getRoot().getId().get());
-    }
-
     public void update() {
 
         if (scheduler != null)
@@ -237,8 +211,14 @@ public class FileTree {
 
     public File getOrNull(Path path) throws IOException {
 
-        if (isRoot(path))
-            return knownFiles.getRoot().toFile();
+        if (isRoot(path)) {
+            return localState.read(new LocalReadSafe<File>() {
+                @Override
+                public File run(KnownFiles knownFiles) {
+                    return knownFiles.getRoot().toFile();
+                }
+            });
+        }
 
         return getOrFetch(path.getParent(), path.getFileName().toString(), singleFileGetter);
     }
@@ -256,253 +236,256 @@ public class FileTree {
         return create(Paths.get(path), isDirectory);
     }
 
-    public File create(final Path path, boolean isDirectory) throws IOException {
+    public File create(final Path path, final boolean isDirectory) throws IOException {
 
         logger.debug("creating {}", isDirectory ? "folder" : "file");
 
-        localStateLock.writeLock().lock();
+        return localState.update(
+                new FilePropertiesLocalUpdate(path) {
+                    @Override
+                    public KnownFile run(
+                            KnownFile existing, KnownFile parent, KnownFiles knownFiles, Uploader uploader)
+                            throws IOException {
 
-        try {
+                        if (!parent.isDirectory())
+                            throw new NotDirectoryException(path.getParent());
 
-            final KnownFile parent = getUnsafe(knownFiles.getRoot(), path.getParent());
-            final Path fileName = path.getFileName();
+                        if (existing != null)
+                            throw new FileAlreadyExistsException(path);
 
-            if (getOrNullUnsafe(parent, fileName) != null)
-                throw new FileAlreadyExistsException(path);
+                        final KnownFile newFile = knownFiles.create(
+                                fileIdStore.create(), path.getFileName().toString(), isDirectory, new Date());
 
-            final KnownFile newFile =
-                    knownFiles.create(fileIdStore.create(), fileName.toString(), isDirectory, new Date());
+                        parent.tryAddChild(newFile);
 
-            parent.tryAddChild(newFile);
+                        uploader.submit(new DriveTask(
+                                "create " + (isDirectory ? "directory" : "file"), newFile.toFile(),
+                                EnumSet.allOf(Field.class), parent.getId(), true) {
+                            @Override
+                            public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
 
-            File file = newFile.toFile();
+                                fileIdStoreLock.readLock().lock();
+                                try {
 
-            uploader.submit(new DriveTask(
-                    "create " + (isDirectory ? "directory" : "file"),
-                    file, EnumSet.allOf(Field.class), parent.getId(), isDirectory) {
-                @Override
-                public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
+                                    final jdbox.driveadapter.File createdFile = drive.createFile(
+                                            file, new ByteArrayInputStream(new byte[0]));
 
-                    fileIdStoreLock.readLock().lock();
+                                    localState.update(new LocalUpdate() {
+                                        @Override
+                                        public KnownFile run(
+                                                KnownFiles knownFiles, Uploader uploader) throws IOException {
+                                            newFile.setUploaded(createdFile.getId(), createdFile.getDownloadUrl());
+                                            return null;
+                                        }
+                                    });
 
-                    try {
+                                    return createdFile;
 
-                        jdbox.driveadapter.File createdFile =
-                                drive.createFile(file, new ByteArrayInputStream(new byte[0]));
+                                } finally {
+                                    fileIdStoreLock.readLock().unlock();
+                                }
+                            }
+                        });
 
-                        localStateLock.writeLock().lock();
-                        try {
-                            newFile.setUploaded(createdFile.getId(), createdFile.getDownloadUrl());
-                        } finally {
-                            localStateLock.writeLock().unlock();
-                        }
-
-                        return createdFile;
-
-                    } finally {
-                        fileIdStoreLock.readLock().unlock();
+                        return newFile;
                     }
                 }
-            });
-
-            return file;
-
-        } finally {
-            localStateLock.writeLock().unlock();
-        }
+        );
     }
 
     public void setDates(String path, Date modifiedDate, Date accessedDate) throws IOException {
         setDates(Paths.get(path), modifiedDate, accessedDate);
     }
 
-    public void setDates(Path path, final Date modifiedDate, final Date accessedDate) throws IOException {
+    public void setDates(final Path path, final Date modifiedDate, final Date accessedDate) throws IOException {
 
         logger.debug("setting dates");
 
-        localStateLock.writeLock().lock();
+        localState.update(new FilePropertiesLocalUpdate(path) {
+            @Override
+            public KnownFile run(
+                    KnownFile existing, KnownFile parent, KnownFiles knownFiles, Uploader uploader)
+                    throws IOException {
 
-        try {
+                if (existing == uploadFailureNotificationFile)
+                    throw new AccessDeniedException(path);
 
-            KnownFile existing = getUnsafe(knownFiles.getRoot(), path);
+                existing.setDates(modifiedDate, accessedDate);
 
-            if (existing == uploadFailureNotificationFile)
-                throw new AccessDeniedException(path);
+                uploader.submit(new DriveTask(
+                        "set modified to " + modifiedDate.toString() + " and accessed to " + accessedDate,
+                        existing.toFile(), EnumSet.of(Field.MODIFIED_DATE, Field.ACCESSED_DATE)) {
+                    @Override
+                    public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
+                        return drive.updateFile(file);
+                    }
+                });
 
-            existing.setDates(modifiedDate, accessedDate);
-
-            uploader.submit(new DriveTask(
-                    "set modified to " + modifiedDate.toString() + " and accessed to " + accessedDate,
-                    existing.toFile(), EnumSet.of(Field.MODIFIED_DATE, Field.ACCESSED_DATE)) {
-                @Override
-                public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
-                    return drive.updateFile(file);
-                }
-            });
-
-        } finally {
-            localStateLock.writeLock().unlock();
-        }
+                return null;
+            }
+        });
     }
 
     public void remove(String path) throws IOException {
         remove(Paths.get(path));
     }
 
-    public void remove(Path path) throws IOException {
+    public void remove(final Path path) throws IOException {
 
         logger.debug("removing");
 
-        localStateLock.writeLock().lock();
+        localState.update(new FilePropertiesLocalUpdate(path) {
+            @Override
+            public KnownFile run(
+                    KnownFile existing, KnownFile parent, KnownFiles knownFiles, Uploader uploader)
+                    throws IOException {
 
-        try {
+                if (existing.isDirectory() && getChildrenUnsafe(knownFiles, existing, null).size() != 0)
+                    throw new NonEmptyDirectoryException(path);
 
-            KnownFile parent = getUnsafe(knownFiles.getRoot(), path.getParent());
-            KnownFile existing = getUnsafe(parent, path.getFileName());
+                parent.tryRemoveChild(existing);
 
-            if (existing.isDirectory() && getChildrenUnsafe(existing, null).size() != 0)
-                throw new NonEmptyDirectoryException(path);
+                if (existing == uploadFailureNotificationFile) {
 
-            parent.tryRemoveChild(existing);
+                    if (openedFilesManager.getOpenedFilesCount() != 0)
+                        throw new AccessDeniedException(path);
 
-            if (existing == uploadFailureNotificationFile) {
+                    localState.reset();
 
-                if (openedFilesManager.getOpenedFilesCount() != 0)
-                    throw new AccessDeniedException(path);
+                    openedFilesManager.reset();
 
-                reset();
+                    uploader.reset();
 
-                openedFilesManager.reset();
-
-                uploader.reset();
-
-                uploadFailureNotificationFile = null;
-
-            } else {
-
-                File file = existing.toFile();
-
-                if (file.getParentIds().size() == 0) {
-
-                    uploader.submit(new DriveTask(
-                            "remove file/directory completely", file, EnumSet.noneOf(Field.class)) {
-                        @Override
-                        public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
-                            return drive.trashFile(file);
-                        }
-                    });
+                    uploadFailureNotificationFile = null;
 
                 } else {
 
-                    uploader.submit(new DriveTask(
-                            "remove file/directory from one directory only", file, EnumSet.of(Field.PARENT_IDS)) {
-                        @Override
-                        public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
-                            return drive.updateFile(file);
-                        }
-                    });
-                }
-            }
+                    File file = existing.toFile();
 
-        } finally {
-            localStateLock.writeLock().unlock();
-        }
+                    if (file.getParentIds().size() == 0) {
+
+                        uploader.submit(new DriveTask(
+                                "remove file/directory completely", file, EnumSet.noneOf(Field.class)) {
+                            @Override
+                            public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
+                                return drive.trashFile(file);
+                            }
+                        });
+
+                    } else {
+
+                        uploader.submit(new DriveTask(
+                                "remove file/directory from one directory only", file, EnumSet.of(Field.PARENT_IDS)) {
+                            @Override
+                            public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
+                                return drive.updateFile(file);
+                            }
+                        });
+                    }
+                }
+
+                return null;
+            }
+        });
     }
 
     public void move(String path, String newPath) throws IOException {
         move(Paths.get(path), Paths.get(newPath));
     }
 
-    public void move(Path path, Path newPath) throws IOException {
+    public void move(final Path path, final Path newPath) throws IOException {
 
         logger.debug("moving to {}", newPath);
 
         if (path.equals(newPath))
             return;
 
-        localStateLock.writeLock().lock();
+        localState.update(new FilePropertiesLocalUpdate(path) {
+            @Override
+            public KnownFile run(
+                    KnownFile existing, KnownFile parent, KnownFiles knownFiles, Uploader uploader)
+                    throws IOException {
 
-        try {
+                Path parentPath = path.getParent();
+                Path fileName = path.getFileName();
 
-            Path parentPath = path.getParent();
-            Path fileName = path.getFileName();
-            KnownFile parent = getUnsafe(knownFiles.getRoot(), parentPath);
+                if (existing == uploadFailureNotificationFile)
+                    throw new AccessDeniedException(path);
 
-            KnownFile existing = getUnsafe(parent, fileName);
+                Path newParentPath = newPath.getParent();
+                Path newFileName = newPath.getFileName();
 
-            if (existing == uploadFailureNotificationFile)
-                throw new AccessDeniedException(path);
+                KnownFile newParent;
+                if (newParentPath.equals(parentPath))
+                    newParent = parent;
+                else
+                    newParent = getUnsafe(knownFiles, knownFiles.getRoot(), newParentPath);
 
-            Path newParentPath = newPath.getParent();
-            Path newFileName = newPath.getFileName();
+                if (getOrNullUnsafe(knownFiles, newParent, newFileName) != null)
+                    throw new FileAlreadyExistsException(newPath);
 
-            KnownFile newParent;
-            if (newParentPath.equals(parentPath))
-                newParent = parent;
-            else
-                newParent = getUnsafe(knownFiles.getRoot(), newParentPath);
+                EnumSet<Field> fields = EnumSet.noneOf(Field.class);
 
-            if (getOrNullUnsafe(newParent, newFileName) != null)
-                throw new FileAlreadyExistsException(newPath);
+                FileId newParentId = null;
 
-            EnumSet<Field> fields = EnumSet.noneOf(Field.class);
+                if (!parentPath.equals(newParentPath)) {
 
-            FileId newParentId = null;
+                    fields.add(Field.PARENT_IDS);
 
-            if (!parentPath.equals(newParentPath)) {
+                    newParent.tryAddChild(existing);
+                    parent.tryRemoveChild(existing);
 
-                fields.add(Field.PARENT_IDS);
-
-                newParent.tryAddChild(existing);
-                parent.tryRemoveChild(existing);
-
-                newParentId = newParent.getId();
-            }
-
-            if (!fileName.equals(newFileName)) {
-                fields.add(Field.NAME);
-                existing.rename(newFileName.toString());
-            }
-
-            uploader.submit(new DriveTask("move/rename to " + newPath, existing.toFile(), fields, newParentId) {
-                @Override
-                public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
-                    return drive.updateFile(file);
+                    newParentId = newParent.getId();
                 }
-            });
 
-        } finally {
-            localStateLock.writeLock().unlock();
-        }
+                if (!fileName.equals(newFileName)) {
+                    fields.add(Field.NAME);
+                    existing.rename(newFileName.toString());
+                }
+
+                uploader.submit(new DriveTask("move/rename to " + newPath, existing.toFile(), fields, newParentId) {
+                    @Override
+                    public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
+                        return drive.updateFile(file);
+                    }
+                });
+
+                return null;
+            }
+        });
     }
 
-    private <T> T getOrFetch(Path path, String fileName, Getter<T> getter) throws IOException {
+    private <T> T getOrFetch(final Path path, final String fileName, final Getter<T> getter) throws IOException {
 
-        localStateLock.readLock().lock();
-        try {
+        T result = localState.read(new LocalRead<T>() {
+            @Override
+            public T run(KnownFiles knownFiles) throws NotDirectoryException {
 
-            KnownFile dir = locateFile(knownFiles.getRoot(), path);
+                KnownFile dir = locateFile(knownFiles.getRoot(), path);
 
-            if (dir != null) {
+                if (dir == null)
+                    return null;
 
                 if (!dir.isDirectory())
                     throw new NotDirectoryException(path);
 
                 Map<String, KnownFile> children = dir.getChildrenOrNull();
-                if (children != null)
-                    return getter.apply(fileName, children);
+                return children != null ? getter.apply(fileName, children) : null;
             }
+        });
 
-        } finally {
-            localStateLock.readLock().unlock();
-        }
+        if (result != null)
+            return result;
 
         fileIdStoreLock.writeLock().lock();
-        localStateLock.writeLock().lock();
         try {
-            return getOrFetchUnsafe(knownFiles.getRoot(), path, fileName, getter);
+            return localState.update(new LocalUpdate<T>() {
+                @Override
+                public T run(KnownFiles knownFiles, Uploader uploader) throws IOException {
+                    return getOrFetchUnsafe(knownFiles, knownFiles.getRoot(), path, fileName, getter);
+                }
+            });
         } finally {
-            localStateLock.writeLock().unlock();
             fileIdStoreLock.writeLock().unlock();
         }
     }
@@ -525,9 +508,9 @@ public class FileTree {
         return locateFile(child, path.subpath(1, path.getNameCount()));
     }
 
-    private KnownFile getUnsafe(KnownFile root, Path path) throws IOException {
+    private KnownFile getUnsafe(KnownFiles knownFiles, KnownFile root, Path path) throws IOException {
 
-        KnownFile kf = getOrNullUnsafe(root, path);
+        KnownFile kf = getOrNullUnsafe(knownFiles, root, path);
 
         if (kf == null)
             throw new NoSuchFileException(path);
@@ -535,21 +518,23 @@ public class FileTree {
         return kf;
     }
 
-    private KnownFile getOrNullUnsafe(KnownFile root, Path path) throws IOException {
+    private KnownFile getOrNullUnsafe(KnownFiles knownFiles, KnownFile root, Path path) throws IOException {
 
         if (isRoot(path))
             return root;
 
-        return getOrFetchUnsafe(root, path.getParent(), path.getFileName().toString(), singleKnownFileGetter);
+        return getOrFetchUnsafe(
+                knownFiles, root, path.getParent(), path.getFileName().toString(), singleKnownFileGetter);
     }
 
-    private List<String> getChildrenUnsafe(KnownFile root, Path path) throws IOException {
-        return getOrFetchUnsafe(root, path, null, namesGetter);
+    private List<String> getChildrenUnsafe(KnownFiles knownFiles, KnownFile root, Path path) throws IOException {
+        return getOrFetchUnsafe(knownFiles, root, path, null, namesGetter);
     }
 
-    private <T> T getOrFetchUnsafe(KnownFile root, Path path, String fileName, Getter<T> getter) throws IOException {
+    private <T> T getOrFetchUnsafe(
+            KnownFiles knownFiles, KnownFile root, Path path, String fileName, Getter<T> getter) throws IOException {
 
-        KnownFile dir = getUnsafe(root, path);
+        KnownFile dir = getUnsafe(knownFiles, root, path);
 
         if (!dir.isDirectory())
             throw new NotDirectoryException(path);
@@ -581,51 +566,54 @@ public class FileTree {
         return getter.apply(fileName, dir.getChildrenOrNull());
     }
 
-    private void updateFileSize(FileId fileId, long fileSize) {
-        localStateLock.writeLock().lock();
-        try {
-            KnownFile file = knownFiles.get(fileId);
-            if (file != null)
-                file.setSize(fileSize);
-        } finally {
-            localStateLock.writeLock().unlock();
-        }
-    }
-
-    private void updateFileEtag(FileId fileId, String etag) {
-        localStateLock.writeLock().lock();
-        try {
-            KnownFile file = knownFiles.get(fileId);
-            if (file != null)
-                file.setEtag(etag);
-        } finally {
-            localStateLock.writeLock().unlock();
-        }
-    }
-
-    private void createOrUpdateUploadFailureNotificationFile(Uploader.UploadStatus uploadStatus) {
-
-        localStateLock.writeLock().lock();
-        try {
-
-            if (uploadFailureNotificationFile != null) {
-
-                uploadFailureNotificationFile.setDates(uploadStatus.date, uploadStatus.date);
-
-            } else {
-
-                uploadFailureNotificationFile = knownFiles.create(
-                        fileIdStore.get(Uploader.uploadFailureNotificationFileId),
-                        uploadNotificationFileName, false, uploadStatus.date);
-
-                uploadFailureNotificationFile.setDates(uploadStatus.date, uploadStatus.date);
-
-                knownFiles.getRoot().tryAddChild(uploadFailureNotificationFile);
+    private void updateFileSize(final FileId fileId, final long fileSize) {
+        localState.update(new LocalUpdateSafe() {
+            @Override
+            public Void run(KnownFiles knownFiles, Uploader uploader) {
+                KnownFile file = knownFiles.get(fileId);
+                if (file != null)
+                    file.setSize(fileSize);
+                return null;
             }
+        });
+    }
 
-        } finally {
-            localStateLock.writeLock().unlock();
-        }
+    private void updateFileEtag(final FileId fileId, final String etag) {
+        localState.update(new LocalUpdateSafe() {
+            @Override
+            public Void run(KnownFiles knownFiles, Uploader uploader) {
+                KnownFile file = knownFiles.get(fileId);
+                if (file != null)
+                    file.setEtag(etag);
+                return null;
+            }
+        });
+    }
+
+    private void createOrUpdateUploadFailureNotificationFile(final Uploader.UploadStatus uploadStatus) {
+
+        localState.update(new LocalUpdateSafe() {
+            @Override
+            public Void run(KnownFiles knownFiles, Uploader uploader) {
+
+                if (uploadFailureNotificationFile != null) {
+
+                    uploadFailureNotificationFile.setDates(uploadStatus.date, uploadStatus.date);
+
+                } else {
+
+                    uploadFailureNotificationFile = knownFiles.create(
+                            fileIdStore.get(Uploader.uploadFailureNotificationFileId),
+                            uploadNotificationFileName, false, uploadStatus.date);
+
+                    uploadFailureNotificationFile.setDates(uploadStatus.date, uploadStatus.date);
+
+                    knownFiles.getRoot().tryAddChild(uploadFailureNotificationFile);
+                }
+
+                return null;
+            }
+        });
     }
 
     private void retrieveAndApplyChanges() {
@@ -643,16 +631,18 @@ public class FileTree {
 
         try {
 
-            DriveAdapter.Changes changes = drive.getChanges(largestChangeId + 1);
+            final DriveAdapter.Changes changes = drive.getChanges(largestChangeId + 1);
 
             largestChangeId = changes.largestChangeId;
 
-            localStateLock.writeLock().lock();
-
-            for (DriveAdapter.Change change : changes.items)
-                tryApplyChange(change);
-
-            localStateLock.writeLock().unlock();
+            localState.update(new LocalUpdateSafe() {
+                @Override
+                public Void run(KnownFiles knownFiles, Uploader uploader) {
+                    for (DriveAdapter.Change change : changes.items)
+                        tryApplyChange(knownFiles, uploader, change);
+                    return null;
+                }
+            });
 
         } catch (IOException e) {
             logger.error("an error occured retrieving a list of changes", e);
@@ -661,7 +651,7 @@ public class FileTree {
         }
     }
 
-    private void tryApplyChange(DriveAdapter.Change change) {
+    private void tryApplyChange(KnownFiles knownFiles, Uploader uploader, DriveAdapter.Change change) {
 
         FileId changedFileId = fileIdStore.get(change.fileId);
 
@@ -764,5 +754,31 @@ public class FileTree {
 
     private interface Getter<T> {
         T apply(String fileName, Map<String, KnownFile> files);
+    }
+
+    private abstract class FilePropertiesLocalUpdate implements LocalUpdate<File> {
+
+        private final Path path;
+
+        public FilePropertiesLocalUpdate(Path path) {
+            this.path = path;
+        }
+
+        @Override
+        public File run(KnownFiles knownFiles, Uploader uploader) throws IOException {
+
+            Path parentPath = path.getParent();
+            Path fileName = path.getFileName();
+            KnownFile parent = getUnsafe(knownFiles, knownFiles.getRoot(), parentPath);
+
+            KnownFile existing = getOrNullUnsafe(knownFiles, parent, fileName);
+
+            KnownFile updated = run(existing, parent, knownFiles, uploader);
+
+            return updated != null ? updated.toFile() : null;
+        }
+
+        public abstract KnownFile run(
+                KnownFile existing, KnownFile parent, KnownFiles knownFiles, Uploader uploader) throws IOException;
     }
 }
