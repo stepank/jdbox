@@ -1,5 +1,6 @@
 package jdbox.utils;
 
+import com.google.inject.Key;
 import com.google.inject.Module;
 import jdbox.CommonModule;
 import jdbox.content.OpenedFiles;
@@ -9,6 +10,7 @@ import jdbox.uploader.Uploader;
 import org.junit.rules.ErrorCollector;
 import org.junit.rules.ExternalResource;
 
+import java.lang.annotation.Annotation;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
@@ -35,6 +37,10 @@ public class LifeCycleManagerResource extends ExternalResource {
 
     public <T> T getInstance(Class<T> type) {
         return lifeCycleManager.getInjector().getInstance(type);
+    }
+
+    public <T> T getInstance(Class<T> type, Class<? extends Annotation> annotation) {
+        return lifeCycleManager.getInjector().getInstance(Key.get(type, annotation));
     }
 
     public List<Module> getModules() {

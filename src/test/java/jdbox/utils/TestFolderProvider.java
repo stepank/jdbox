@@ -2,6 +2,7 @@ package jdbox.utils;
 
 import jdbox.driveadapter.DriveAdapter;
 import jdbox.driveadapter.File;
+import jdbox.utils.driveadapter.Unsafe;
 import org.junit.rules.ErrorCollector;
 import org.junit.rules.ExternalResource;
 
@@ -26,7 +27,7 @@ public class TestFolderProvider extends ExternalResource {
     }
 
     public void before() throws IOException {
-        drive = lifeCycleManager.getInstance(DriveAdapter.class);
+        drive = lifeCycleManager.getInstance(DriveAdapter.class, Unsafe.class);
         testFolder = drive.createFolder(UUID.randomUUID().toString(), null);
         new TestFolderIsolation(lifeCycleManager, this).before();
     }

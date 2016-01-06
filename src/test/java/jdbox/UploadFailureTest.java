@@ -13,7 +13,8 @@ import jdbox.localstate.LocalState;
 import jdbox.localstate.LocalStateModule;
 import jdbox.uploader.Uploader;
 import jdbox.uploader.UploaderModule;
-import jdbox.utils.MockDriveAdapterModule;
+import jdbox.utils.driveadapter.MockDriveAdapterModule;
+import jdbox.utils.driveadapter.UnsafeDriveAdapterModule;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,6 +42,7 @@ public class UploadFailureTest extends BaseMountFileSystemTest {
     protected List<Module> getRequiredModules() {
         return new ArrayList<Module>() {{
             add(new MockDriveAdapterModule(driveServiceProvider.getDriveService()));
+            add(new UnsafeDriveAdapterModule());
             add(new LocalStateModule());
             add(new UploaderModule());
             add(new ContentModule());

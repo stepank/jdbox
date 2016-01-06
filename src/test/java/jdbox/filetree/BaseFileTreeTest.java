@@ -6,10 +6,12 @@ import jdbox.driveadapter.DriveAdapter;
 import jdbox.driveadapter.File;
 import jdbox.localstate.LocalStateModule;
 import jdbox.uploader.UploaderModule;
-import jdbox.utils.MockDriveAdapterModule;
 import jdbox.utils.OrderedRule;
 import jdbox.utils.TestFolderProvider;
 import jdbox.utils.TestUtils;
+import jdbox.utils.driveadapter.MockDriveAdapterModule;
+import jdbox.utils.driveadapter.Unsafe;
+import jdbox.utils.driveadapter.UnsafeDriveAdapterModule;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -36,6 +38,7 @@ public class BaseFileTreeTest extends BaseTest {
     protected List<Module> getRequiredModules() {
         return new ArrayList<Module>() {{
             add(new MockDriveAdapterModule(driveServiceProvider.getDriveService()));
+            add(new UnsafeDriveAdapterModule());
             add(new UploaderModule());
             add(new LocalStateModule());
             add(new TestFileTreeModule(false));
@@ -44,7 +47,7 @@ public class BaseFileTreeTest extends BaseTest {
 
     @Before
     public void setUp() {
-        drive = lifeCycleManager.getInstance(DriveAdapter.class);
+        drive = lifeCycleManager.getInstance(DriveAdapter.class, Unsafe.class);
         fileTree = lifeCycleManager.getInstance(FileTree.class);
         testFolder = testFolderProvider.getTestFolder();
     }

@@ -7,6 +7,7 @@ import jdbox.localstate.knownfiles.KnownFiles;
 import jdbox.models.File;
 import jdbox.models.fileids.FileIdStore;
 import jdbox.uploader.Uploader;
+import jdbox.utils.driveadapter.Unsafe;
 import org.junit.rules.ExternalResource;
 
 import java.io.ByteArrayInputStream;
@@ -45,7 +46,7 @@ public class TestFileProvider extends ExternalResource {
 
         file = new File(
                 lifeCycleManager.getInstance(FileIdStore.class),
-                lifeCycleManager.getInstance(DriveAdapter.class).createFile(
+                lifeCycleManager.getInstance(DriveAdapter.class, Unsafe.class).createFile(
                         TestUtils.testFileName, testFolderProvider.getTestFolder(),
                         new ByteArrayInputStream(content)));
 
