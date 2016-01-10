@@ -7,18 +7,23 @@ import jdbox.content.bytestores.InMemoryByteStoreFactory;
 import jdbox.driveadapter.DriveAdapter;
 import jdbox.driveadapter.Field;
 import jdbox.localstate.LocalState;
-import jdbox.localstate.LocalUpdateSafe;
+import jdbox.localstate.LocalUpdate;
 import jdbox.localstate.knownfiles.KnownFile;
 import jdbox.localstate.knownfiles.KnownFiles;
+import jdbox.models.File;
 import jdbox.models.fileids.FileId;
+import jdbox.models.fileids.FileIdStore;
 import jdbox.uploader.DriveTask;
 import jdbox.uploader.Uploader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import rx.Observer;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
@@ -27,19 +32,19 @@ public class LocalStorage {
 
     private static final Logger logger = LoggerFactory.getLogger(LocalStorage.class);
 
+    private final FileIdStore fileIdStore;
     private final DriveAdapter drive;
     private final InMemoryByteStoreFactory tempStoreFactory;
-    private final Observer<FileSizeUpdateEvent> fileSizeUpdateEvent;
     private final LocalState localState;
     private final Map<FileId, SharedOpenedFile> files = new HashMap<>();
 
     @Inject
     LocalStorage(
-            DriveAdapter drive, InMemoryByteStoreFactory tempStoreFactory,
-            Observer<FileSizeUpdateEvent> fileSizeUpdateEvent, LocalState localState) {
+            FileIdStore fileIdStore, DriveAdapter drive,
+            InMemoryByteStoreFactory tempStoreFactory, LocalState localState) {
+        this.fileIdStore = fileIdStore;
         this.drive = drive;
         this.tempStoreFactory = tempStoreFactory;
-        this.fileSizeUpdateEvent = fileSizeUpdateEvent;
         this.localState = localState;
     }
 
@@ -165,21 +170,42 @@ public class LocalStorage {
             final ByteStore capturedContent = tempStoreFactory.create();
             final int size = ByteSources.copy(shared.content, capturedContent);
 
-            localState.update(new LocalUpdateSafe() {
+            localState.update(new LocalUpdate() {
                 @Override
-                public Void run(KnownFiles knownFiles, Uploader uploader) {
+                public Void run(KnownFiles knownFiles, Uploader uploader) throws IOException {
+
+                    MessageDigest digest;
+                    try {
+                        digest = MessageDigest.getInstance("MD5");
+                    } catch (NoSuchAlgorithmException e) {
+                        throw new RuntimeException(e);
+                    }
+
+                    final InputStream inputStream = ByteSources.toInputStream(capturedContent);
+
+                    byte[] buffer = new byte[1024];
+                    int read;
+                    do {
+                        read = inputStream.read(buffer);
+                        if (read > 0)
+                            digest.update(buffer, 0, read);
+                    } while (read != -1);
+
+                    inputStream.reset();
 
                     KnownFile existing = knownFiles.get(shared.fileId);
                     assert existing != null;
+                    File original = existing.toFile();
+
+                    existing.setContentProperties(size, toHex(digest.digest()));
 
                     uploader.submit(new DriveTask(
-                            "update content, content length is " + size,
-                            existing.toFile(), EnumSet.noneOf(Field.class)) {
+                            fileIdStore, drive, "update content, content length is " + size,
+                            original, existing.toFile(), EnumSet.noneOf(Field.class)) {
                         @Override
                         public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
 
-                            jdbox.driveadapter.File updatedFile =
-                                    drive.updateFileContent(file, ByteSources.toInputStream(capturedContent));
+                            jdbox.driveadapter.File updatedFile = drive.updateFileContent(file, inputStream);
 
                             capturedContent.close();
 
@@ -187,7 +213,6 @@ public class LocalStorage {
                                 assert shared.refCount > 0;
                                 shared.refCount--;
                                 if (shared.refCount == 0) {
-                                    fileSizeUpdateEvent.onNext(new FileSizeUpdateEvent(shared.fileId, size));
                                     files.remove(shared.fileId).content.close();
                                 }
                             }
@@ -199,5 +224,9 @@ public class LocalStorage {
                 }
             });
         }
+    }
+
+    private static String toHex(byte[] value) {
+        return String.format("%0" + (value.length << 1) + "x", new BigInteger(1, value));
     }
 }

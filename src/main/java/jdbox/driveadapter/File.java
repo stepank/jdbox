@@ -12,8 +12,9 @@ import java.util.TreeSet;
 
 public class File {
 
-    public static String fields =
-            "id,etag,title,mimeType,downloadUrl,fileSize,alternateLink,parents,labels,createdDate,modifiedDate,lastViewedByMeDate";
+    public final static String fields =
+            "id,etag,title,mimeType,downloadUrl,fileSize,alternateLink,parents,labels," +
+                    "createdDate,modifiedDate,lastViewedByMeDate,md5Checksum";
 
     private String id;
     private String etag;
@@ -28,6 +29,7 @@ public class File {
     private String mimeType;
     private boolean isTrashed;
     private Set<String> parentIds;
+    private String md5Sum;
 
     public File() {
     }
@@ -46,6 +48,7 @@ public class File {
         accessedDate = file.getLastViewedByMeDate() != null ? new Date(file.getLastViewedByMeDate().getValue()) : null;
         mimeType = file.getMimeType();
         isTrashed = file.getLabels().getTrashed();
+        md5Sum = file.getMd5Checksum();
 
         parentIds = new TreeSet<>(
                 Collections2.transform(file.getParents(), new Function<ParentReference, String>() {
@@ -153,6 +156,10 @@ public class File {
         if (parentIds == null)
             throw new IllegalArgumentException("parentIds must not be null");
         this.parentIds = parentIds;
+    }
+
+    public String getMd5Sum() {
+        return md5Sum;
     }
 
     public com.google.api.services.drive.model.File toGdFile() {

@@ -27,6 +27,7 @@ public class File implements Cloneable {
     private String mimeType;
     private boolean isTrashed;
     private Set<FileId> parentIds = new HashSet<>();
+    private String md5Sum;
 
     public File() {
         this.id = null;
@@ -54,6 +55,7 @@ public class File implements Cloneable {
         accessedDate = file.getAccessedDate();
         mimeType = file.getMimeType();
         isTrashed = file.isTrashed();
+        md5Sum = file.getMd5Sum();
 
         parentIds.addAll(Collections2.transform(file.getParentIds(), new Function<String, FileId>() {
             @Override
@@ -111,6 +113,10 @@ public class File implements Cloneable {
         return alternateLink;
     }
 
+    public void setAlternateLink(String alternateLink) {
+        this.alternateLink = alternateLink;
+    }
+
     public Date getCreatedDate() {
         return createdDate;
     }
@@ -139,6 +145,10 @@ public class File implements Cloneable {
         return mimeType;
     }
 
+    public void setMimeType(String mimeType) {
+        this.mimeType = mimeType;
+    }
+
     public boolean isTrashed() {
         return isTrashed;
     }
@@ -151,6 +161,14 @@ public class File implements Cloneable {
         if (parentIds == null)
             throw new IllegalArgumentException("parentIds must not be empty");
         this.parentIds = parentIds;
+    }
+
+    public String getMd5Sum() {
+        return md5Sum;
+    }
+
+    public void setMd5Sum(String md5Sum) {
+        this.md5Sum = md5Sum;
     }
 
     public jdbox.driveadapter.File toDaFile() {
@@ -209,12 +227,12 @@ public class File implements Cloneable {
     }
 
     public void update(File file) {
-        setIsDirectory(file.isDirectory());
         setEtag(file.getEtag());
         setSize(file.getSize());
         setCreatedDate(file.getCreatedDate());
         setModifiedDate(file.getModifiedDate());
         setAccessedDate(file.getAccessedDate());
+        setMd5Sum(file.getMd5Sum());
     }
 
     @Override
@@ -226,6 +244,7 @@ public class File implements Cloneable {
                 ", size=" + size +
                 ", parents=" + parentIds.size() +
                 ", etag=" + etag +
+                ", md5=" + md5Sum +
                 '}';
     }
 }

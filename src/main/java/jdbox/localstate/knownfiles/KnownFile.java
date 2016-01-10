@@ -62,9 +62,11 @@ public class KnownFile {
         return Collections.unmodifiableSet(parents.keySet());
     }
 
-    public void setUploaded(String id, String downloadUrl) {
+    public void setUploaded(String id, String mimeType, String downloadUrl, String alternateLink) {
         self.getId().set(id);
+        self.setMimeType(mimeType);
         self.setDownloadUrl(downloadUrl);
+        self.setAlternateLink(alternateLink);
     }
 
     public void setDates(Date modifiedDate, Date accessedDate) {
@@ -72,8 +74,9 @@ public class KnownFile {
         self.setAccessedDate(accessedDate);
     }
 
-    public void setSize(long size) {
+    public void setContentProperties(long size, String md5Sum) {
         self.setSize(size);
+        self.setMd5Sum(md5Sum);
     }
 
     public void setEtag(String etag) {

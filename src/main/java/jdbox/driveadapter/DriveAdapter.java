@@ -51,6 +51,18 @@ public class DriveAdapter {
         return new Changes(drive.changes().list().setStartChangeId(startChangeId).execute());
     }
 
+    public File getFile(File file) throws IOException {
+
+        if (file.getId() == null)
+            throw new AssertionError("file.id must not be null");
+
+        logger.debug("getting {}", file);
+
+        Drive.Files.Get request = drive.files().get(file.getId());
+
+        return new File(request.execute());
+    }
+
     public List<File> getChildren(File file) throws IOException {
 
         logger.debug("getting children of {}", file);
@@ -195,7 +207,7 @@ public class DriveAdapter {
         if (safe && file.getEtag() == null)
             throw new AssertionError("file.etag must not be null");
 
-        logger.debug("updating {}", file);
+        logger.debug("updating content {}", file);
 
         Drive.Files.Update request = drive.files().update(
                 file.getId(), new com.google.api.services.drive.model.File(), new InputStreamContent(null, content));

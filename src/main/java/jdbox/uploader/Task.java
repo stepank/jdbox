@@ -19,5 +19,5 @@ public interface Task {
      * @param etag The current etag of the file.
      * @return The file's etag obtained as a result of the performed operation.
      */
-    String run(String etag) throws IOException;
+    String run(String etag) throws ConflictException, IOException;
 }
