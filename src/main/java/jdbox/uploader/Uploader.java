@@ -1,6 +1,5 @@
 package jdbox.uploader;
 
-import com.google.api.client.http.HttpResponseException;
 import com.google.inject.Inject;
 import jdbox.OperationContext;
 import jdbox.models.File;
@@ -233,61 +232,40 @@ public class Uploader {
             int delay = 1;
             Random random = new Random();
 
-            while (true) {
+            String etag = null;
+            Queue queue = item.getQueue();
+
+            while (etag == null) {
 
                 try {
 
                     OperationContext.restore(item.getCtx());
 
-                    String etag;
-
                     try {
 
-                        logger.debug("starting {}", item.getTask());
-
-                        Queue queue = item.getQueue();
+                        logger.debug("starting {} with etag {}", item.getTask(), queue.getEtag());
 
                         etag = item.getTask().run(queue.getEtag());
 
-                        if (etag == null)
-                            throw new AssertionError("etag must not be null");
-
-                        queue.setEtag(etag);
-
-                        logger.debug("completed {}", item.getTask());
+                        logger.debug("completed {}, new etag is {}", item.getTask(), etag);
 
                     } finally {
                         OperationContext.clear();
                     }
 
+                } catch (ConflictException e) {
+
+                    logger.error("conflict has been detected while executing {}", item.getTask(), e);
+
                     synchronized (Uploader.this) {
-
-                        if (item.getQueue().removeHead()) {
-                            FileId fileId = item.getTask().getFile().getId();
-                            queues.remove(fileId);
-                            fileEtagUpdateEvent.onNext(new FileEtagUpdateEvent(fileId, etag));
-                        }
-
-                        for (Item dependent : new HashSet<>(item.getDependents())) {
-                            if (dependent.removeDependency(item))
-                                trySubmitToExecutor(dependent);
-                        }
+                        updateStatus(e);
                     }
 
                     return;
 
                 } catch (IOException e) {
 
-                    logger.error("an error occured while executing {}", item.getTask(), e);
-
-                    if (e instanceof HttpResponseException && ((HttpResponseException) e).getStatusCode() == 412) {
-
-                        synchronized (Uploader.this) {
-                            updateStatus(e);
-                        }
-
-                        return;
-                    }
+                    logger.warn("an error occured while executing {}", item.getTask(), e);
 
                     try {
                         Thread.sleep(delay * 1000 + random.nextInt(1000));
@@ -304,6 +282,22 @@ public class Uploader {
 
                     if (delay < 60)
                         delay *= 2;
+                }
+            }
+
+            synchronized (Uploader.this) {
+
+                queue.setEtag(etag);
+
+                if (item.getQueue().removeHead()) {
+                    FileId fileId = item.getTask().getFile().getId();
+                    queues.remove(fileId);
+                    fileEtagUpdateEvent.onNext(new FileEtagUpdateEvent(fileId, etag));
+                }
+
+                for (Item dependent : new HashSet<>(item.getDependents())) {
+                    if (dependent.removeDependency(item))
+                        trySubmitToExecutor(dependent);
                 }
             }
         }

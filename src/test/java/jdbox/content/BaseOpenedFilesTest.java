@@ -3,7 +3,6 @@ package jdbox.content;
 import jdbox.content.bytestores.InMemoryByteStoreFactory;
 import jdbox.content.filetypes.FullAccessOpenedFileFactory;
 import jdbox.content.localstorage.LocalStorage;
-import jdbox.driveadapter.DriveAdapter;
 import jdbox.models.fileids.FileIdStore;
 import jdbox.utils.OrderedRule;
 import jdbox.utils.TestFolderProvider;
@@ -18,7 +17,6 @@ public class BaseOpenedFilesTest extends BaseContentModuleTest {
     public final TestFolderProvider testFolderProvider = new TestFolderProvider(errorCollector, lifeCycleManager);
 
     protected FileIdStore fileIdStore;
-    protected DriveAdapter drive;
 
     protected FullAccessOpenedFileFactory factory;
     protected InMemoryByteStoreFactory tempStoreFactory;
@@ -28,7 +26,6 @@ public class BaseOpenedFilesTest extends BaseContentModuleTest {
     public void setUp() {
 
         fileIdStore = lifeCycleManager.getInstance(FileIdStore.class);
-        drive = lifeCycleManager.getInstance(DriveAdapter.class);
 
         tempStoreFactory = lifeCycleManager.getInstance(InMemoryByteStoreFactory.class);
         tempStoreFactory.setConfig(new InMemoryByteStoreFactory.Config(4));

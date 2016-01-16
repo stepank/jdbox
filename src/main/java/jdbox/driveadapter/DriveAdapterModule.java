@@ -14,7 +14,13 @@ public class DriveAdapterModule extends AbstractModule {
 
     @Override
     protected void configure() {
+
         bind(Drive.class).toInstance(drive);
-        bind(DriveAdapter.class).in(Singleton.class);
+
+        try {
+            bind(DriveAdapter.class).toConstructor(DriveAdapter.class.getConstructor(Drive.class)).in(Singleton.class);
+        } catch (NoSuchMethodException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

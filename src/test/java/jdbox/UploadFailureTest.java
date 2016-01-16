@@ -13,7 +13,8 @@ import jdbox.localstate.LocalState;
 import jdbox.localstate.LocalStateModule;
 import jdbox.uploader.Uploader;
 import jdbox.uploader.UploaderModule;
-import jdbox.utils.MockDriveAdapterModule;
+import jdbox.utils.driveadapter.MockDriveAdapterModule;
+import jdbox.utils.driveadapter.UnsafeDriveAdapterModule;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,6 +23,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -30,8 +32,7 @@ import static jdbox.utils.TestUtils.getTestContentBytes;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.Matchers.notNull;
-import static org.mockito.Mockito.doCallRealMethod;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.*;
 
 public class UploadFailureTest extends BaseMountFileSystemTest {
 
@@ -41,6 +42,7 @@ public class UploadFailureTest extends BaseMountFileSystemTest {
     protected List<Module> getRequiredModules() {
         return new ArrayList<Module>() {{
             add(new MockDriveAdapterModule(driveServiceProvider.getDriveService()));
+            add(new UnsafeDriveAdapterModule());
             add(new LocalStateModule());
             add(new UploaderModule());
             add(new ContentModule());
@@ -66,7 +68,7 @@ public class UploadFailureTest extends BaseMountFileSystemTest {
         logger.debug("wait until it is uploaded");
         lifeCycleManager.waitUntilUploaderIsDone();
 
-        logger.debug("make the DriveAdapter throw exceptions on content update");
+        logger.debug("make DriveAdapter throw exceptions on content update");
         doThrow(GoogleJsonResponseExceptionFactoryTesting
                 .newMock(JacksonFactory.getDefaultInstance(), 412, "Precondition failed"))
                 .when(drive).updateFileContent((File) notNull(), (InputStream) notNull());
@@ -77,6 +79,10 @@ public class UploadFailureTest extends BaseMountFileSystemTest {
 
         logger.debug("wait until uploader breaks down trying to upload the written content to the cloud");
         lifeCycleManager.waitUntilUploaderIsDoneOrBroken();
+
+        // 1. initial write 1, 2, 3
+        // 2, 3, 4. failed write due to 412
+        verify(drive, times(4)).updateFileContent((File) notNull(), (InputStream) notNull());
 
         logger.debug("check that upload notification file appeared");
         assertThat(Files.exists(uploadNotificationFilePath), is(true));
@@ -133,7 +139,7 @@ public class UploadFailureTest extends BaseMountFileSystemTest {
         assertThat(lifeCycleManager.getInstance(OpenedFiles.class).getLocalFilesCount(), equalTo(0));
         assertThat(lifeCycleManager.getInstance(Uploader.class).getQueueCount(), equalTo(0));
 
-        logger.debug("repair the DriveAdapter");
+        logger.debug("repair DriveAdapter");
         doCallRealMethod().when(drive).updateFileContent((File) notNull(), (InputStream) notNull());
 
         logger.debug("check that upload notification file does not exist");
@@ -155,5 +161,55 @@ public class UploadFailureTest extends BaseMountFileSystemTest {
 
         logger.debug("check that the first created file is present and has the new content");
         assertThat(Files.readAllBytes(mountPoint.resolve("test.txt")), equalTo(new byte[]{1, 2, 3}));
+    }
+
+    @Test(timeout = 30000)
+    public void falseConflict() throws InterruptedException, IOException {
+
+        DriveAdapter drive = lifeCycleManager.getInstance(DriveAdapter.class);
+
+        Path uploadNotificationFilePath = mountPoint.resolve(FileTree.uploadNotificationFileName);
+
+        logger.debug("make sure that upload notification file does not exist");
+        assertThat(Files.exists(uploadNotificationFilePath), is(false));
+
+        logger.debug("create some file");
+        Files.write(mountPoint.resolve("test.txt"), new byte[]{1, 2, 3});
+        assertThat(Files.readAllBytes(mountPoint.resolve("test.txt")), equalTo(new byte[]{1, 2, 3}));
+
+        logger.debug("wait until uploader uploads the file to the cloud");
+        lifeCycleManager.waitUntilUploaderIsDone();
+
+        logger.debug("make DriveAdapter throw exception once on content update");
+        doThrow(GoogleJsonResponseExceptionFactoryTesting
+                .newMock(JacksonFactory.getDefaultInstance(), 412, "Precondition failed"))
+                .doCallRealMethod()
+                .when(drive).updateFileContent((File) notNull(), (InputStream) notNull());
+
+        logger.debug("write some data to this file");
+        Files.write(mountPoint.resolve("test.txt"), new byte[]{4, 5, 6, 7}, StandardOpenOption.APPEND);
+        assertThat(Files.readAllBytes(mountPoint.resolve("test.txt")), equalTo(new byte[]{1, 2, 3, 4, 5, 6, 7}));
+
+        logger.debug("wait until uploader uploads the file to the cloud");
+        lifeCycleManager.waitUntilUploaderIsDone();
+
+        // 1. initial write 1, 2, 3
+        // 2. failed write due to 412
+        // 3. successful wrire of 4, 5, 6, 7
+        verify(drive, times(3)).updateFileContent((File) notNull(), (InputStream) notNull());
+
+        // when the DriveTask refreshes its file state
+        verify(drive, times(1)).getFile((File) notNull());
+
+        logger.debug("make sure that upload notification file does not exist");
+        assertThat(Files.exists(uploadNotificationFilePath), is(false));
+
+        logger.debug("reset local state");
+        lifeCycleManager.getInstance(LocalState.class).reset();
+        lifeCycleManager.getInstance(OpenedFiles.class).reset();
+        lifeCycleManager.getInstance(Uploader.class).reset();
+
+        logger.debug("check that the file is present and has the new content");
+        assertThat(Files.readAllBytes(mountPoint.resolve("test.txt")), equalTo(new byte[]{1, 2, 3, 4, 5, 6, 7}));
     }
 }

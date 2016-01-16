@@ -66,6 +66,11 @@ public class ByteSources {
         }
 
         @Override
+        public synchronized void reset() throws IOException {
+            position = 0;
+        }
+
+        @Override
         public synchronized void close() throws IOException {
             source = null;
         }

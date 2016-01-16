@@ -5,7 +5,6 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableList;
 import com.google.inject.Inject;
 import jdbox.content.OpenedFilesManager;
-import jdbox.content.localstorage.FileSizeUpdateEvent;
 import jdbox.driveadapter.DriveAdapter;
 import jdbox.driveadapter.Field;
 import jdbox.localstate.*;
@@ -44,7 +43,6 @@ public class FileTree {
 
     private final DriveAdapter drive;
     private final FileIdStore fileIdStore;
-    private final rx.Observable<FileSizeUpdateEvent> fileSizeUpdateEvent;
     private final Observable<FileEtagUpdateEvent> fileEtagUpdateEvent;
     private final rx.Observable<UploadFailureEvent> uploadFailureEvent;
     private final OpenedFilesManager openedFilesManager;
@@ -57,7 +55,6 @@ public class FileTree {
     private final ReadWriteLock fileIdStoreLock = new ReentrantReadWriteLock(true);
 
     private volatile ScheduledExecutorService scheduler;
-    private volatile Subscription fileSizeUpdateEventSubscription;
     private volatile Subscription fileEtagUpdateEventSubscription;
     private volatile Subscription uploadFailureEventSubscription;
     private volatile long largestChangeId;
@@ -95,13 +92,12 @@ public class FileTree {
 
     @Inject
     public FileTree(
-            DriveAdapter drive, FileIdStore fileIdStore, Observable<FileSizeUpdateEvent> fileSizeUpdateEvent,
+            DriveAdapter drive, FileIdStore fileIdStore,
             Observable<FileEtagUpdateEvent> fileEtagUpdateEvent, Observable<UploadFailureEvent> uploadFailureEvent,
             OpenedFilesManager openedFilesManager, LocalState localState) {
 
         this.drive = drive;
         this.fileIdStore = fileIdStore;
-        this.fileSizeUpdateEvent = fileSizeUpdateEvent;
         this.fileEtagUpdateEvent = fileEtagUpdateEvent;
         this.uploadFailureEvent = uploadFailureEvent;
         this.openedFilesManager = openedFilesManager;
@@ -127,13 +123,6 @@ public class FileTree {
     }
 
     public void init() throws IOException {
-
-        fileSizeUpdateEventSubscription = fileSizeUpdateEvent.subscribe(new Action1<FileSizeUpdateEvent>() {
-            @Override
-            public void call(FileSizeUpdateEvent event) {
-                updateFileSize(event.fileId, event.fileSize);
-            }
-        });
 
         fileEtagUpdateEventSubscription = fileEtagUpdateEvent.subscribe(new Action1<FileEtagUpdateEvent>() {
             @Override
@@ -175,9 +164,6 @@ public class FileTree {
             scheduler.awaitTermination(5, TimeUnit.SECONDS);
             scheduler = null;
         }
-
-        if (fileSizeUpdateEventSubscription != null)
-            fileSizeUpdateEventSubscription.unsubscribe();
 
         if (fileEtagUpdateEventSubscription != null)
             fileEtagUpdateEventSubscription.unsubscribe();
@@ -253,13 +239,17 @@ public class FileTree {
                         if (existing != null)
                             throw new FileAlreadyExistsException(path);
 
+                        Date now = new Date();
                         final KnownFile newFile = knownFiles.create(
-                                fileIdStore.create(), path.getFileName().toString(), isDirectory, new Date());
+                                fileIdStore.create(), path.getFileName().toString(), isDirectory, now);
+                        newFile.setDates(now, now);
+                        newFile.setContentProperties(0, "d41d8cd98f00b204e9800998ecf8427e"); // empty file md5
 
                         parent.tryAddChild(newFile);
 
                         uploader.submit(new DriveTask(
-                                "create " + (isDirectory ? "directory" : "file"), newFile.toFile(),
+                                fileIdStore, drive,
+                                "create " + (isDirectory ? "directory" : "file"), null, newFile.toFile(),
                                 EnumSet.allOf(Field.class), parent.getId(), true) {
                             @Override
                             public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
@@ -274,7 +264,9 @@ public class FileTree {
                                         @Override
                                         public KnownFile run(
                                                 KnownFiles knownFiles, Uploader uploader) throws IOException {
-                                            newFile.setUploaded(createdFile.getId(), createdFile.getDownloadUrl());
+                                            newFile.setUploaded(
+                                                    createdFile.getId(), createdFile.getMimeType(),
+                                                    createdFile.getDownloadUrl(), createdFile.getAlternateLink());
                                             return null;
                                         }
                                     });
@@ -310,11 +302,14 @@ public class FileTree {
                 if (existing == uploadFailureNotificationFile)
                     throw new AccessDeniedException(path);
 
+                File original = existing.toFile();
+
                 existing.setDates(modifiedDate, accessedDate);
 
                 uploader.submit(new DriveTask(
+                        fileIdStore, drive,
                         "set modified to " + modifiedDate.toString() + " and accessed to " + accessedDate,
-                        existing.toFile(), EnumSet.of(Field.MODIFIED_DATE, Field.ACCESSED_DATE)) {
+                        original, existing.toFile(), EnumSet.of(Field.MODIFIED_DATE, Field.ACCESSED_DATE)) {
                     @Override
                     public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
                         return drive.updateFile(file);
@@ -343,6 +338,8 @@ public class FileTree {
                 if (existing.isDirectory() && getChildrenUnsafe(knownFiles, existing, null).size() != 0)
                     throw new NonEmptyDirectoryException(path);
 
+                File original = existing.toFile();
+
                 parent.tryRemoveChild(existing);
 
                 if (existing == uploadFailureNotificationFile) {
@@ -365,7 +362,8 @@ public class FileTree {
                     if (file.getParentIds().size() == 0) {
 
                         uploader.submit(new DriveTask(
-                                "remove file/directory completely", file, EnumSet.noneOf(Field.class)) {
+                                fileIdStore, drive, "remove file/directory completely",
+                                original, file, EnumSet.noneOf(Field.class)) {
                             @Override
                             public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
                                 return drive.trashFile(file);
@@ -375,7 +373,8 @@ public class FileTree {
                     } else {
 
                         uploader.submit(new DriveTask(
-                                "remove file/directory from one directory only", file, EnumSet.of(Field.PARENT_IDS)) {
+                                fileIdStore, drive, "remove file/directory from one directory only",
+                                original, file, EnumSet.of(Field.PARENT_IDS)) {
                             @Override
                             public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
                                 return drive.updateFile(file);
@@ -412,6 +411,8 @@ public class FileTree {
                 if (existing == uploadFailureNotificationFile)
                     throw new AccessDeniedException(path);
 
+                File original = existing.toFile();
+
                 Path newParentPath = newPath.getParent();
                 Path newFileName = newPath.getFileName();
 
@@ -443,7 +444,9 @@ public class FileTree {
                     existing.rename(newFileName.toString());
                 }
 
-                uploader.submit(new DriveTask("move/rename to " + newPath, existing.toFile(), fields, newParentId) {
+                uploader.submit(new DriveTask(
+                        fileIdStore, drive, "move/rename to " + newPath,
+                        original, existing.toFile(), fields, newParentId) {
                     @Override
                     public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
                         return drive.updateFile(file);
@@ -564,18 +567,6 @@ public class FileTree {
         }
 
         return getter.apply(fileName, dir.getChildrenOrNull());
-    }
-
-    private void updateFileSize(final FileId fileId, final long fileSize) {
-        localState.update(new LocalUpdateSafe() {
-            @Override
-            public Void run(KnownFiles knownFiles, Uploader uploader) {
-                KnownFile file = knownFiles.get(fileId);
-                if (file != null)
-                    file.setSize(fileSize);
-                return null;
-            }
-        });
     }
 
     private void updateFileEtag(final FileId fileId, final String etag) {
