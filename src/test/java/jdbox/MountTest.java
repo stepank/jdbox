@@ -19,27 +19,27 @@ import static org.hamcrest.Matchers.is;
 
 public class MountTest extends BaseMountFileSystemTest {
 
-    @Test
+    @Test(timeout = 15000)
     public void read() throws InterruptedException, IOException {
         drive.createFile("test.txt", testFolder, getTestContent());
         resetLocalState();
         assertThat(Files.readAllBytes(mountPoint.resolve("test.txt")), equalTo(getTestContentBytes()));
     }
 
-    @Test
+    @Test(timeout = 15000)
     public void writeAndRead() throws IOException {
         Files.write(mountPoint.resolve("test.txt"), getTestContentBytes());
         assertThat(Files.readAllBytes(mountPoint.resolve("test.txt")), equalTo(getTestContentBytes()));
     }
 
-    @Test
+    @Test(timeout = 15000)
     public void writeAndReadAfterClose() throws InterruptedException, IOException {
         Files.write(mountPoint.resolve("test.txt"), getTestContentBytes());
         lifeCycleManager.waitUntilLocalStorageIsEmpty();
         assertThat(Files.readAllBytes(mountPoint.resolve("test.txt")), equalTo(getTestContentBytes()));
     }
 
-    @Test
+    @Test(timeout = 15000)
     public void writeAndTrackSize() throws IOException {
 
         Path path = mountPoint.resolve("test.txt");
@@ -54,7 +54,7 @@ public class MountTest extends BaseMountFileSystemTest {
         assertThat(path.toFile().length(), equalTo((long) getTestContentBytes().length));
     }
 
-    @Test
+    @Test(timeout = 15000)
     public void truncate() throws InterruptedException, IOException {
         Path path = mountPoint.resolve("test.txt");
         Files.write(path, getTestContentBytes());
@@ -63,7 +63,7 @@ public class MountTest extends BaseMountFileSystemTest {
         assertThat(Files.readAllBytes(path), equalTo(Arrays.copyOfRange(getTestContentBytes(), 0, 5)));
     }
 
-    @Test
+    @Test(timeout = 15000)
     public void remove() throws InterruptedException, IOException {
 
         File folder = drive.createFolder("test", testFolder);
@@ -91,7 +91,7 @@ public class MountTest extends BaseMountFileSystemTest {
         assertThat(Files.exists(dirPath), is(false));
     }
 
-    @Test
+    @Test(timeout = 15000)
     public void move() throws InterruptedException, IOException {
 
         File source = drive.createFolder("source", testFolder);

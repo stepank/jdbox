@@ -24,12 +24,12 @@ public class GetAttrTest extends BaseFileSystemModuleTest {
         fs = lifeCycleManager.getInstance(FileSystem.class);
     }
 
-    @Test
+    @Test(timeout = 5000)
     public void nonExistent() {
         assertThat(fs.getattr("/does_not_exist", Export.createStatHolder().wrapper), equalTo(-ErrorCodes.ENOENT()));
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void file() throws IOException {
         drive.createFile(getTestFileName(), testFolder, getTestContent());
         StatHolder stat = Export.createStatHolder();
@@ -39,7 +39,7 @@ public class GetAttrTest extends BaseFileSystemModuleTest {
         assertThat(stat.type(), equalTo(TypeMode.NodeType.FILE));
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void directory() throws IOException {
         drive.createFolder(getTestFolderName(), testFolder);
         StatHolder stat = Export.createStatHolder();

@@ -163,7 +163,7 @@ public class UploadFailureTest extends BaseMountFileSystemTest {
         assertThat(Files.readAllBytes(mountPoint.resolve("test.txt")), equalTo(new byte[]{1, 2, 3}));
     }
 
-    @Test(timeout = 30000)
+    @Test(timeout = 20000)
     public void falseConflict() throws InterruptedException, IOException {
 
         DriveAdapter drive = lifeCycleManager.getInstance(DriveAdapter.class);

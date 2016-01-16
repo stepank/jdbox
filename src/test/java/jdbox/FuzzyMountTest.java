@@ -67,7 +67,7 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
         logger.debug("leaving tear down");
     }
 
-    @Test
+    @Test(timeout = 90000)
     @Repeat(2)
     public void run() throws Exception {
 
