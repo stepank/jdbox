@@ -1,9 +1,12 @@
 package jdbox.uploader;
 
 import com.google.inject.Inject;
+import com.google.inject.Provider;
 import jdbox.OperationContext;
-import jdbox.models.File;
 import jdbox.models.fileids.FileId;
+import jdbox.datapersist.ChangeSet;
+import jdbox.datapersist.Entry;
+import jdbox.datapersist.Storage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rx.Observer;
@@ -21,20 +24,28 @@ public class Uploader {
     public static final String uploadFailureNotificationFileId = "upload failure notification file id";
 
     private static final Logger logger = LoggerFactory.getLogger(Uploader.class);
+    private static final String namespace = "uploader_tasks";
 
+    private final Storage storage;
+    private final Collection<Provider<TaskDeserializer>> taskDeserializerProviders;
     private final Observer<UploadFailureEvent> uploadFailureEvent;
     private final Observer<FileEtagUpdateEvent> fileEtagUpdateEvent;
     private final Map<FileId, Queue> queues = new HashMap<>();
     private final List<Future> futures = new LinkedList<>();
-
+    private final CountDownLatch startLatch = new CountDownLatch(1);
     private final ReadWriteLock remoteStateLock = new ReentrantReadWriteLock(true);
 
     private volatile UploadStatus uploadStatus;
     private volatile ExecutorService executor;
 
+    private volatile long lastTaskId = 0;
+
     @Inject
-    public Uploader(
+    Uploader(
+            Storage storage, Map<Class, Provider<TaskDeserializer>> taskDeserializerProviders,
             Observer<UploadFailureEvent> uploadFailureEvent, Observer<FileEtagUpdateEvent> fileEtagUpdateEvent) {
+        this.storage = storage;
+        this.taskDeserializerProviders = taskDeserializerProviders.values();
         this.uploadFailureEvent = uploadFailureEvent;
         this.fileEtagUpdateEvent = fileEtagUpdateEvent;
     }
@@ -51,15 +62,58 @@ public class Uploader {
         return queues.get(fileId) != null;
     }
 
-    public void init() {
+    public synchronized void init() {
+
+        if (executor != null)
+            throw new IllegalStateException("uploader is already initialized");
+
         executor = new ThreadPoolExecutor(4, 4, 60, TimeUnit.SECONDS, new LinkedBlockingDeque<Runnable>());
+
+        List<TaskDeserializer> deserializers = new ArrayList<>();
+        for (Provider<TaskDeserializer> deserializerProvider : taskDeserializerProviders)
+            deserializers.add(deserializerProvider.get());
+
+        List<Entry> entries = storage.getData(namespace);
+        Collections.sort(entries, new Comparator<Entry>() {
+            @Override
+            public int compare(Entry a, Entry b) {
+                return (int) (Long.parseLong(a.key) - Long.parseLong(b.key));
+            }
+        });
+
+        for (Entry entry : entries) {
+
+            Task task = null;
+
+            for (TaskDeserializer deserializer : deserializers) {
+                task = deserializer.deserialize(entry.data);
+                if (task != null)
+                    break;
+            }
+
+            if (task == null)
+                throw new IllegalStateException("could not deserialize a task");
+
+            lastTaskId = Long.parseLong(entry.key);
+
+            submit(lastTaskId, task);
+        }
     }
 
-    public void tearDown() throws InterruptedException {
+    public synchronized void start() {
+
+        if (startLatch.getCount() == 0)
+            throw new IllegalStateException("uploader is already started");
+
+        startLatch.countDown();
+    }
+
+    public synchronized void tearDown() throws InterruptedException {
 
         if (executor != null) {
+            logger.debug("shutting down executor");
             executor.shutdown();
-            executor.awaitTermination(5, TimeUnit.SECONDS);
+            logger.debug("executor terminated");
             executor = null;
         }
     }
@@ -70,18 +124,36 @@ public class Uploader {
         futures.clear();
     }
 
+    public synchronized void submit(Task task) {
+
+        lastTaskId++;
+
+        submit(lastTaskId, task);
+    }
+
+    public synchronized void submit(ChangeSet changeSet, Task task) {
+
+        if (changeSet == null)
+            throw new IllegalArgumentException("txn must not be null");
+
+        lastTaskId++;
+
+        changeSet.put(namespace, Long.toString(lastTaskId), task.serialize());
+
+        submit(lastTaskId, task);
+    }
+
     /**
      * TODO Strictly speaking, when a task to delete a directory is submitted, this task must depend on ALL tasks
      * related to files in this directory. However, since deletion just moves files/directories to trash, this will
      * work. Still, I should find a way to fix this.
      */
-    public synchronized void submit(Task task) {
+    private void submit(long taskId, Task task) {
 
         logger.debug("submitting {}", task);
 
-        File file = task.getFile();
-        FileId fileId = file.getId();
-        String etag = file.getEtag();
+        FileId fileId = task.getFileId();
+        String etag = task.getEtag();
 
         Queue queue = queues.get(fileId);
 
@@ -90,7 +162,7 @@ public class Uploader {
             queues.put(fileId, queue);
         }
 
-        final Item item = queue.append(task, OperationContext.get());
+        final Item item = queue.append(taskId, task, OperationContext.get());
 
         if (task.getDependsOn() != null) {
             Queue dependency = queues.get(task.getDependsOn());
@@ -252,7 +324,15 @@ public class Uploader {
         }
 
         @Override
+        @SuppressWarnings("ConstantConditions")
         public void run() {
+
+            try {
+                startLatch.await();
+            } catch (InterruptedException e) {
+                logger.error("an interruption has been unexpectedly requested on uploader start up", e);
+                return;
+            }
 
             int delay = 1;
             Random random = new Random();
@@ -270,11 +350,13 @@ public class Uploader {
 
                         OperationContext.restore(item.getCtx());
 
+                        ChangeSet changeSet = new ChangeSet();
+
                         try {
 
                             logger.debug("starting {} with etag {}", item.getTask(), queue.getEtag());
 
-                            etag = item.getTask().run(queue.getEtag());
+                            etag = item.getTask().run(changeSet, queue.getEtag());
 
                             logger.debug("completed {}, new etag is {}", item.getTask(), etag);
 
@@ -282,11 +364,14 @@ public class Uploader {
                             OperationContext.clear();
                         }
 
-                        FileId fileId = item.getTask().getFile().getId();
+                        FileId fileId = item.getTask().getFileId();
 
                         fileEtagUpdateEvent.onNext(new FileEtagUpdateEvent(fileId, etag));
 
                         synchronized (Uploader.this) {
+
+                            changeSet.remove(namespace, Long.toString(item.getTaskId()));
+                            storage.applyChangeSet(changeSet);
 
                             queue.setEtag(etag);
 
@@ -303,9 +388,15 @@ public class Uploader {
                         remoteStateLock.readLock().unlock();
                     }
 
+                    if (executor == null)
+                        return;
+
                 } catch (ConflictException e) {
 
                     logger.error("conflict has been detected while executing {}", item.getTask(), e);
+
+                    if (executor == null)
+                        return;
 
                     synchronized (Uploader.this) {
                         updateStatus(e);
@@ -316,6 +407,9 @@ public class Uploader {
                 } catch (IOException e) {
 
                     logger.warn("an error occured while executing {}", item.getTask(), e);
+
+                    if (executor == null)
+                        return;
 
                     try {
                         Thread.sleep(delay * 1000 + random.nextInt(1000));
@@ -364,9 +458,9 @@ class Queue {
         return head;
     }
 
-    public Item append(Task task, OperationContext ctx) {
+    public Item append(long taskId, Task task, OperationContext ctx) {
 
-        Item item = new Item(this, task, ctx);
+        Item item = new Item(this, taskId, task, ctx);
 
         if (head == null) {
             this.head = item;
@@ -390,6 +484,7 @@ class Queue {
 class Item {
 
     private final Queue queue;
+    private final long taskId;
     private final Task task;
     private final OperationContext ctx;
     private final Set<Item> dependencies = new HashSet<>();
@@ -397,14 +492,19 @@ class Item {
 
     private Item next;
 
-    public Item(Queue queue, Task task, OperationContext ctx) {
+    public Item(Queue queue, long taskId, Task task, OperationContext ctx) {
         this.queue = queue;
+        this.taskId = taskId;
         this.task = task;
         this.ctx = ctx;
     }
 
     public Queue getQueue() {
         return queue;
+    }
+
+    public long getTaskId() {
+        return taskId;
     }
 
     public Task getTask() {

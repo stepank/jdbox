@@ -49,6 +49,9 @@ public class TransactionTest {
         assertThat(db.get(txn, entry("k"), entry, LockMode.DEFAULT), equalTo(OperationStatus.SUCCESS));
         assertThat(entry, equalTo(entry("v")));
 
+        assertThat(db.get(null, entry("k"), entry, LockMode.READ_UNCOMMITTED), equalTo(OperationStatus.SUCCESS));
+        assertThat(entry, equalTo(entry("v")));
+
         txn.commit();
 
         assertThat(db.get(null, entry("k"), entry, LockMode.DEFAULT), equalTo(OperationStatus.SUCCESS));

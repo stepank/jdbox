@@ -3,9 +3,10 @@ package jdbox.uploader;
 import com.google.common.collect.Lists;
 import com.google.inject.Module;
 import jdbox.BaseLifeCycleManagerTest;
-import jdbox.models.File;
 import jdbox.models.fileids.FileId;
 import jdbox.models.fileids.FileIdStore;
+import jdbox.datapersist.ChangeSet;
+import jdbox.datapersist.DataPersistenceModule;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -18,6 +19,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
@@ -32,6 +34,7 @@ public class UploaderTest extends BaseLifeCycleManagerTest {
     @Override
     protected List<Module> getRequiredModules() {
         return new ArrayList<Module>() {{
+            add(new DataPersistenceModule(tempFolderProvider.create()));
             add(new UploaderModule());
         }};
     }
@@ -42,7 +45,7 @@ public class UploaderTest extends BaseLifeCycleManagerTest {
         uploader = lifeCycleManager.getInstance(Uploader.class);
 
         expectedOrders = new LinkedList<>();
-        taskFactory = new TestTaskFactory();
+        taskFactory = new TestTaskFactory(lifeCycleManager.getInstance(FileIdStore.class));
     }
 
     @After
@@ -180,9 +183,13 @@ public class UploaderTest extends BaseLifeCycleManagerTest {
 
 class TestTaskFactory {
 
-    private final FileIdStore fileIdStore = new FileIdStore();
+    private final FileIdStore fileIdStore;
     private final Set<Integer> labels = new HashSet<>();
     private final List<Integer> order = new LinkedList<>();
+
+    TestTaskFactory(FileIdStore fileIdStore) {
+        this.fileIdStore = fileIdStore;
+    }
 
     public Set<Integer> getLabels() {
         return labels;
@@ -208,59 +215,37 @@ class TestTaskFactory {
             Integer label, String fileId, String dependsOn, boolean blocksDependentTasks, IORunnable runnable) {
         labels.add(label);
         return new TestTask(
-                label, new File(fileIdStore.get(fileId)), dependsOn != null ? fileIdStore.get(dependsOn) : null,
+                label, fileIdStore.get(fileId), dependsOn != null ? fileIdStore.get(dependsOn) : null,
                 blocksDependentTasks, runnable, order);
     }
 }
 
-class TestTask implements Task {
+class TestTask extends BaseTask {
 
-    private final Integer label;
-    private final File file;
-    private final FileId dependsOn;
-    private final boolean blocksDependentTasks;
     private final IORunnable runnable;
     private final List<Integer> order;
 
     public TestTask(
-            Integer label, File file, FileId dependsOn,
+            Integer label, FileId fileId, FileId dependsOn,
             boolean blocksDependentTasks, IORunnable runnable, List<Integer> order) {
-        this.label = label;
-        this.file = file;
-        this.dependsOn = dependsOn;
-        this.blocksDependentTasks = blocksDependentTasks;
+        super(label.toString(), fileId, "does not matter", dependsOn, blocksDependentTasks);
         this.runnable = runnable;
         this.order = order;
     }
 
     @Override
-    public String getLabel() {
-        return label.toString();
-    }
-
-    @Override
-    public File getFile() {
-        return file;
-    }
-
-    @Override
-    public FileId getDependsOn() {
-        return dependsOn;
-    }
-
-    @Override
-    public boolean blocksDependentTasks() {
-        return blocksDependentTasks;
-    }
-
-    @Override
-    public String run(String etag) throws IOException {
+    public String run(ChangeSet changeSet, String etag) throws IOException {
         if (runnable != null)
             runnable.run();
         synchronized (order) {
-            order.add(label);
+            order.add(Integer.parseInt(getLabel()));
         }
         return "does not matter";
+    }
+
+    @Override
+    public String serialize() {
+        throw new UnsupportedOperationException();
     }
 }
 

@@ -6,6 +6,7 @@ import jdbox.content.ContentModule;
 import jdbox.driveadapter.DriveAdapterModule;
 import jdbox.filetree.FileTreeModule;
 import jdbox.localstate.LocalStateModule;
+import jdbox.datapersist.DataPersistenceModule;
 import jdbox.uploader.UploaderModule;
 import jdbox.utils.LifeCycleManagerResource;
 import jdbox.utils.MountedFileSystem;
@@ -131,6 +132,7 @@ public class FuzzyMountTest extends BaseTest {
             add(new DriveAdapterModule(
                     driveServiceProvider.getDriveService(), testFolderProvider.getBasicInfoProvider()));
             add(new UnsafeDriveAdapterModule());
+            add(new DataPersistenceModule(tempFolderProvider.create()));
             add(new UploaderModule());
             add(new LocalStateModule());
             add(new ContentModule());

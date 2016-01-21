@@ -12,6 +12,7 @@ import jdbox.filetree.FileTreeModule;
 import jdbox.localstate.LocalState;
 import jdbox.localstate.LocalStateModule;
 import jdbox.localstate.knownfiles.KnownFiles;
+import jdbox.datapersist.DataPersistenceModule;
 import jdbox.uploader.Uploader;
 import jdbox.uploader.UploaderModule;
 import jdbox.utils.driveadapter.MockDriveAdapterModule;
@@ -45,8 +46,9 @@ public class UploadFailureTest extends BaseMountFileSystemTest {
             add(new MockDriveAdapterModule(
                     driveServiceProvider.getDriveService(), testFolderProvider.getBasicInfoProvider()));
             add(new UnsafeDriveAdapterModule());
-            add(new LocalStateModule());
+            add(new DataPersistenceModule(tempFolderProvider.create()));
             add(new UploaderModule());
+            add(new LocalStateModule());
             add(new ContentModule());
             add(new FileTreeModule(true));
             add(new FileSystemModule());

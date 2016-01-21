@@ -3,6 +3,7 @@ package jdbox.uploader;
 import com.google.inject.Injector;
 import com.google.inject.Singleton;
 import com.google.inject.TypeLiteral;
+import com.google.inject.multibindings.MapBinder;
 import jdbox.modules.ActiveModule;
 import rx.Observable;
 import rx.Observer;
@@ -15,6 +16,7 @@ public class UploaderModule extends ActiveModule {
     protected void configure() {
 
         bind(Uploader.class).in(Singleton.class);
+        MapBinder.newMapBinder(binder(), Class.class, TaskDeserializer.class);
 
         Subject<UploadFailureEvent, UploadFailureEvent> uploadFailureEvent = PublishSubject.create();
         bind(new TypeLiteral<Observable<UploadFailureEvent>>() {}).toInstance(uploadFailureEvent);
@@ -28,6 +30,11 @@ public class UploaderModule extends ActiveModule {
     @Override
     public void init(Injector injector) {
         injector.getInstance(Uploader.class).init();
+    }
+
+    @Override
+    public void start(Injector injector) {
+        injector.getInstance(Uploader.class).start();
     }
 
     @Override

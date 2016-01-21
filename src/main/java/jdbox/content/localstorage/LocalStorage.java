@@ -13,6 +13,7 @@ import jdbox.localstate.knownfiles.KnownFiles;
 import jdbox.models.File;
 import jdbox.models.fileids.FileId;
 import jdbox.models.fileids.FileIdStore;
+import jdbox.datapersist.ChangeSet;
 import jdbox.uploader.DriveTask;
 import jdbox.uploader.Uploader;
 import org.slf4j.Logger;
@@ -203,7 +204,8 @@ public class LocalStorage {
                             fileIdStore, drive, "update content, content length is " + size,
                             original, existing.toFile(), EnumSet.noneOf(Field.class)) {
                         @Override
-                        public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
+                        public jdbox.driveadapter.File run(
+                                ChangeSet changeSet, jdbox.driveadapter.File file) throws IOException {
 
                             jdbox.driveadapter.File updatedFile = drive.updateFileContent(file, inputStream);
 

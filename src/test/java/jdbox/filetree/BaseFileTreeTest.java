@@ -5,6 +5,7 @@ import jdbox.BaseLifeCycleManagerTest;
 import jdbox.driveadapter.DriveAdapter;
 import jdbox.driveadapter.File;
 import jdbox.localstate.LocalStateModule;
+import jdbox.datapersist.DataPersistenceModule;
 import jdbox.uploader.UploaderModule;
 import jdbox.utils.TestUtils;
 import jdbox.utils.driveadapter.MockDriveAdapterModule;
@@ -35,6 +36,7 @@ public class BaseFileTreeTest extends BaseLifeCycleManagerTest {
             add(new MockDriveAdapterModule(
                     driveServiceProvider.getDriveService(), testFolderProvider.getBasicInfoProvider()));
             add(new UnsafeDriveAdapterModule());
+            add(new DataPersistenceModule(tempFolderProvider.create()));
             add(new UploaderModule());
             add(new LocalStateModule());
             add(new TestFileTreeModule(false));

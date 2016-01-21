@@ -61,7 +61,8 @@ public class LifeCycleManager {
 
     public void tearDown() throws MultipleException {
 
-        checkInitialized();
+        if (injector == null)
+            return;
 
         LinkedList<Exception> exceptions = new LinkedList<>();
 

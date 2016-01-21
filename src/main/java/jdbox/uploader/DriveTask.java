@@ -7,6 +7,7 @@ import jdbox.driveadapter.Field;
 import jdbox.models.File;
 import jdbox.models.fileids.FileId;
 import jdbox.models.fileids.FileIdStore;
+import jdbox.datapersist.ChangeSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,7 +52,7 @@ public abstract class DriveTask implements Task {
         this.blocksDependentTasks = blocksDependentTasks;
     }
 
-    public abstract jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException;
+    public abstract jdbox.driveadapter.File run(ChangeSet changeSet, jdbox.driveadapter.File file) throws IOException;
 
     @Override
     public String getLabel() {
@@ -59,8 +60,13 @@ public abstract class DriveTask implements Task {
     }
 
     @Override
-    public File getFile() {
-        return modified;
+    public FileId getFileId() {
+        return modified.getId();
+    }
+
+    @Override
+    public String getEtag() {
+        return modified.getEtag();
     }
 
     @Override
@@ -78,7 +84,7 @@ public abstract class DriveTask implements Task {
      * @return The file's etag obtained as a result of the performed operation.
      */
     @Override
-    public String run(String etag) throws ConflictException, IOException {
+    public String run(ChangeSet changeSet, String etag) throws ConflictException, IOException {
 
         jdbox.driveadapter.File file = modified.toDaFile(fields);
 
@@ -92,7 +98,7 @@ public abstract class DriveTask implements Task {
 
             try {
 
-                return run(file).getEtag();
+                return run(changeSet, file).getEtag();
 
             } catch (IOException e) {
 
@@ -119,6 +125,11 @@ public abstract class DriveTask implements Task {
                 ", dependsOn=" + dependsOn +
                 ", blocksDependentTasks=" + blocksDependentTasks +
                 '}';
+    }
+
+    @Override
+    public String serialize() {
+        throw new UnsupportedOperationException();
     }
 
     private static boolean filesAreEqual(File a, File b) {

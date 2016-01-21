@@ -16,6 +16,7 @@ import jdbox.localstate.knownfiles.KnownFiles;
 import jdbox.models.File;
 import jdbox.models.fileids.FileId;
 import jdbox.models.fileids.FileIdStore;
+import jdbox.datapersist.ChangeSet;
 import jdbox.uploader.DriveTask;
 import jdbox.uploader.FileEtagUpdateEvent;
 import jdbox.uploader.UploadFailureEvent;
@@ -236,7 +237,8 @@ public class FileTree {
                                 "create " + (isDirectory ? "directory" : "file"), null, newFile.toFile(),
                                 EnumSet.allOf(Field.class), parent.getId(), true) {
                             @Override
-                            public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
+                            public jdbox.driveadapter.File run(
+                                    ChangeSet changeSet, jdbox.driveadapter.File file) throws IOException {
 
                                 final jdbox.driveadapter.File createdFile = drive.createFile(
                                         file, new ByteArrayInputStream(new byte[0]));
@@ -287,7 +289,8 @@ public class FileTree {
                         "set modified to " + modifiedDate.toString() + " and accessed to " + accessedDate,
                         original, existing.toFile(), EnumSet.of(Field.MODIFIED_DATE, Field.ACCESSED_DATE)) {
                     @Override
-                    public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
+                    public jdbox.driveadapter.File run(
+                            ChangeSet changeSet, jdbox.driveadapter.File file) throws IOException {
                         return drive.updateFile(file);
                     }
                 });
@@ -339,7 +342,8 @@ public class FileTree {
                                 fileIdStore, drive, "remove file/directory completely",
                                 original, file, EnumSet.noneOf(Field.class)) {
                             @Override
-                            public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
+                            public jdbox.driveadapter.File run(
+                                    ChangeSet changeSet, jdbox.driveadapter.File file) throws IOException {
                                 return drive.trashFile(file);
                             }
                         });
@@ -350,7 +354,8 @@ public class FileTree {
                                 fileIdStore, drive, "remove file/directory from one directory only",
                                 original, file, EnumSet.of(Field.PARENT_IDS)) {
                             @Override
-                            public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
+                            public jdbox.driveadapter.File run(
+                                    ChangeSet changeSet, jdbox.driveadapter.File file) throws IOException {
                                 return drive.updateFile(file);
                             }
                         });
@@ -422,7 +427,8 @@ public class FileTree {
                         fileIdStore, drive, "move/rename to " + newPath,
                         original, existing.toFile(), fields, newParentId) {
                     @Override
-                    public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
+                    public jdbox.driveadapter.File run(
+                            ChangeSet changeSet, jdbox.driveadapter.File file) throws IOException {
                         return drive.updateFile(file);
                     }
                 });

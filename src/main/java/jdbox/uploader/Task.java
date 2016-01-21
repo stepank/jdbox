@@ -1,7 +1,7 @@
 package jdbox.uploader;
 
-import jdbox.models.File;
 import jdbox.models.fileids.FileId;
+import jdbox.datapersist.ChangeSet;
 
 import java.io.IOException;
 
@@ -9,7 +9,9 @@ public interface Task {
 
     String getLabel();
 
-    File getFile();
+    FileId getFileId();
+
+    String getEtag();
 
     FileId getDependsOn();
 
@@ -19,5 +21,7 @@ public interface Task {
      * @param etag The current etag of the file.
      * @return The file's etag obtained as a result of the performed operation.
      */
-    String run(String etag) throws ConflictException, IOException;
+    String run(ChangeSet changeSet, String etag) throws ConflictException, IOException;
+
+    String serialize();
 }

@@ -7,6 +7,7 @@ import jdbox.driveadapter.DriveAdapterModule;
 import jdbox.driveadapter.File;
 import jdbox.filetree.FileTreeModule;
 import jdbox.localstate.LocalStateModule;
+import jdbox.datapersist.DataPersistenceModule;
 import jdbox.uploader.UploaderModule;
 import jdbox.utils.driveadapter.Unsafe;
 import jdbox.utils.driveadapter.UnsafeDriveAdapterModule;
@@ -27,6 +28,7 @@ public class BaseFileSystemModuleTest extends BaseLifeCycleManagerTest {
             add(new DriveAdapterModule(
                     driveServiceProvider.getDriveService(), testFolderProvider.getBasicInfoProvider()));
             add(new UnsafeDriveAdapterModule());
+            add(new DataPersistenceModule(tempFolderProvider.create()));
             add(new UploaderModule());
             add(new LocalStateModule());
             add(new ContentModule());
