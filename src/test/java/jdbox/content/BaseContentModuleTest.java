@@ -1,7 +1,7 @@
 package jdbox.content;
 
 import com.google.inject.Module;
-import jdbox.BaseTest;
+import jdbox.BaseLifeCycleManagerTest;
 import jdbox.driveadapter.DriveAdapterModule;
 import jdbox.localstate.LocalStateModule;
 import jdbox.uploader.UploaderModule;
@@ -10,7 +10,7 @@ import jdbox.utils.driveadapter.UnsafeDriveAdapterModule;
 import java.util.ArrayList;
 import java.util.List;
 
-public class BaseContentModuleTest extends BaseTest {
+public class BaseContentModuleTest extends BaseLifeCycleManagerTest {
 
     @Override
     protected List<Module> getRequiredModules() {

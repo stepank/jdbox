@@ -17,7 +17,7 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.List;
 
-public class BaseFileSystemModuleTest extends BaseTest {
+public class BaseFileSystemModuleTest extends BaseLifeCycleManagerTest {
 
     @OrderedRule
     public final TestFolderProvider testFolderProvider = new TestFolderProvider(errorCollector, lifeCycleManager);

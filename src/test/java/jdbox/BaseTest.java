@@ -1,14 +1,11 @@
 package jdbox;
 
-import com.google.inject.Module;
 import jdbox.utils.*;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.rules.ErrorCollector;
 
-import java.util.List;
-
-public abstract class BaseTest {
+public class BaseTest {
 
     @ClassRule
     public final static DriveServiceProvider driveServiceProvider = new DriveServiceProvider();
@@ -26,8 +23,5 @@ public abstract class BaseTest {
     public final ErrorCollector errorCollector = new ErrorCollector();
 
     @OrderedRule(3)
-    public final LifeCycleManagerResource lifeCycleManager =
-            new LifeCycleManagerResource(errorCollector, getRequiredModules());
-
-    protected abstract List<Module> getRequiredModules();
+    public final TempFolderProvider tempFolderProvider = new TempFolderProvider();
 }

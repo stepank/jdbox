@@ -1,12 +1,18 @@
 package jdbox;
 
 import com.google.common.collect.ImmutableList;
-import jdbox.localstate.LocalState;
+import com.google.inject.Module;
+import jdbox.content.ContentModule;
+import jdbox.driveadapter.DriveAdapterModule;
+import jdbox.filetree.FileTreeModule;
+import jdbox.localstate.LocalStateModule;
+import jdbox.uploader.UploaderModule;
 import jdbox.utils.*;
-import org.junit.After;
-import org.junit.Before;
+import jdbox.utils.driveadapter.UnsafeDriveAdapterModule;
+import jdbox.utils.fixtures.Fixture;
+import jdbox.utils.fixtures.Fixtures;
+import jdbox.utils.fixtures.UnsafeRunnable;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,24 +29,13 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 
-public class FuzzyMountTest extends BaseMountFileSystemTest {
+public class FuzzyMountTest extends BaseTest {
 
     private static final Logger logger = LoggerFactory.getLogger(FuzzyMountTest.class);
     private static final Random random = new Random();
 
-    @OrderedRule(0)
-    public final TemporaryFolder temporaryFolder = new TemporaryFolder();
-
-    @OrderedRule(1)
-    public final LifeCycleManagerResource lifeCycleManager2 =
-            new LifeCycleManagerResource(errorCollector, lifeCycleManager.getModules());
-
-    @OrderedRule(2)
-    public final TestFolderIsolation testFolderIsolation =
-            new TestFolderIsolation(lifeCycleManager2, testFolderProvider);
-
-    @OrderedRule(3)
-    public final MountedFileSystem fileSystem2 = new MountedFileSystem(errorCollector, lifeCycleManager2, false);
+    @OrderedRule
+    public final TestFolderProvider testFolderProvider = new TestFolderProvider(errorCollector, driveServiceProvider);
 
     private final List<ActionFactory> actionFactories = ImmutableList.of(
             new CreateFileActionFactory(),
@@ -51,62 +46,100 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
             new RemoveFileActionFactory()
     );
 
-    @Before
-    public void setUp() {
-        logger.debug("entering set up");
-        super.setUp();
-        lifeCycleManager.getInstance(LocalState.class).setRoot(testFolder.getId());
-        logger.debug("leaving set up");
-    }
-
-    @After
-    public void tearDown() throws InterruptedException {
-        logger.debug("entering tear down");
-        lifeCycleManager.waitUntilUploaderIsDone();
-        super.tearDown();
-        logger.debug("leaving tear down");
-    }
-
     @Test(timeout = 90000)
     @Repeat(2)
-    public void run() throws Exception {
+    public void run() throws Throwable {
 
-        Path tempDirPath = temporaryFolder.getRoot().toPath();
+        logger.debug("starting test");
 
-        List<Path> dirs = new ArrayList<Path>() {{
+        final Path tempDirPath = tempFolderProvider.create();
+
+        final List<Path> dirs = new ArrayList<Path>() {{
             add(Paths.get("."));
         }};
-        List<Path> files = new ArrayList<>();
+        final List<Path> files = new ArrayList<>();
 
-        for (int i = 0; i < 40; i++) {
+        logger.debug("creating the first set of fixtures");
 
-            Action action = getNextAction(dirs, files);
+        final LifeCycleManagerResource lifeCycleManager =
+                new LifeCycleManagerResource(errorCollector, getRequiredModules());
+        TestFolderIsolation testFolderIsolation = new TestFolderIsolation(lifeCycleManager, testFolderProvider);
+        final MountedFileSystem fileSystem =
+                new MountedFileSystem(errorCollector, tempFolderProvider, lifeCycleManager);
 
-            try {
-                action.run(mountPoint);
-            } catch (IOException e) {
-                logger.error(
-                        "an error occured while running an action in cloud, cloud directory structure is {}",
-                        dumpDir(mountPoint), e);
-                throw e;
-            }
-            try {
-                action.run(tempDirPath);
-            } catch (IOException e) {
-                logger.error(
-                        "an error occured while running an action locally, local directory structure is {}",
-                        dumpDir(tempDirPath), e);
-                throw e;
-            }
-        }
+        logger.debug("starting random actions in one cloud folder and in a local folder");
 
-        assertThat(dumpDir(mountPoint), equalTo(dumpDir(tempDirPath)));
+        Fixtures.runUnder(
+                ImmutableList.<Fixture>of(lifeCycleManager, testFolderIsolation, fileSystem), new UnsafeRunnable() {
+                    @Override
+                    public void run() throws Exception {
 
-        lifeCycleManager.waitUntilUploaderIsDone(30, TimeUnit.SECONDS);
+                        Path mountPoint = fileSystem.getMountPoint();
 
-        fileSystem2.mount();
+                        for (int i = 0; i < 40; i++) {
 
-        assertThat(dumpDir(fileSystem2.getMountPoint()), equalTo(dumpDir(tempDirPath)));
+                            Action action = getNextAction(dirs, files);
+
+                            try {
+                                logger.debug("running in cloud: {}", action.label);
+                                action.run(mountPoint);
+                                logger.debug("completed in cloud: {}", action.label);
+                            } catch (IOException e) {
+                                logger.error(
+                                        "an error occured while running an action in cloud, " +
+                                                "cloud directory structure is {}",
+                                        dumpDir(mountPoint), e);
+                                throw e;
+                            }
+                            try {
+                                logger.debug("running locally: {}", action.label);
+                                action.run(tempDirPath);
+                                logger.debug("completed locally: {}", action.label);
+                            } catch (IOException e) {
+                                logger.error(
+                                        "an error occured while running an action locally, " +
+                                                "local directory structure is {}",
+                                        dumpDir(tempDirPath), e);
+                                throw e;
+                            }
+                        }
+
+                        assertThat(dumpDir(mountPoint), equalTo(dumpDir(tempDirPath)));
+
+                        lifeCycleManager.waitUntilUploaderIsDone(30, TimeUnit.SECONDS);
+                    }
+                });
+
+        logger.debug("creating the second set of fixures");
+
+        LifeCycleManagerResource lifeCycleManager2 =
+                new LifeCycleManagerResource(errorCollector, getRequiredModules());
+        TestFolderIsolation testFolderIsolation2 = new TestFolderIsolation(lifeCycleManager2, testFolderProvider);
+        final MountedFileSystem fileSystem2 =
+                new MountedFileSystem(errorCollector, tempFolderProvider, lifeCycleManager2);
+
+        logger.debug("checking the contents of another cloud folder against the local folder");
+
+        Fixtures.runUnder(
+                ImmutableList.<Fixture>of(lifeCycleManager2, testFolderIsolation2, fileSystem2), new UnsafeRunnable() {
+                    @Override
+                    public void run() throws Exception {
+                        fileSystem2.mount();
+                        assertThat(dumpDir(fileSystem2.getMountPoint()), equalTo(dumpDir(tempDirPath)));
+                    }
+                });
+    }
+
+    private List<Module> getRequiredModules() {
+        return new ArrayList<Module>() {{
+            add(new DriveAdapterModule(driveServiceProvider.getDriveService()));
+            add(new UnsafeDriveAdapterModule());
+            add(new UploaderModule());
+            add(new LocalStateModule());
+            add(new ContentModule());
+            add(new FileTreeModule(true));
+            add(new FileSystemModule());
+        }};
     }
 
     private Action getNextAction(final List<Path> dirs, final List<Path> files) {
@@ -161,11 +194,20 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
         return list.get(random.nextInt(list.size()));
     }
 
-    private interface Action {
-        void run(Path root) throws IOException;
+    private abstract class Action {
+
+        public final String label;
+
+        private Action(String label) {
+
+            this.label = label;
+        }
+
+        abstract void run(Path root) throws IOException;
     }
 
     private interface ActionFactory {
+
         boolean canCreateAction(List<Path> dirs, List<Path> files);
 
         Action createAction(List<Path> dirs, List<Path> files);
@@ -181,9 +223,8 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
         @Override
         public Action createAction(final List<Path> dirs, final List<Path> files) {
             final Path path = getRandomElement(dirs).resolve(UUID.randomUUID().toString().substring(0, 8));
-            logger.debug("creating file {}", path);
             files.add(path);
-            return new Action() {
+            return new Action("create file " + path) {
                 @Override
                 public void run(Path root) throws IOException {
                     assertThat(new File(root.resolve(path).toUri()).createNewFile(), is(true));
@@ -202,9 +243,8 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
         @Override
         public Action createAction(List<Path> dirs, List<Path> files) {
             final Path path = getRandomElement(dirs).resolve(UUID.randomUUID().toString().substring(0, 8));
-            logger.debug("creating dir {}", path);
             dirs.add(path);
-            return new Action() {
+            return new Action("create dir " + path) {
                 @Override
                 public void run(Path root) throws IOException {
                     assertThat(new java.io.File(root.resolve(path).toUri()).mkdir(), is(true));
@@ -224,10 +264,9 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
         public Action createAction(List<Path> dirs, List<Path> files) {
             final Path source = getRandomElement(files);
             final Path target = getRandomElement(dirs).resolve(source.getFileName());
-            logger.debug("moving file {} to {}", source, target);
             files.remove(source);
             files.add(target);
-            return new Action() {
+            return new Action("move file " + source + " to " + target) {
                 @Override
                 public void run(Path root) throws IOException {
                     Files.move(root.resolve(source), root.resolve(target), StandardCopyOption.ATOMIC_MOVE);
@@ -246,9 +285,8 @@ public class FuzzyMountTest extends BaseMountFileSystemTest {
         @Override
         public Action createAction(List<Path> dirs, List<Path> files) {
             final Path path = getRandomElement(files);
-            logger.debug("removing file {}", path);
             files.remove(path);
-            return new Action() {
+            return new Action("remove file " + path) {
                 @Override
                 public void run(Path root) throws IOException {
                     Files.delete(root.resolve(path));

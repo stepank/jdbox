@@ -7,6 +7,7 @@ import jdbox.content.OpenedFiles;
 import jdbox.modules.LifeCycleManager;
 import jdbox.modules.MultipleException;
 import jdbox.uploader.Uploader;
+import jdbox.utils.fixtures.Fixture;
 import org.junit.rules.ErrorCollector;
 import org.junit.rules.ExternalResource;
 
@@ -20,7 +21,7 @@ import java.util.concurrent.TimeoutException;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.lessThan;
 
-public class LifeCycleManagerResource extends ExternalResource {
+public class LifeCycleManagerResource extends ExternalResource implements Fixture {
 
     private final ErrorCollector errorCollector;
     private final LifeCycleManager lifeCycleManager;
@@ -48,13 +49,13 @@ public class LifeCycleManagerResource extends ExternalResource {
     }
 
     @Override
-    protected void before() throws Throwable {
+    public void before() throws Throwable {
         lifeCycleManager.init();
         lifeCycleManager.start();
     }
 
     @Override
-    protected void after() {
+    public void after() {
         try {
             lifeCycleManager.tearDown();
         } catch (MultipleException me) {

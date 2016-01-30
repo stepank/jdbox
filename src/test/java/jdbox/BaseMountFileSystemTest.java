@@ -11,7 +11,8 @@ import java.nio.file.Path;
 public class BaseMountFileSystemTest extends BaseFileSystemModuleTest {
 
     @OrderedRule
-    public final MountedFileSystem fileSystem = new MountedFileSystem(errorCollector, lifeCycleManager);
+    public final MountedFileSystem fileSystem =
+            new MountedFileSystem(errorCollector, tempFolderProvider, lifeCycleManager);
 
     protected Path mountPoint;
 

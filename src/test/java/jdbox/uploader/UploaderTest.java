@@ -2,7 +2,7 @@ package jdbox.uploader;
 
 import com.google.common.collect.Lists;
 import com.google.inject.Module;
-import jdbox.BaseTest;
+import jdbox.BaseLifeCycleManagerTest;
 import jdbox.models.File;
 import jdbox.models.fileids.FileId;
 import jdbox.models.fileids.FileIdStore;
@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
-public class UploaderTest extends BaseTest {
+public class UploaderTest extends BaseLifeCycleManagerTest {
 
     private static final Logger logger = LoggerFactory.getLogger(UploaderTest.class);
 

@@ -1,29 +1,26 @@
 package jdbox.utils;
 
 import jdbox.FileSystem;
+import jdbox.utils.fixtures.Fixture;
 import org.junit.rules.ErrorCollector;
 import org.junit.rules.ExternalResource;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 
-public class MountedFileSystem extends ExternalResource {
+public class MountedFileSystem extends ExternalResource implements Fixture {
 
     private final ErrorCollector errorCollector;
+    private final TempFolderProvider tempFolderProvider;
     private final LifeCycleManagerResource lifeCycleManager;
-    private final boolean mountOnBefore;
 
     private Path mountPoint;
 
-    public MountedFileSystem(ErrorCollector errorCollector, LifeCycleManagerResource lifeCycleManager) {
-        this(errorCollector, lifeCycleManager, true);
-    }
-
     public MountedFileSystem(
-            ErrorCollector errorCollector, LifeCycleManagerResource lifeCycleManager, boolean mountOnBefore) {
+            ErrorCollector errorCollector, TempFolderProvider tempFolderProvider,
+            LifeCycleManagerResource lifeCycleManager) {
         this.errorCollector = errorCollector;
+        this.tempFolderProvider = tempFolderProvider;
         this.lifeCycleManager = lifeCycleManager;
-        this.mountOnBefore = mountOnBefore;
     }
 
     public Path getMountPoint() {
@@ -31,20 +28,16 @@ public class MountedFileSystem extends ExternalResource {
     }
 
     public void mount() throws Exception {
+    }
 
-        mountPoint = Files.createTempDirectory("jdbox");
-
+    @Override
+    public void before() throws Exception {
+        mountPoint = tempFolderProvider.create();
         lifeCycleManager.getInstance(FileSystem.class).mount(new java.io.File(mountPoint.toString()), false);
     }
 
     @Override
-    protected void before() throws Exception {
-        if (mountOnBefore)
-            mount();
-    }
-
-    @Override
-    protected void after() {
+    public void after() {
 
         try {
             lifeCycleManager.getInstance(FileSystem.class).unmount();

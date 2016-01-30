@@ -1,7 +1,7 @@
 package jdbox.filetree;
 
 import com.google.inject.Module;
-import jdbox.BaseTest;
+import jdbox.BaseLifeCycleManagerTest;
 import jdbox.driveadapter.DriveAdapter;
 import jdbox.driveadapter.File;
 import jdbox.localstate.LocalStateModule;
@@ -23,7 +23,7 @@ import java.util.List;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-public class BaseFileTreeTest extends BaseTest {
+public class BaseFileTreeTest extends BaseLifeCycleManagerTest {
 
     protected final static Path testDirPath = Paths.get("/");
 
