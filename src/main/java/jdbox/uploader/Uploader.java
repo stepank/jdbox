@@ -285,15 +285,16 @@ public class Uploader {
                 }
             }
 
+            FileId fileId = item.getTask().getFile().getId();
+
+            fileEtagUpdateEvent.onNext(new FileEtagUpdateEvent(fileId, etag));
+
             synchronized (Uploader.this) {
 
                 queue.setEtag(etag);
 
-                if (item.getQueue().removeHead()) {
-                    FileId fileId = item.getTask().getFile().getId();
+                if (item.getQueue().removeHead())
                     queues.remove(fileId);
-                    fileEtagUpdateEvent.onNext(new FileEtagUpdateEvent(fileId, etag));
-                }
 
                 for (Item dependent : new HashSet<>(item.getDependents())) {
                     if (dependent.removeDependency(item))

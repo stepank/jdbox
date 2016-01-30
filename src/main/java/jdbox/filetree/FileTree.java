@@ -624,6 +624,11 @@ public class FileTree {
 
             final DriveAdapter.Changes changes = drive.getChanges(largestChangeId + 1);
 
+            logger.debug("got {} changes, largest is {}", changes.items.size(), changes.largestChangeId);
+
+            if (changes.items.size() == 0)
+                return;
+
             largestChangeId = changes.largestChangeId;
 
             localState.update(new LocalUpdateSafe() {
