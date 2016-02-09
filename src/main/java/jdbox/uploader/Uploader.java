@@ -13,6 +13,8 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class Uploader {
 
@@ -24,6 +26,8 @@ public class Uploader {
     private final Observer<FileEtagUpdateEvent> fileEtagUpdateEvent;
     private final Map<FileId, Queue> queues = new HashMap<>();
     private final List<Future> futures = new LinkedList<>();
+
+    private final ReadWriteLock remoteStateLock = new ReentrantReadWriteLock(true);
 
     private volatile UploadStatus uploadStatus;
     private volatile ExecutorService executor;
@@ -107,6 +111,27 @@ public class Uploader {
 
     public void waitUntilIsDoneOrBroken(long period, TimeUnit units) throws InterruptedException, TimeoutException {
         waitUntilIsDone(true, period, units);
+    }
+
+    public void pause() {
+        remoteStateLock.writeLock().lock();
+    }
+
+    public boolean tryPause(int timeout, TimeUnit unit) {
+
+        boolean locked = false;
+
+        try {
+            locked = remoteStateLock.writeLock().tryLock(timeout, unit);
+        } catch (InterruptedException e) {
+            logger.debug("lock acquisition has been interrupted", e);
+        }
+
+        return locked;
+    }
+
+    public void resume() {
+        remoteStateLock.writeLock().unlock();
     }
 
     private boolean isBroken() {
@@ -239,18 +264,43 @@ public class Uploader {
 
                 try {
 
-                    OperationContext.restore(item.getCtx());
+                    remoteStateLock.readLock().lock();
 
                     try {
 
-                        logger.debug("starting {} with etag {}", item.getTask(), queue.getEtag());
+                        OperationContext.restore(item.getCtx());
 
-                        etag = item.getTask().run(queue.getEtag());
+                        try {
 
-                        logger.debug("completed {}, new etag is {}", item.getTask(), etag);
+                            logger.debug("starting {} with etag {}", item.getTask(), queue.getEtag());
+
+                            etag = item.getTask().run(queue.getEtag());
+
+                            logger.debug("completed {}, new etag is {}", item.getTask(), etag);
+
+                        } finally {
+                            OperationContext.clear();
+                        }
+
+                        FileId fileId = item.getTask().getFile().getId();
+
+                        fileEtagUpdateEvent.onNext(new FileEtagUpdateEvent(fileId, etag));
+
+                        synchronized (Uploader.this) {
+
+                            queue.setEtag(etag);
+
+                            if (item.getQueue().removeHead())
+                                queues.remove(fileId);
+
+                            for (Item dependent : new HashSet<>(item.getDependents())) {
+                                if (dependent.removeDependency(item))
+                                    trySubmitToExecutor(dependent);
+                            }
+                        }
 
                     } finally {
-                        OperationContext.clear();
+                        remoteStateLock.readLock().unlock();
                     }
 
                 } catch (ConflictException e) {
@@ -282,23 +332,6 @@ public class Uploader {
 
                     if (delay < 60)
                         delay *= 2;
-                }
-            }
-
-            FileId fileId = item.getTask().getFile().getId();
-
-            fileEtagUpdateEvent.onNext(new FileEtagUpdateEvent(fileId, etag));
-
-            synchronized (Uploader.this) {
-
-                queue.setEtag(etag);
-
-                if (item.getQueue().removeHead())
-                    queues.remove(fileId);
-
-                for (Item dependent : new HashSet<>(item.getDependents())) {
-                    if (dependent.removeDependency(item))
-                        trySubmitToExecutor(dependent);
                 }
             }
         }

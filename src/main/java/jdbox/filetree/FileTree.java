@@ -32,8 +32,6 @@ import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class FileTree {
 
@@ -48,11 +46,6 @@ public class FileTree {
     private final OpenedFilesManager openedFilesManager;
 
     private final LocalState localState;
-
-    // Read lock is acquired on file creation operations to prevent concurrent creation of the same file id
-    // either by retrieval of the list of files or by retrieval of changes. Write lock is acquired on any retrieval
-    // of data from the cloud to ensure consistent creation of file ids.
-    private final ReadWriteLock fileIdStoreLock = new ReentrantReadWriteLock(true);
 
     private volatile ScheduledExecutorService scheduler;
     private volatile Subscription fileEtagUpdateEventSubscription;
@@ -95,7 +88,6 @@ public class FileTree {
             DriveAdapter drive, FileIdStore fileIdStore,
             Observable<FileEtagUpdateEvent> fileEtagUpdateEvent, Observable<UploadFailureEvent> uploadFailureEvent,
             OpenedFilesManager openedFilesManager, LocalState localState) {
-
         this.drive = drive;
         this.fileIdStore = fileIdStore;
         this.fileEtagUpdateEvent = fileEtagUpdateEvent;
@@ -254,28 +246,21 @@ public class FileTree {
                             @Override
                             public jdbox.driveadapter.File run(jdbox.driveadapter.File file) throws IOException {
 
-                                fileIdStoreLock.readLock().lock();
-                                try {
+                                final jdbox.driveadapter.File createdFile = drive.createFile(
+                                        file, new ByteArrayInputStream(new byte[0]));
 
-                                    final jdbox.driveadapter.File createdFile = drive.createFile(
-                                            file, new ByteArrayInputStream(new byte[0]));
+                                localState.update(new LocalUpdate() {
+                                    @Override
+                                    public KnownFile run(
+                                            KnownFiles knownFiles, Uploader uploader) throws IOException {
+                                        newFile.setUploaded(
+                                                createdFile.getId(), createdFile.getMimeType(),
+                                                createdFile.getDownloadUrl(), createdFile.getAlternateLink());
+                                        return null;
+                                    }
+                                });
 
-                                    localState.update(new LocalUpdate() {
-                                        @Override
-                                        public KnownFile run(
-                                                KnownFiles knownFiles, Uploader uploader) throws IOException {
-                                            newFile.setUploaded(
-                                                    createdFile.getId(), createdFile.getMimeType(),
-                                                    createdFile.getDownloadUrl(), createdFile.getAlternateLink());
-                                            return null;
-                                        }
-                                    });
-
-                                    return createdFile;
-
-                                } finally {
-                                    fileIdStoreLock.readLock().unlock();
-                                }
+                                return createdFile;
                             }
                         });
 
@@ -480,17 +465,17 @@ public class FileTree {
         if (result != null)
             return result;
 
-        fileIdStoreLock.writeLock().lock();
-        try {
-            return localState.update(new LocalUpdate<T>() {
-                @Override
-                public T run(KnownFiles knownFiles, Uploader uploader) throws IOException {
-                    return getOrFetchUnsafe(knownFiles, knownFiles.getRoot(), path, fileName, getter);
-                }
-            });
-        } finally {
-            fileIdStoreLock.writeLock().unlock();
-        }
+        return localState.update(new RemoteRead<T>() {
+            @Override
+            public T run() throws IOException {
+                return localState.update(new LocalUpdate<T>() {
+                    @Override
+                    public T run(KnownFiles knownFiles, Uploader uploader) throws IOException {
+                        return getOrFetchUnsafe(knownFiles, knownFiles.getRoot(), path, fileName, getter);
+                    }
+                });
+            }
+        });
     }
 
     private KnownFile locateFile(KnownFile file, Path path) {
@@ -609,41 +594,37 @@ public class FileTree {
 
     private void retrieveAndApplyChanges() {
 
-        boolean locked = false;
-
-        try {
-            locked = fileIdStoreLock.writeLock().tryLock(5, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            logger.debug("lock acquisition has been interrupted", e);
-        }
-
-        if (!locked)
-            return;
-
         try {
 
-            final DriveAdapter.Changes changes = drive.getChanges(largestChangeId + 1);
-
-            logger.debug("got {} changes, largest is {}", changes.items.size(), changes.largestChangeId);
-
-            if (changes.items.size() == 0)
-                return;
-
-            largestChangeId = changes.largestChangeId;
-
-            localState.update(new LocalUpdateSafe() {
+            localState.tryUpdate(new RemoteRead<Void>() {
                 @Override
-                public Void run(KnownFiles knownFiles, Uploader uploader) {
-                    for (DriveAdapter.Change change : changes.items)
-                        tryApplyChange(knownFiles, uploader, change);
+                public Void run() throws IOException {
+
+                    final DriveAdapter.Changes changes = drive.getChanges(largestChangeId + 1);
+
+                    logger.debug("got {} changes, largest is {}", changes.items.size(), changes.largestChangeId);
+
+                    if (changes.items.size() == 0)
+                        return null;
+
+                    largestChangeId = changes.largestChangeId;
+
+                    localState.update(new LocalUpdateSafe() {
+                        @Override
+                        public Void run(KnownFiles knownFiles, Uploader uploader) {
+                            for (DriveAdapter.Change change : changes.items)
+                                tryApplyChange(knownFiles, uploader, change);
+                            return null;
+                        }
+                    });
+
                     return null;
+
                 }
-            });
+            }, 5, TimeUnit.SECONDS);
 
         } catch (IOException e) {
             logger.error("an error occured retrieving a list of changes", e);
-        } finally {
-            fileIdStoreLock.writeLock().unlock();
         }
     }
 
@@ -651,18 +632,6 @@ public class FileTree {
 
         FileId changedFileId = fileIdStore.get(change.fileId);
 
-        // Strictly speaking, this is not correct. There is a chance of a race condition here.
-        // Consider the following scenario:
-        // 1. A file is changed locally and is scheduled for upload.
-        // 2. The request for upload is sent to the network.
-        // 3. Google Drive processes the request and sends back the response.
-        // 4. The response gots stuck in the network for a while.
-        // 5. The file is changed in the cloud.
-        // 6. FileTree retrieves changes (both 1 & 5) from the cloud, but does not apply them, because the operation is
-        //    still pending on this file due to 4.
-        // 7. The response gots unstuck and the upload operation is complete, but the changes (including the new etag)
-        //    introduced in 5 will not be visible. Consequently, the next local change to this file will break down
-        //    the uploader.
         if (uploader.fileIsQueued(changedFileId))
             return;
 

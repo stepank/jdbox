@@ -6,6 +6,7 @@ import jdbox.models.fileids.FileIdStore;
 import jdbox.uploader.Uploader;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -70,6 +71,27 @@ public class LocalState {
             return localUpdate.run(knownFiles, uploader);
         } finally {
             localStateLock.writeLock().unlock();
+        }
+    }
+
+    public <T> T update(RemoteRead<T> remoteRead) throws IOException {
+        uploader.pause();
+        try {
+            return remoteRead.run();
+        } finally {
+            uploader.resume();
+        }
+    }
+
+    public <T> T tryUpdate(RemoteRead<T> remoteRead, int timeout, TimeUnit unit) throws IOException {
+
+        if (!uploader.tryPause(timeout, unit))
+            return null;
+
+        try {
+            return remoteRead.run();
+        } finally {
+            uploader.resume();
         }
     }
 
