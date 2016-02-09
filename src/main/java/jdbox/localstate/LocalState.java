@@ -1,6 +1,7 @@
 package jdbox.localstate;
 
 import com.google.inject.Inject;
+import jdbox.localstate.interfaces.*;
 import jdbox.localstate.knownfiles.KnownFiles;
 import jdbox.models.fileids.FileIdStore;
 import jdbox.uploader.Uploader;
@@ -39,9 +40,26 @@ public class LocalState {
     public void setRoot(final String rootId) {
         update(new LocalUpdateSafe() {
             @Override
-            public Void run(KnownFiles knownFiles, Uploader uploader) {
+            public void run(KnownFiles knownFiles, Uploader uploader) {
                 knownFiles.setRoot(fileIdStore.get(rootId));
-                return null;
+            }
+        });
+    }
+
+    public void setLargestChangeId(final Long largestChangeId) {
+        update(new LocalUpdateSafe() {
+            @Override
+            public void run(KnownFiles knownFiles, Uploader uploader) {
+                knownFiles.setLargestChangeId(largestChangeId);
+            }
+        });
+    }
+
+    public Long getLargestChangeId() {
+        return read(new LocalReadSafe<Long>() {
+            @Override
+            public Long run(KnownFiles knownFiles) {
+                return knownFiles.getLargestChangeId();
             }
         });
     }
@@ -49,9 +67,8 @@ public class LocalState {
     public void reset() {
         update(new LocalUpdateSafe() {
             @Override
-            public Void run(KnownFiles knownFiles, Uploader uploader) {
+            public void run(KnownFiles knownFiles, Uploader uploader) {
                 knownFiles.setRoot(knownFiles.getRoot().getId());
-                return null;
             }
         });
     }
@@ -65,10 +82,10 @@ public class LocalState {
         }
     }
 
-    public <T> T update(LocalUpdateSafe<T> localUpdate) {
+    public void update(LocalUpdateSafe localUpdate) {
         localStateLock.writeLock().lock();
         try {
-            return localUpdate.run(knownFiles, uploader);
+            localUpdate.run(knownFiles, uploader);
         } finally {
             localStateLock.writeLock().unlock();
         }
@@ -83,13 +100,22 @@ public class LocalState {
         }
     }
 
-    public <T> T tryUpdate(RemoteRead<T> remoteRead, int timeout, TimeUnit unit) throws IOException {
+    public void update(RemoteReadVoid remoteRead) throws IOException {
+        uploader.pause();
+        try {
+            remoteRead.run();
+        } finally {
+            uploader.resume();
+        }
+    }
+
+    public void tryUpdate(RemoteReadVoid remoteRead, int timeout, TimeUnit unit) throws IOException {
 
         if (!uploader.tryPause(timeout, unit))
-            return null;
+            return;
 
         try {
-            return remoteRead.run();
+            remoteRead.run();
         } finally {
             uploader.resume();
         }

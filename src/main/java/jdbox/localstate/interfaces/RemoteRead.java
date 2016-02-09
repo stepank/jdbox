@@ -1,4 +1,4 @@
-package jdbox.localstate;
+package jdbox.localstate.interfaces;
 
 import java.io.IOException;
 

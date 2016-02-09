@@ -1,4 +1,4 @@
-package jdbox.localstate;
+package jdbox.localstate.interfaces;
 
 import jdbox.localstate.knownfiles.KnownFiles;
 import jdbox.uploader.Uploader;

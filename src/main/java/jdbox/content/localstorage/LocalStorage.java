@@ -7,7 +7,7 @@ import jdbox.content.bytestores.InMemoryByteStoreFactory;
 import jdbox.driveadapter.DriveAdapter;
 import jdbox.driveadapter.Field;
 import jdbox.localstate.LocalState;
-import jdbox.localstate.LocalUpdate;
+import jdbox.localstate.interfaces.LocalUpdate;
 import jdbox.localstate.knownfiles.KnownFile;
 import jdbox.localstate.knownfiles.KnownFiles;
 import jdbox.models.File;
@@ -220,6 +220,7 @@ public class LocalStorage {
                             return updatedFile;
                         }
                     });
+
                     return null;
                 }
             });

@@ -2,7 +2,7 @@ package jdbox.utils;
 
 import jdbox.driveadapter.DriveAdapter;
 import jdbox.localstate.LocalState;
-import jdbox.localstate.LocalUpdateSafe;
+import jdbox.localstate.interfaces.LocalUpdateSafe;
 import jdbox.localstate.knownfiles.KnownFiles;
 import jdbox.models.File;
 import jdbox.models.fileids.FileIdStore;
@@ -52,10 +52,9 @@ public class TestFileProvider extends ExternalResource {
 
         lifeCycleManager.getInstance(LocalState.class).update(new LocalUpdateSafe() {
             @Override
-            public Void run(KnownFiles knownFiles, Uploader uploader) {
+            public void run(KnownFiles knownFiles, Uploader uploader) {
                 knownFiles.getRoot().setTracked();
                 knownFiles.getRoot().tryAddChild(knownFiles.create(file));
-                return null;
             }
         });
     }

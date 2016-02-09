@@ -7,7 +7,8 @@ import com.google.inject.Inject;
 import jdbox.content.OpenedFilesManager;
 import jdbox.driveadapter.DriveAdapter;
 import jdbox.driveadapter.Field;
-import jdbox.localstate.*;
+import jdbox.localstate.LocalState;
+import jdbox.localstate.interfaces.*;
 import jdbox.localstate.knownfiles.KnownFile;
 import jdbox.localstate.knownfiles.KnownFiles;
 import jdbox.models.File;
@@ -50,9 +51,6 @@ public class FileTree {
     private volatile ScheduledExecutorService scheduler;
     private volatile Subscription fileEtagUpdateEventSubscription;
     private volatile Subscription uploadFailureEventSubscription;
-    private volatile long largestChangeId;
-
-    private volatile KnownFile uploadFailureNotificationFile;
 
     private final static Getter<List<String>> namesGetter = new Getter<List<String>>() {
         @Override
@@ -132,9 +130,8 @@ public class FileTree {
 
         DriveAdapter.BasicInfo info = drive.getBasicInfo();
 
-        largestChangeId = info.largestChangeId;
-
         localState.setRoot(info.rootFolderId);
+        localState.setLargestChangeId(info.largestChangeId);
     }
 
     public void start() {
@@ -249,14 +246,13 @@ public class FileTree {
                                 final jdbox.driveadapter.File createdFile = drive.createFile(
                                         file, new ByteArrayInputStream(new byte[0]));
 
-                                localState.update(new LocalUpdate() {
+                                localState.update(new LocalUpdateSafe() {
                                     @Override
-                                    public KnownFile run(
-                                            KnownFiles knownFiles, Uploader uploader) throws IOException {
+                                    public void run(
+                                            KnownFiles knownFiles, Uploader uploader) {
                                         newFile.setUploaded(
                                                 createdFile.getId(), createdFile.getMimeType(),
                                                 createdFile.getDownloadUrl(), createdFile.getAlternateLink());
-                                        return null;
                                     }
                                 });
 
@@ -284,7 +280,7 @@ public class FileTree {
                     KnownFile existing, KnownFile parent, KnownFiles knownFiles, Uploader uploader)
                     throws IOException {
 
-                if (existing == uploadFailureNotificationFile)
+                if (existing == knownFiles.getUploadFailureNotificationFile())
                     throw new AccessDeniedException(path);
 
                 File original = existing.toFile();
@@ -327,7 +323,7 @@ public class FileTree {
 
                 parent.tryRemoveChild(existing);
 
-                if (existing == uploadFailureNotificationFile) {
+                if (existing == knownFiles.getUploadFailureNotificationFile()) {
 
                     if (openedFilesManager.getOpenedFilesCount() != 0)
                         throw new AccessDeniedException(path);
@@ -338,7 +334,7 @@ public class FileTree {
 
                     uploader.reset();
 
-                    uploadFailureNotificationFile = null;
+                    knownFiles.setUploadFailureNotificationFile(null);
 
                 } else {
 
@@ -393,7 +389,7 @@ public class FileTree {
                 Path parentPath = path.getParent();
                 Path fileName = path.getFileName();
 
-                if (existing == uploadFailureNotificationFile)
+                if (existing == knownFiles.getUploadFailureNotificationFile())
                     throw new AccessDeniedException(path);
 
                 File original = existing.toFile();
@@ -557,11 +553,10 @@ public class FileTree {
     private void updateFileEtag(final FileId fileId, final String etag) {
         localState.update(new LocalUpdateSafe() {
             @Override
-            public Void run(KnownFiles knownFiles, Uploader uploader) {
+            public void run(KnownFiles knownFiles, Uploader uploader) {
                 KnownFile file = knownFiles.get(fileId);
                 if (file != null)
                     file.setEtag(etag);
-                return null;
             }
         });
     }
@@ -570,24 +565,22 @@ public class FileTree {
 
         localState.update(new LocalUpdateSafe() {
             @Override
-            public Void run(KnownFiles knownFiles, Uploader uploader) {
+            public void run(KnownFiles knownFiles, Uploader uploader) {
 
-                if (uploadFailureNotificationFile != null) {
+                if (knownFiles.getUploadFailureNotificationFile() != null) {
 
-                    uploadFailureNotificationFile.setDates(uploadStatus.date, uploadStatus.date);
+                    knownFiles.getUploadFailureNotificationFile().setDates(uploadStatus.date, uploadStatus.date);
 
                 } else {
 
-                    uploadFailureNotificationFile = knownFiles.create(
+                    knownFiles.setUploadFailureNotificationFile(knownFiles.create(
                             fileIdStore.get(Uploader.uploadFailureNotificationFileId),
-                            uploadNotificationFileName, false, uploadStatus.date);
+                            uploadNotificationFileName, false, uploadStatus.date));
 
-                    uploadFailureNotificationFile.setDates(uploadStatus.date, uploadStatus.date);
+                    knownFiles.getUploadFailureNotificationFile().setDates(uploadStatus.date, uploadStatus.date);
 
-                    knownFiles.getRoot().tryAddChild(uploadFailureNotificationFile);
+                    knownFiles.getRoot().tryAddChild(knownFiles.getUploadFailureNotificationFile());
                 }
-
-                return null;
             }
         });
     }
@@ -596,30 +589,27 @@ public class FileTree {
 
         try {
 
-            localState.tryUpdate(new RemoteRead<Void>() {
+            localState.tryUpdate(new RemoteReadVoid() {
                 @Override
-                public Void run() throws IOException {
+                public void run() throws IOException {
 
-                    final DriveAdapter.Changes changes = drive.getChanges(largestChangeId + 1);
+                    final DriveAdapter.Changes changes = drive.getChanges(localState.getLargestChangeId() + 1);
 
                     logger.debug("got {} changes, largest is {}", changes.items.size(), changes.largestChangeId);
 
                     if (changes.items.size() == 0)
-                        return null;
-
-                    largestChangeId = changes.largestChangeId;
+                        return;
 
                     localState.update(new LocalUpdateSafe() {
                         @Override
-                        public Void run(KnownFiles knownFiles, Uploader uploader) {
+                        public void run(KnownFiles knownFiles, Uploader uploader) {
+
+                            knownFiles.setLargestChangeId(changes.largestChangeId);
+
                             for (DriveAdapter.Change change : changes.items)
                                 tryApplyChange(knownFiles, uploader, change);
-                            return null;
                         }
                     });
-
-                    return null;
-
                 }
             }, 5, TimeUnit.SECONDS);
 

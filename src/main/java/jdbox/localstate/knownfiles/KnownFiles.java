@@ -16,6 +16,10 @@ public class KnownFiles {
 
     private final Map<FileId, KnownFile> entries = new HashMap<>();
 
+    private volatile long largestChangeId = 0;
+
+    private volatile KnownFile uploadFailureNotificationFile;
+
     public KnownFile getRoot() {
         return root;
     }
@@ -25,6 +29,22 @@ public class KnownFiles {
             entries.clear();
         root = new KnownFile(rootId, "{root}", true, null, this);
         put(root);
+    }
+
+    public long getLargestChangeId() {
+        return largestChangeId;
+    }
+
+    public void setLargestChangeId(long largestChangeId) {
+        this.largestChangeId = largestChangeId;
+    }
+
+    public KnownFile getUploadFailureNotificationFile() {
+        return uploadFailureNotificationFile;
+    }
+
+    public void setUploadFailureNotificationFile(KnownFile uploadFailureNotificationFile) {
+        this.uploadFailureNotificationFile = uploadFailureNotificationFile;
     }
 
     public KnownFile create(FileId fileId, String name, boolean isDirectory, Date createdDate) {
