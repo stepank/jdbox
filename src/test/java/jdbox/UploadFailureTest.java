@@ -11,6 +11,7 @@ import jdbox.filetree.FileTree;
 import jdbox.filetree.FileTreeModule;
 import jdbox.localstate.LocalState;
 import jdbox.localstate.LocalStateModule;
+import jdbox.localstate.knownfiles.KnownFiles;
 import jdbox.uploader.Uploader;
 import jdbox.uploader.UploaderModule;
 import jdbox.utils.driveadapter.MockDriveAdapterModule;
@@ -41,7 +42,8 @@ public class UploadFailureTest extends BaseMountFileSystemTest {
     @Override
     protected List<Module> getRequiredModules() {
         return new ArrayList<Module>() {{
-            add(new MockDriveAdapterModule(driveServiceProvider.getDriveService()));
+            add(new MockDriveAdapterModule(
+                    driveServiceProvider.getDriveService(), testFolderProvider.getBasicInfoProvider()));
             add(new UnsafeDriveAdapterModule());
             add(new LocalStateModule());
             add(new UploaderModule());
@@ -56,7 +58,7 @@ public class UploadFailureTest extends BaseMountFileSystemTest {
 
         DriveAdapter drive = lifeCycleManager.getInstance(DriveAdapter.class);
 
-        Path uploadNotificationFilePath = mountPoint.resolve(FileTree.uploadNotificationFileName);
+        Path uploadNotificationFilePath = mountPoint.resolve(KnownFiles.uploadFailureNotificationFileName);
 
         logger.debug("make sure that upload notification file does not exist");
         assertThat(Files.exists(uploadNotificationFilePath), is(false));
@@ -168,7 +170,7 @@ public class UploadFailureTest extends BaseMountFileSystemTest {
 
         DriveAdapter drive = lifeCycleManager.getInstance(DriveAdapter.class);
 
-        Path uploadNotificationFilePath = mountPoint.resolve(FileTree.uploadNotificationFileName);
+        Path uploadNotificationFilePath = mountPoint.resolve(KnownFiles.uploadFailureNotificationFileName);
 
         logger.debug("make sure that upload notification file does not exist");
         assertThat(Files.exists(uploadNotificationFilePath), is(false));

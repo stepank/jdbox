@@ -5,6 +5,8 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableList;
 import com.google.inject.Inject;
 import jdbox.content.OpenedFilesManager;
+import jdbox.driveadapter.Change;
+import jdbox.driveadapter.Changes;
 import jdbox.driveadapter.DriveAdapter;
 import jdbox.driveadapter.Field;
 import jdbox.localstate.LocalState;
@@ -35,8 +37,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public class FileTree {
-
-    public static final String uploadNotificationFileName = "READ ME - UPLOAD IS BROKEN.txt";
 
     private static final Logger logger = LoggerFactory.getLogger(FileTree.class);
 
@@ -127,11 +127,6 @@ public class FileTree {
                 createOrUpdateUploadFailureNotificationFile(uploadFailureEvent.uploadStatus);
             }
         });
-
-        DriveAdapter.BasicInfo info = drive.getBasicInfo();
-
-        localState.setRoot(info.rootFolderId);
-        localState.setLargestChangeId(info.largestChangeId);
     }
 
     public void start() {
@@ -328,13 +323,11 @@ public class FileTree {
                     if (openedFilesManager.getOpenedFilesCount() != 0)
                         throw new AccessDeniedException(path);
 
-                    localState.reset();
+                    knownFiles.reset();
 
                     openedFilesManager.reset();
 
                     uploader.reset();
-
-                    knownFiles.setUploadFailureNotificationFile(null);
 
                 } else {
 
@@ -562,25 +555,10 @@ public class FileTree {
     }
 
     private void createOrUpdateUploadFailureNotificationFile(final Uploader.UploadStatus uploadStatus) {
-
         localState.update(new LocalUpdateSafe() {
             @Override
             public void run(KnownFiles knownFiles, Uploader uploader) {
-
-                if (knownFiles.getUploadFailureNotificationFile() != null) {
-
-                    knownFiles.getUploadFailureNotificationFile().setDates(uploadStatus.date, uploadStatus.date);
-
-                } else {
-
-                    knownFiles.setUploadFailureNotificationFile(knownFiles.create(
-                            fileIdStore.get(Uploader.uploadFailureNotificationFileId),
-                            uploadNotificationFileName, false, uploadStatus.date));
-
-                    knownFiles.getUploadFailureNotificationFile().setDates(uploadStatus.date, uploadStatus.date);
-
-                    knownFiles.getRoot().tryAddChild(knownFiles.getUploadFailureNotificationFile());
-                }
+                knownFiles.createOrUpdateUploadFailureNotificationFile(uploadStatus.date);
             }
         });
     }
@@ -593,7 +571,7 @@ public class FileTree {
                 @Override
                 public void run() throws IOException {
 
-                    final DriveAdapter.Changes changes = drive.getChanges(localState.getLargestChangeId() + 1);
+                    final Changes changes = drive.getChanges(localState.getLargestChangeId() + 1);
 
                     logger.debug("got {} changes, largest is {}", changes.items.size(), changes.largestChangeId);
 
@@ -606,7 +584,7 @@ public class FileTree {
 
                             knownFiles.setLargestChangeId(changes.largestChangeId);
 
-                            for (DriveAdapter.Change change : changes.items)
+                            for (Change change : changes.items)
                                 tryApplyChange(knownFiles, uploader, change);
                         }
                     });
@@ -618,7 +596,7 @@ public class FileTree {
         }
     }
 
-    private void tryApplyChange(KnownFiles knownFiles, Uploader uploader, DriveAdapter.Change change) {
+    private void tryApplyChange(KnownFiles knownFiles, Uploader uploader, Change change) {
 
         FileId changedFileId = fileIdStore.get(change.fileId);
 

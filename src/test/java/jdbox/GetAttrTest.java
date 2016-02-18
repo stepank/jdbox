@@ -19,7 +19,7 @@ public class GetAttrTest extends BaseFileSystemModuleTest {
     private FileSystem fs;
 
     @Before
-    public void setUp() {
+    public void setUp() throws IOException {
         super.setUp();
         fs = lifeCycleManager.getInstance(FileSystem.class);
     }

@@ -6,6 +6,7 @@ import jdbox.utils.OrderedRule;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.nio.file.Path;
 
 public class BaseMountFileSystemTest extends BaseFileSystemModuleTest {
@@ -17,7 +18,7 @@ public class BaseMountFileSystemTest extends BaseFileSystemModuleTest {
     protected Path mountPoint;
 
     @Before
-    public void setUp() {
+    public void setUp() throws IOException {
         super.setUp();
         mountPoint = fileSystem.getMountPoint();
     }

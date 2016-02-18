@@ -6,8 +6,6 @@ import jdbox.driveadapter.DriveAdapter;
 import jdbox.driveadapter.File;
 import jdbox.localstate.LocalStateModule;
 import jdbox.uploader.UploaderModule;
-import jdbox.utils.OrderedRule;
-import jdbox.utils.TestFolderProvider;
 import jdbox.utils.TestUtils;
 import jdbox.utils.driveadapter.MockDriveAdapterModule;
 import jdbox.utils.driveadapter.Unsafe;
@@ -27,9 +25,6 @@ public class BaseFileTreeTest extends BaseLifeCycleManagerTest {
 
     protected final static Path testDirPath = Paths.get("/");
 
-    @OrderedRule
-    public final TestFolderProvider testFolderProvider = new TestFolderProvider(errorCollector, lifeCycleManager);
-
     protected DriveAdapter drive;
     protected FileTree fileTree;
     protected File testFolder;
@@ -37,7 +32,8 @@ public class BaseFileTreeTest extends BaseLifeCycleManagerTest {
     @Override
     protected List<Module> getRequiredModules() {
         return new ArrayList<Module>() {{
-            add(new MockDriveAdapterModule(driveServiceProvider.getDriveService()));
+            add(new MockDriveAdapterModule(
+                    driveServiceProvider.getDriveService(), testFolderProvider.getBasicInfoProvider()));
             add(new UnsafeDriveAdapterModule());
             add(new UploaderModule());
             add(new LocalStateModule());
@@ -46,10 +42,10 @@ public class BaseFileTreeTest extends BaseLifeCycleManagerTest {
     }
 
     @Before
-    public void setUp() {
+    public void setUp() throws IOException {
         drive = lifeCycleManager.getInstance(DriveAdapter.class, Unsafe.class);
         fileTree = lifeCycleManager.getInstance(FileTree.class);
-        testFolder = testFolderProvider.getTestFolder();
+        testFolder = testFolderProvider.getOrCreate();
     }
 
     protected File createTestFile(File parent) throws IOException {
@@ -57,7 +53,7 @@ public class BaseFileTreeTest extends BaseLifeCycleManagerTest {
     }
 
     protected File createTestFileAndUpdate() throws IOException {
-        return createTestFileAndUpdate(testFolderProvider.getTestFolder(), Paths.get("/"));
+        return createTestFileAndUpdate(testFolderProvider.getOrCreate(), Paths.get("/"));
     }
 
     protected File createTestFileAndUpdate(File parent, Path parentPath) throws IOException {

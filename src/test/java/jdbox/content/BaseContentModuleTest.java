@@ -15,7 +15,8 @@ public class BaseContentModuleTest extends BaseLifeCycleManagerTest {
     @Override
     protected List<Module> getRequiredModules() {
         return new ArrayList<Module>() {{
-            add(new DriveAdapterModule(driveServiceProvider.getDriveService()));
+            add(new DriveAdapterModule(
+                    driveServiceProvider.getDriveService(), testFolderProvider.getBasicInfoProvider()));
             add(new UnsafeDriveAdapterModule());
             add(new UploaderModule());
             add(new LocalStateModule());

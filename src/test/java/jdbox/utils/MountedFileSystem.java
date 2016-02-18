@@ -27,9 +27,6 @@ public class MountedFileSystem extends ExternalResource implements Fixture {
         return mountPoint;
     }
 
-    public void mount() throws Exception {
-    }
-
     @Override
     public void before() throws Exception {
         mountPoint = tempFolderProvider.create();

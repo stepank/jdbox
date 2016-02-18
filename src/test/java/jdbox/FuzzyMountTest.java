@@ -7,7 +7,9 @@ import jdbox.driveadapter.DriveAdapterModule;
 import jdbox.filetree.FileTreeModule;
 import jdbox.localstate.LocalStateModule;
 import jdbox.uploader.UploaderModule;
-import jdbox.utils.*;
+import jdbox.utils.LifeCycleManagerResource;
+import jdbox.utils.MountedFileSystem;
+import jdbox.utils.Repeat;
 import jdbox.utils.driveadapter.UnsafeDriveAdapterModule;
 import jdbox.utils.fixtures.Fixture;
 import jdbox.utils.fixtures.Fixtures;
@@ -33,9 +35,6 @@ public class FuzzyMountTest extends BaseTest {
 
     private static final Logger logger = LoggerFactory.getLogger(FuzzyMountTest.class);
     private static final Random random = new Random();
-
-    @OrderedRule
-    public final TestFolderProvider testFolderProvider = new TestFolderProvider(errorCollector, driveServiceProvider);
 
     private final List<ActionFactory> actionFactories = ImmutableList.of(
             new CreateFileActionFactory(),
@@ -63,14 +62,13 @@ public class FuzzyMountTest extends BaseTest {
 
         final LifeCycleManagerResource lifeCycleManager =
                 new LifeCycleManagerResource(errorCollector, getRequiredModules());
-        TestFolderIsolation testFolderIsolation = new TestFolderIsolation(lifeCycleManager, testFolderProvider);
         final MountedFileSystem fileSystem =
                 new MountedFileSystem(errorCollector, tempFolderProvider, lifeCycleManager);
 
         logger.debug("starting random actions in one cloud folder and in a local folder");
 
         Fixtures.runUnder(
-                ImmutableList.<Fixture>of(lifeCycleManager, testFolderIsolation, fileSystem), new UnsafeRunnable() {
+                ImmutableList.<Fixture>of(lifeCycleManager, fileSystem), new UnsafeRunnable() {
                     @Override
                     public void run() throws Exception {
 
@@ -114,17 +112,15 @@ public class FuzzyMountTest extends BaseTest {
 
         LifeCycleManagerResource lifeCycleManager2 =
                 new LifeCycleManagerResource(errorCollector, getRequiredModules());
-        TestFolderIsolation testFolderIsolation2 = new TestFolderIsolation(lifeCycleManager2, testFolderProvider);
         final MountedFileSystem fileSystem2 =
                 new MountedFileSystem(errorCollector, tempFolderProvider, lifeCycleManager2);
 
         logger.debug("checking the contents of another cloud folder against the local folder");
 
         Fixtures.runUnder(
-                ImmutableList.<Fixture>of(lifeCycleManager2, testFolderIsolation2, fileSystem2), new UnsafeRunnable() {
+                ImmutableList.<Fixture>of(lifeCycleManager2, fileSystem2), new UnsafeRunnable() {
                     @Override
                     public void run() throws Exception {
-                        fileSystem2.mount();
                         assertThat(dumpDir(fileSystem2.getMountPoint()), equalTo(dumpDir(tempDirPath)));
                     }
                 });
@@ -132,7 +128,8 @@ public class FuzzyMountTest extends BaseTest {
 
     private List<Module> getRequiredModules() {
         return new ArrayList<Module>() {{
-            add(new DriveAdapterModule(driveServiceProvider.getDriveService()));
+            add(new DriveAdapterModule(
+                    driveServiceProvider.getDriveService(), testFolderProvider.getBasicInfoProvider()));
             add(new UnsafeDriveAdapterModule());
             add(new UploaderModule());
             add(new LocalStateModule());

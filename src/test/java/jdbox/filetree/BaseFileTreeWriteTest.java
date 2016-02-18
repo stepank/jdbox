@@ -2,26 +2,23 @@ package jdbox.filetree;
 
 import jdbox.utils.LifeCycleManagerResource;
 import jdbox.utils.OrderedRule;
-import jdbox.utils.TestFolderIsolation;
 import org.junit.Before;
+
+import java.io.IOException;
 
 import static jdbox.filetree.FileTreeMatcher.contains;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 public class BaseFileTreeWriteTest extends BaseFileTreeTest {
 
-    @OrderedRule(1)
+    @OrderedRule
     public final LifeCycleManagerResource lifeCycleManager2 =
             new LifeCycleManagerResource(errorCollector, lifeCycleManager.getModules());
-
-    @OrderedRule(2)
-    public final TestFolderIsolation testFolderIsolation =
-            new TestFolderIsolation(lifeCycleManager2, testFolderProvider);
 
     protected FileTree fileTree2;
 
     @Before
-    public void setUp() {
+    public void setUp() throws IOException {
 
         super.setUp();
 

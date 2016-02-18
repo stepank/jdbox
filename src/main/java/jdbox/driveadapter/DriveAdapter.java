@@ -5,8 +5,6 @@ import com.google.api.client.http.HttpRequest;
 import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.InputStreamContent;
 import com.google.api.services.drive.Drive;
-import com.google.api.services.drive.model.About;
-import com.google.api.services.drive.model.ChangeList;
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.SettableFuture;
@@ -35,13 +33,6 @@ public class DriveAdapter {
     public DriveAdapter(Drive drive, @Named("DriveAdapter.safe") Boolean safe) {
         this.drive = drive;
         this.safe = safe;
-    }
-
-    public BasicInfo getBasicInfo() throws IOException {
-
-        logger.debug("getting basic info");
-
-        return new BasicInfo(drive.about().get().execute());
     }
 
     public Changes getChanges(long startChangeId) throws IOException {
@@ -219,43 +210,4 @@ public class DriveAdapter {
         return new File(request.execute());
     }
 
-    public class BasicInfo {
-
-        public final long largestChangeId;
-        public final String rootFolderId;
-
-        public BasicInfo(About about) {
-            largestChangeId = about.getLargestChangeId();
-            rootFolderId = about.getRootFolderId();
-        }
-    }
-
-    public class Changes {
-
-        public final long largestChangeId;
-        public final List<Change> items;
-
-        public Changes(ChangeList changes) {
-            largestChangeId = changes.getLargestChangeId();
-            items = Lists.transform(changes.getItems(), new Function<com.google.api.services.drive.model.Change, Change>() {
-                @Override
-                public Change apply(com.google.api.services.drive.model.Change change) {
-                    return new Change(change);
-                }
-            });
-        }
-    }
-
-    public class Change {
-
-        public final String fileId;
-        public final File file;
-        public final boolean isDeleted;
-
-        private Change(com.google.api.services.drive.model.Change change) {
-            fileId = change.getFileId();
-            file = change.getFile() != null ? new File(change.getFile()) : null;
-            isDeleted = change.getDeleted();
-        }
-    }
 }

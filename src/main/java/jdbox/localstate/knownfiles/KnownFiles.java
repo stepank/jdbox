@@ -2,6 +2,8 @@ package jdbox.localstate.knownfiles;
 
 import jdbox.models.File;
 import jdbox.models.fileids.FileId;
+import jdbox.models.fileids.FileIdStore;
+import jdbox.uploader.Uploader;
 
 import java.util.Date;
 import java.util.HashMap;
@@ -12,23 +14,44 @@ import java.util.Map;
  */
 public class KnownFiles {
 
-    private volatile KnownFile root;
+    public static final String uploadFailureNotificationFileName = "READ ME - UPLOAD IS BROKEN.txt";
 
+    private final FileIdStore fileIdStore;
+
+    private KnownFile root;
     private final Map<FileId, KnownFile> entries = new HashMap<>();
+    private long largestChangeId = 0;
+    private KnownFile uploadFailureNotificationFile;
 
-    private volatile long largestChangeId = 0;
-
-    private volatile KnownFile uploadFailureNotificationFile;
+    public KnownFiles(FileIdStore fileIdStore) {
+        this.fileIdStore = fileIdStore;
+    }
 
     public KnownFile getRoot() {
         return root;
     }
 
-    public void setRoot(FileId rootId) {
+    public void setRoot(String rootId) {
+
         if (root != null)
-            entries.clear();
-        root = new KnownFile(rootId, "{root}", true, null, this);
+            throw new IllegalStateException("root is already set");
+
+        root = new KnownFile(fileIdStore.get(rootId), "{root}", true, null, this);
         put(root);
+    }
+
+    public void reset() {
+
+        if (root == null)
+            return;
+
+        String rootId = root.getId().get();
+
+        root = null;
+        entries.clear();
+        uploadFailureNotificationFile = null;
+
+        setRoot(rootId);
     }
 
     public long getLargestChangeId() {
@@ -43,8 +66,22 @@ public class KnownFiles {
         return uploadFailureNotificationFile;
     }
 
-    public void setUploadFailureNotificationFile(KnownFile uploadFailureNotificationFile) {
-        this.uploadFailureNotificationFile = uploadFailureNotificationFile;
+    public void createOrUpdateUploadFailureNotificationFile(Date date) {
+
+        if (uploadFailureNotificationFile != null) {
+
+            uploadFailureNotificationFile.setDates(date, date);
+
+        } else {
+
+            uploadFailureNotificationFile = create(
+                    fileIdStore.get(Uploader.uploadFailureNotificationFileId),
+                    uploadFailureNotificationFileName, false, date);
+
+            uploadFailureNotificationFile.setDates(date, date);
+
+            root.tryAddChild(uploadFailureNotificationFile);
+        }
     }
 
     public KnownFile create(FileId fileId, String name, boolean isDirectory, Date createdDate) {

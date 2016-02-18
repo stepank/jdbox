@@ -1,6 +1,5 @@
 package jdbox.content.bytestores;
 
-import jdbox.content.BaseContentModuleTest;
 import jdbox.content.OpenedFiles;
 import org.junit.Before;
 import org.junit.Test;
@@ -18,14 +17,13 @@ import static org.hamcrest.Matchers.equalTo;
 
 @Category(OpenedFiles.class)
 @RunWith(Parameterized.class)
-public class InMemoryByteStoreTest extends BaseContentModuleTest {
+public class InMemoryByteStoreTest {
 
     protected InMemoryByteStoreFactory factory;
 
     @Before
     public void setUp() {
-        factory = lifeCycleManager.getInstance(InMemoryByteStoreFactory.class);
-        factory.setConfig(new InMemoryByteStoreFactory.Config(4));
+        factory = new InMemoryByteStoreFactory(new InMemoryByteStoreFactory.Config(4));
     }
 
     @Parameterized.Parameters

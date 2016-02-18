@@ -24,4 +24,7 @@ public class BaseTest {
 
     @OrderedRule(3)
     public final TempFolderProvider tempFolderProvider = new TempFolderProvider();
+
+    @OrderedRule(4)
+    public final TestFolderProvider testFolderProvider = new TestFolderProvider(errorCollector, driveServiceProvider);
 }

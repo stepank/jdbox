@@ -47,7 +47,7 @@ public class TestFileProvider extends ExternalResource {
         file = new File(
                 lifeCycleManager.getInstance(FileIdStore.class),
                 lifeCycleManager.getInstance(DriveAdapter.class, Unsafe.class).createFile(
-                        TestUtils.testFileName, testFolderProvider.getTestFolder(),
+                        TestUtils.testFileName, testFolderProvider.getOrCreate(),
                         new ByteArrayInputStream(content)));
 
         lifeCycleManager.getInstance(LocalState.class).update(new LocalUpdateSafe() {

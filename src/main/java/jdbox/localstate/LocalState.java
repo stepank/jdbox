@@ -1,6 +1,8 @@
 package jdbox.localstate;
 
 import com.google.inject.Inject;
+import jdbox.driveadapter.BasicInfo;
+import jdbox.driveadapter.BasicInfoProvider;
 import jdbox.localstate.interfaces.*;
 import jdbox.localstate.knownfiles.KnownFiles;
 import jdbox.models.fileids.FileIdStore;
@@ -13,10 +15,9 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class LocalState {
 
-    private final FileIdStore fileIdStore;
+    private final BasicInfoProvider basicInfoProvider;
     private final Uploader uploader;
-
-    private final KnownFiles knownFiles = new KnownFiles();
+    private final KnownFiles knownFiles;
 
     // Read lock is acquired for reading from knownFiles to prevent modification of its state
     // while read operations are in progress.
@@ -32,25 +33,21 @@ public class LocalState {
     private final ReadWriteLock localStateLock = new ReentrantReadWriteLock();
 
     @Inject
-    public LocalState(FileIdStore fileIdStore, Uploader uploader) {
-        this.fileIdStore = fileIdStore;
+    public LocalState(FileIdStore fileIdStore, BasicInfoProvider basicInfoProvider, Uploader uploader) {
+        this.basicInfoProvider = basicInfoProvider;
         this.uploader = uploader;
+        knownFiles = new KnownFiles(fileIdStore);
     }
 
-    public void setRoot(final String rootId) {
+    public void init() throws IOException {
+
+        final BasicInfo basicInfo = basicInfoProvider.getBasicInfo();
+
         update(new LocalUpdateSafe() {
             @Override
             public void run(KnownFiles knownFiles, Uploader uploader) {
-                knownFiles.setRoot(fileIdStore.get(rootId));
-            }
-        });
-    }
-
-    public void setLargestChangeId(final Long largestChangeId) {
-        update(new LocalUpdateSafe() {
-            @Override
-            public void run(KnownFiles knownFiles, Uploader uploader) {
-                knownFiles.setLargestChangeId(largestChangeId);
+                knownFiles.setRoot(basicInfo.rootFolderId);
+                knownFiles.setLargestChangeId(basicInfo.largestChangeId);
             }
         });
     }
@@ -68,7 +65,7 @@ public class LocalState {
         update(new LocalUpdateSafe() {
             @Override
             public void run(KnownFiles knownFiles, Uploader uploader) {
-                knownFiles.setRoot(knownFiles.getRoot().getId());
+                knownFiles.reset();
             }
         });
     }

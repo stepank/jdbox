@@ -4,17 +4,12 @@ import jdbox.content.bytestores.InMemoryByteStoreFactory;
 import jdbox.content.filetypes.FullAccessOpenedFileFactory;
 import jdbox.content.localstorage.LocalStorage;
 import jdbox.models.fileids.FileIdStore;
-import jdbox.utils.OrderedRule;
-import jdbox.utils.TestFolderProvider;
 import org.junit.Before;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 public class BaseOpenedFilesTest extends BaseContentModuleTest {
-
-    @OrderedRule
-    public final TestFolderProvider testFolderProvider = new TestFolderProvider(errorCollector, lifeCycleManager);
 
     protected FileIdStore fileIdStore;
 

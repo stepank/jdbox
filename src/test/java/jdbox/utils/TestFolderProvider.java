@@ -1,55 +1,46 @@
 package jdbox.utils;
 
+import jdbox.driveadapter.BasicInfoProvider;
 import jdbox.driveadapter.DriveAdapter;
 import jdbox.driveadapter.File;
-import jdbox.utils.driveadapter.Unsafe;
-import jdbox.utils.fixtures.Fixture;
 import org.junit.rules.ErrorCollector;
 import org.junit.rules.ExternalResource;
 
 import java.io.IOException;
 import java.util.UUID;
 
-public class TestFolderProvider extends ExternalResource implements Fixture {
+public class TestFolderProvider extends ExternalResource {
 
     private final ErrorCollector errorCollector;
-    private final DriveServiceProvider driveServiceProvider;
-    private final LifeCycleManagerResource lifeCycleManager;
+    private final DriveAdapter drive;
+    private final BasicInfoProvider basicInfoProvider;
 
-    private DriveAdapter drive;
-    private File testFolder;
+    private File folder;
 
     public TestFolderProvider(ErrorCollector errorCollector, DriveServiceProvider driveServiceProvider) {
         this.errorCollector = errorCollector;
-        this.driveServiceProvider = driveServiceProvider;
-        this.lifeCycleManager = null;
+        drive = new DriveAdapter(driveServiceProvider.getDriveService(), false);
+        basicInfoProvider = new CustomRootFolderBasicInfoProvider(driveServiceProvider, this);
     }
 
-    public TestFolderProvider(ErrorCollector errorCollector, LifeCycleManagerResource lifeCycleManager) {
-        this.errorCollector = errorCollector;
-        this.lifeCycleManager = lifeCycleManager;
-        driveServiceProvider = null;
+    public BasicInfoProvider getBasicInfoProvider() {
+        return basicInfoProvider;
     }
 
-    public File getTestFolder() {
-        return testFolder;
-    }
-
-    public void before() throws IOException {
-        if (driveServiceProvider != null) {
-            drive = new DriveAdapter(driveServiceProvider.getDriveService(), false);
-            testFolder = drive.createFolder(UUID.randomUUID().toString(), null);
-        } else {
-            assert lifeCycleManager != null;
-            drive = lifeCycleManager.getInstance(DriveAdapter.class, Unsafe.class);
-            testFolder = drive.createFolder(UUID.randomUUID().toString(), null);
-            new TestFolderIsolation(lifeCycleManager, this).before();
-        }
+    public File getOrCreate() throws IOException {
+        if (folder == null)
+            folder = drive.createFolder(UUID.randomUUID().toString(), null);
+        return folder;
     }
 
     public void after() {
+
+        if (folder == null)
+            return;
+
         try {
-            drive.deleteFile(testFolder);
+            drive.deleteFile(folder);
+            folder = null;
         } catch (IOException e) {
             errorCollector.addError(e);
         }

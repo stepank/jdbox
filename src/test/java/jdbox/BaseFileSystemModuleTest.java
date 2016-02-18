@@ -8,19 +8,15 @@ import jdbox.driveadapter.File;
 import jdbox.filetree.FileTreeModule;
 import jdbox.localstate.LocalStateModule;
 import jdbox.uploader.UploaderModule;
-import jdbox.utils.OrderedRule;
-import jdbox.utils.TestFolderProvider;
 import jdbox.utils.driveadapter.Unsafe;
 import jdbox.utils.driveadapter.UnsafeDriveAdapterModule;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 public class BaseFileSystemModuleTest extends BaseLifeCycleManagerTest {
-
-    @OrderedRule
-    public final TestFolderProvider testFolderProvider = new TestFolderProvider(errorCollector, lifeCycleManager);
 
     protected DriveAdapter drive;
     protected File testFolder;
@@ -28,7 +24,8 @@ public class BaseFileSystemModuleTest extends BaseLifeCycleManagerTest {
     @Override
     protected List<Module> getRequiredModules() {
         return new ArrayList<Module>() {{
-            add(new DriveAdapterModule(driveServiceProvider.getDriveService()));
+            add(new DriveAdapterModule(
+                    driveServiceProvider.getDriveService(), testFolderProvider.getBasicInfoProvider()));
             add(new UnsafeDriveAdapterModule());
             add(new UploaderModule());
             add(new LocalStateModule());
@@ -39,8 +36,8 @@ public class BaseFileSystemModuleTest extends BaseLifeCycleManagerTest {
     }
 
     @Before
-    public void setUp() {
+    public void setUp() throws IOException {
         drive = lifeCycleManager.getInstance(DriveAdapter.class, Unsafe.class);
-        testFolder = testFolderProvider.getTestFolder();
+        testFolder = testFolderProvider.getOrCreate();
     }
 }
