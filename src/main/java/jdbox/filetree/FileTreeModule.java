@@ -2,7 +2,9 @@ package jdbox.filetree;
 
 import com.google.inject.Injector;
 import com.google.inject.Singleton;
+import com.google.inject.multibindings.Multibinder;
 import jdbox.modules.ActiveModule;
+import jdbox.uploader.TaskDeserializer;
 
 import java.io.IOException;
 
@@ -16,7 +18,11 @@ public class FileTreeModule extends ActiveModule {
 
     @Override
     protected void configure() {
+
         bind(FileTree.class).in(Singleton.class);
+
+        Multibinder<TaskDeserializer> deserializerBinder = Multibinder.newSetBinder(binder(), TaskDeserializer.class);
+        deserializerBinder.addBinding().to(FileTree.class);
     }
 
     @Override

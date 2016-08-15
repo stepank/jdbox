@@ -1,7 +1,8 @@
 package jdbox.localstate;
 
 import com.google.inject.Inject;
-import jdbox.driveadapter.BasicInfo;
+import jdbox.datapersist.ChangeSet;
+import jdbox.datapersist.Storage;
 import jdbox.driveadapter.BasicInfoProvider;
 import jdbox.localstate.interfaces.*;
 import jdbox.localstate.knownfiles.KnownFiles;
@@ -15,8 +16,9 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class LocalState {
 
-    private final BasicInfoProvider basicInfoProvider;
+    private final Storage storage;
     private final Uploader uploader;
+
     private final KnownFiles knownFiles;
 
     // Read lock is acquired for reading from knownFiles to prevent modification of its state
@@ -33,21 +35,24 @@ public class LocalState {
     private final ReadWriteLock localStateLock = new ReentrantReadWriteLock();
 
     @Inject
-    public LocalState(FileIdStore fileIdStore, BasicInfoProvider basicInfoProvider, Uploader uploader) {
-        this.basicInfoProvider = basicInfoProvider;
+    public LocalState(
+            FileIdStore fileIdStore, BasicInfoProvider basicInfoProvider, Storage storage, Uploader uploader) {
+        this.storage = storage;
         this.uploader = uploader;
-        knownFiles = new KnownFiles(fileIdStore);
+        knownFiles = new KnownFiles(fileIdStore, basicInfoProvider, storage);
     }
 
     public void init() throws IOException {
 
-        final BasicInfo basicInfo = basicInfoProvider.getBasicInfo();
-
-        update(new LocalUpdateSafe() {
+        update(new LocalUpdate() {
             @Override
-            public void run(KnownFiles knownFiles, Uploader uploader) {
-                knownFiles.setRoot(basicInfo.rootFolderId);
-                knownFiles.setLargestChangeId(basicInfo.largestChangeId);
+            public Void run(ChangeSet changeSet, KnownFiles knownFiles, Uploader uploader) throws IOException {
+
+                ChangeSet ignoredChangeSet = new ChangeSet();
+
+                knownFiles.init(ignoredChangeSet);
+
+                return null;
             }
         });
     }
@@ -64,8 +69,8 @@ public class LocalState {
     public void reset() {
         update(new LocalUpdateSafe() {
             @Override
-            public void run(KnownFiles knownFiles, Uploader uploader) {
-                knownFiles.reset();
+            public void run(ChangeSet changeSet, KnownFiles knownFiles, Uploader uploader) {
+                knownFiles.reset(changeSet);
             }
         });
     }
@@ -73,7 +78,10 @@ public class LocalState {
     public <T> T update(LocalUpdate<T> localUpdate) throws IOException {
         localStateLock.writeLock().lock();
         try {
-            return localUpdate.run(knownFiles, uploader);
+            ChangeSet changeSet = new ChangeSet();
+            T result = localUpdate.run(changeSet, knownFiles, uploader);
+            storage.applyChangeSet(changeSet);
+            return result;
         } finally {
             localStateLock.writeLock().unlock();
         }
@@ -82,7 +90,9 @@ public class LocalState {
     public void update(LocalUpdateSafe localUpdate) {
         localStateLock.writeLock().lock();
         try {
-            localUpdate.run(knownFiles, uploader);
+            ChangeSet changeSet = new ChangeSet();
+            localUpdate.run(changeSet, knownFiles, uploader);
+            storage.applyChangeSet(changeSet);
         } finally {
             localStateLock.writeLock().unlock();
         }

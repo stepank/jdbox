@@ -2,6 +2,7 @@ package jdbox.models;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Collections2;
+import com.sleepycat.je.utilint.NotImplementedYetException;
 import jdbox.driveadapter.Field;
 import jdbox.models.fileids.FileId;
 import jdbox.models.fileids.FileIdStore;
@@ -233,6 +234,14 @@ public class File implements Cloneable {
         setModifiedDate(file.getModifiedDate());
         setAccessedDate(file.getAccessedDate());
         setMd5Sum(file.getMd5Sum());
+    }
+
+    public String serialize() {
+        throw new NotImplementedYetException();
+    }
+
+    public static File deserialize(String data) {
+        throw new NotImplementedYetException();
     }
 
     @Override

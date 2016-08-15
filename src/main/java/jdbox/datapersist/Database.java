@@ -2,8 +2,10 @@ package jdbox.datapersist;
 
 import com.sleepycat.je.*;
 
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 class Database {
 
@@ -29,7 +31,7 @@ class Database {
         }
     }
 
-    public List<Entry> getAll() {
+    public List<Map.Entry<String, String>> getAll() {
 
         try {
 
@@ -38,9 +40,10 @@ class Database {
             DatabaseEntry keyEntry = new DatabaseEntry();
             DatabaseEntry dataEntry = new DatabaseEntry();
 
-            ArrayList<Entry> entries = new ArrayList<>();
+            List<Map.Entry<String, String>> entries = new ArrayList<>();
             while (cursor.getNext(keyEntry, dataEntry, LockMode.DEFAULT) == OperationStatus.SUCCESS)
-                entries.add(new Entry(new String(keyEntry.getData()), new String(dataEntry.getData())));
+                entries.add(new AbstractMap.SimpleEntry<>(
+                        new String(keyEntry.getData()), new String(dataEntry.getData())));
 
             cursor.close();
 

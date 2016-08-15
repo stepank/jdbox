@@ -17,6 +17,7 @@ import jdbox.filetree.FileTreeModule;
 import jdbox.localstate.LocalStateModule;
 import jdbox.modules.LifeCycleManager;
 import jdbox.modules.MultipleException;
+import jdbox.datapersist.DataPersistenceModule;
 import jdbox.uploader.UploaderModule;
 import org.ini4j.Ini;
 import org.slf4j.Logger;
@@ -36,12 +37,13 @@ public class JdBox {
         Environment env = new Environment(args.length > 1 ? args[1] : null, args.length > 2 ? args[2] : null);
 
         //noinspection MismatchedQueryAndUpdateOfCollection
-        Ini config = new Ini(new File(env.dataDir, "config"));
+        Ini config = new Ini(new File(env.dataDir.toFile(), "config"));
         String mountPoint = args.length > 0 ? args[0] : config.get("Main", "mount_point");
 
         final LifeCycleManager injector = new LifeCycleManager(
                 new CommonModule(),
                 new DriveAdapterModule(createDriveService(env)),
+                new DataPersistenceModule(env.dataDir.resolve("datapersist")),
                 new UploaderModule(),
                 new LocalStateModule(),
                 new ContentModule(),
@@ -72,7 +74,8 @@ public class JdBox {
         HttpTransport httpTransport = GoogleNetHttpTransport.newTrustedTransport();
         JsonFactory jsonFactory = JacksonFactory.getDefaultInstance();
 
-        FileDataStoreFactory dataStoreFactory = new FileDataStoreFactory(new File(env.dataDir, "credentials"));
+        FileDataStoreFactory dataStoreFactory =
+                new FileDataStoreFactory(new File(env.dataDir.toFile(), "credentials"));
 
         GoogleClientSecrets clientSecrets = GoogleClientSecrets.load(jsonFactory,
                 new InputStreamReader(JdBox.class.getResourceAsStream("/client_secrets.json")));

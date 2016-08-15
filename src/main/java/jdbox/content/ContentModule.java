@@ -3,6 +3,7 @@ package jdbox.content;
 import com.google.inject.Injector;
 import com.google.inject.Singleton;
 import com.google.inject.TypeLiteral;
+import com.google.inject.multibindings.Multibinder;
 import jdbox.content.bytestores.InMemoryByteStoreFactory;
 import jdbox.content.filetypes.FullAccessOpenedFileFactory;
 import jdbox.content.filetypes.NonDownloadableOpenedFileFactory;
@@ -10,6 +11,7 @@ import jdbox.content.filetypes.RollingReadOpenedFileFactory;
 import jdbox.content.localstorage.FileSizeUpdateEvent;
 import jdbox.content.localstorage.LocalStorage;
 import jdbox.modules.ActiveModule;
+import jdbox.uploader.TaskDeserializer;
 import rx.Observable;
 import rx.Observer;
 import rx.subjects.PublishSubject;
@@ -50,6 +52,9 @@ public class ContentModule extends ActiveModule {
         bind(RollingReadOpenedFileFactory.class).in(Singleton.class);
 
         bind(LocalStorage.class).in(Singleton.class);
+
+        Multibinder<TaskDeserializer> deserializerBinder = Multibinder.newSetBinder(binder(), TaskDeserializer.class);
+        deserializerBinder.addBinding().to(LocalStorage.class);
 
         Subject<FileSizeUpdateEvent, FileSizeUpdateEvent> fileSizeUpdateEvent = PublishSubject.create();
         bind(new TypeLiteral<Observable<FileSizeUpdateEvent>>() {}).toInstance(fileSizeUpdateEvent);

@@ -24,6 +24,7 @@ public class TransactionTest {
         EnvironmentConfig envConfig = new EnvironmentConfig();
         envConfig.setTransactional(true);
         envConfig.setAllowCreate(true);
+
         environment = new com.sleepycat.je.Environment(temporaryFolder.getRoot().toPath().toFile(), envConfig);
 
         DatabaseConfig dbConfig = new DatabaseConfig();

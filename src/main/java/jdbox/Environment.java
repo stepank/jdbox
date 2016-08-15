@@ -1,18 +1,15 @@
 package jdbox;
 
-import java.io.File;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 public class Environment {
 
-    public final File dataDir;
+    public final Path dataDir;
     public final String userAlias;
 
-    public Environment() {
-        this(null, null);
-    }
-
     public Environment(String dataDirSuffix, String userAlias) {
-        this.dataDir = new File(System.getProperty("user.home"), dataDirSuffix != null ? dataDirSuffix : ".jdbox");
+        this.dataDir = Paths.get(System.getProperty("user.home"), dataDirSuffix != null ? dataDirSuffix : ".jdbox");
         this.userAlias = userAlias != null ? userAlias : "my";
     }
 }

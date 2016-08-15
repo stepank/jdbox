@@ -37,7 +37,7 @@ public class Storage {
         databases.clear();
     }
 
-    public List<Entry> getData(String ns) {
+    public List<Map.Entry<String, String>> getData(String ns) {
         return getDatabase(ns).getAll();
     }
 

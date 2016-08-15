@@ -3,10 +3,9 @@ package jdbox.uploader;
 import com.google.inject.Inject;
 import com.google.inject.Provider;
 import jdbox.OperationContext;
-import jdbox.models.fileids.FileId;
 import jdbox.datapersist.ChangeSet;
-import jdbox.datapersist.Entry;
 import jdbox.datapersist.Storage;
+import jdbox.models.fileids.FileId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rx.Observer;
@@ -73,20 +72,20 @@ public class Uploader {
         for (Provider<TaskDeserializer> deserializerProvider : taskDeserializerProviders)
             deserializers.add(deserializerProvider.get());
 
-        List<Entry> entries = storage.getData(namespace);
-        Collections.sort(entries, new Comparator<Entry>() {
+        List<Map.Entry<String, String>> entries = storage.getData(namespace);
+        Collections.sort(entries, new Comparator<Map.Entry<String, String>>() {
             @Override
-            public int compare(Entry a, Entry b) {
-                return (int) (Long.parseLong(a.key) - Long.parseLong(b.key));
+            public int compare(Map.Entry<String, String> a, Map.Entry<String, String> b) {
+                return Long.compare(Long.parseLong(a.getKey()), Long.parseLong(b.getKey()));
             }
         });
 
-        for (Entry entry : entries) {
+        for (Map.Entry<String, String> entry : entries) {
 
             Task task = null;
 
             for (TaskDeserializer deserializer : deserializers) {
-                task = deserializer.deserialize(entry.data);
+                task = deserializer.deserialize(entry.getValue());
                 if (task != null)
                     break;
             }
@@ -94,7 +93,7 @@ public class Uploader {
             if (task == null)
                 throw new IllegalStateException("could not deserialize a task");
 
-            lastTaskId = Long.parseLong(entry.key);
+            lastTaskId = Long.parseLong(entry.getKey());
 
             submit(lastTaskId, task);
         }
@@ -134,7 +133,7 @@ public class Uploader {
     public synchronized void submit(ChangeSet changeSet, Task task) {
 
         if (changeSet == null)
-            throw new IllegalArgumentException("txn must not be null");
+            throw new IllegalArgumentException("changeSet must not be null");
 
         lastTaskId++;
 

@@ -6,6 +6,7 @@ import jdbox.localstate.interfaces.LocalUpdateSafe;
 import jdbox.localstate.knownfiles.KnownFiles;
 import jdbox.models.File;
 import jdbox.models.fileids.FileIdStore;
+import jdbox.datapersist.ChangeSet;
 import jdbox.uploader.Uploader;
 import jdbox.utils.driveadapter.Unsafe;
 import org.junit.rules.ExternalResource;
@@ -51,10 +52,9 @@ public class TestFileProvider extends ExternalResource {
                         new ByteArrayInputStream(content)));
 
         lifeCycleManager.getInstance(LocalState.class).update(new LocalUpdateSafe() {
-            @Override
-            public void run(KnownFiles knownFiles, Uploader uploader) {
+            public void run(ChangeSet changeSet, KnownFiles knownFiles, Uploader uploader) {
                 knownFiles.getRoot().setTracked();
-                knownFiles.getRoot().tryAddChild(knownFiles.create(file));
+                knownFiles.getRoot().tryAddChild(changeSet, knownFiles.create(file));
             }
         });
     }

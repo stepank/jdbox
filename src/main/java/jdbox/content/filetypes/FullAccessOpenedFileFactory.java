@@ -45,7 +45,7 @@ public class FullAccessOpenedFileFactory implements OpenedFileFactory {
     }
 
     @Override
-    public synchronized ByteStore create(File file) throws IOException {
+    public ByteStore create(File file) throws IOException {
         ByteStore result = tempStoreFactory.create();
         if (file.getId().isSet() && file.getSize() > 0) {
             Future<InputStream> stream = drive.downloadFileRangeAsync(

@@ -2,14 +2,15 @@ package jdbox.uploader;
 
 import com.google.api.client.http.HttpResponseException;
 import jdbox.OperationContext;
+import jdbox.datapersist.ChangeSet;
 import jdbox.driveadapter.DriveAdapter;
 import jdbox.driveadapter.Field;
 import jdbox.models.File;
 import jdbox.models.fileids.FileId;
 import jdbox.models.fileids.FileIdStore;
-import jdbox.datapersist.ChangeSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -129,7 +130,7 @@ public abstract class DriveTask implements Task {
 
     @Override
     public String serialize() {
-        throw new UnsupportedOperationException();
+        throw new NotImplementedException();
     }
 
     private static boolean filesAreEqual(File a, File b) {

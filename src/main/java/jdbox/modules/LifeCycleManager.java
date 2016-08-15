@@ -7,8 +7,8 @@ import com.google.inject.Module;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedList;
 import java.util.List;
 
 public class LifeCycleManager {
@@ -64,7 +64,7 @@ public class LifeCycleManager {
         if (injector == null)
             return;
 
-        LinkedList<Exception> exceptions = new LinkedList<>();
+        List<Exception> exceptions = new ArrayList<>();
 
         for (Module module : Lists.reverse(modules)) {
             if (module instanceof ActiveModule) {

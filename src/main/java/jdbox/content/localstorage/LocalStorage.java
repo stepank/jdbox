@@ -15,6 +15,8 @@ import jdbox.models.fileids.FileId;
 import jdbox.models.fileids.FileIdStore;
 import jdbox.datapersist.ChangeSet;
 import jdbox.uploader.DriveTask;
+import jdbox.uploader.Task;
+import jdbox.uploader.TaskDeserializer;
 import jdbox.uploader.Uploader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,7 +31,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 
-public class LocalStorage {
+public class LocalStorage implements TaskDeserializer {
 
     private static final Logger logger = LoggerFactory.getLogger(LocalStorage.class);
 
@@ -53,7 +55,7 @@ public class LocalStorage {
         files.clear();
     }
 
-    public synchronized int getFilesCount() {
+    public int getFilesCount() {
         return files.size();
     }
 
@@ -85,6 +87,11 @@ public class LocalStorage {
         shared.refCount++;
 
         return new ContentUpdatingProxyOpenedFile(shared);
+    }
+
+    @Override
+    public Task deserialize(String data) {
+        return null;
     }
 
     private class SharedOpenedFile {
@@ -128,6 +135,7 @@ public class LocalStorage {
                 throw new IOException("write on a closed ByteStore");
 
             hasChanged = true;
+
             return shared.content.write(buffer, offset, count);
         }
 
@@ -138,6 +146,7 @@ public class LocalStorage {
                 throw new IOException("truncate on a closed ByteStore");
 
             hasChanged = true;
+
             shared.content.truncate(offset);
         }
 
@@ -173,7 +182,7 @@ public class LocalStorage {
 
             localState.update(new LocalUpdate() {
                 @Override
-                public Void run(KnownFiles knownFiles, Uploader uploader) throws IOException {
+                public Void run(ChangeSet changeSet, KnownFiles knownFiles, Uploader uploader) throws IOException {
 
                     MessageDigest digest;
                     try {
@@ -198,9 +207,9 @@ public class LocalStorage {
                     assert existing != null;
                     File original = existing.toFile();
 
-                    existing.setContentProperties(size, toHex(digest.digest()));
+                    existing.setContentProperties(changeSet, size, toHex(digest.digest()));
 
-                    uploader.submit(new DriveTask(
+                    uploader.submit(changeSet, new DriveTask(
                             fileIdStore, drive, "update content, content length is " + size,
                             original, existing.toFile(), EnumSet.noneOf(Field.class)) {
                         @Override

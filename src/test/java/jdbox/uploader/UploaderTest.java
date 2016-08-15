@@ -1,7 +1,9 @@
 package jdbox.uploader;
 
 import com.google.common.collect.Lists;
+import com.google.inject.AbstractModule;
 import com.google.inject.Module;
+import com.google.inject.multibindings.Multibinder;
 import jdbox.BaseLifeCycleManagerTest;
 import jdbox.models.fileids.FileId;
 import jdbox.models.fileids.FileIdStore;
@@ -31,11 +33,27 @@ public class UploaderTest extends BaseLifeCycleManagerTest {
     private Collection<List<Integer>> expectedOrders;
     private TestTaskFactory taskFactory;
 
+    private static class Q implements TaskDeserializer {
+        @Override
+        public Task deserialize(String data) {
+            return null;
+        }
+    }
+
     @Override
     protected List<Module> getRequiredModules() {
         return new ArrayList<Module>() {{
             add(new DataPersistenceModule(tempFolderProvider.create()));
             add(new UploaderModule());
+            add(new DataPersistenceModule(tempFolderProvider.create()));
+            add(new AbstractModule() {
+                @Override
+                protected void configure() {
+                    Multibinder<TaskDeserializer> deserializerBinder =
+                            Multibinder.newSetBinder(binder(), TaskDeserializer.class);
+                    deserializerBinder.addBinding().to(Q.class);
+                }
+            });
         }};
     }
 

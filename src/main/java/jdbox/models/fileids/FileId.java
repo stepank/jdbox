@@ -1,5 +1,7 @@
 package jdbox.models.fileids;
 
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
+
 import java.util.concurrent.atomic.AtomicReference;
 
 public class FileId {
@@ -37,5 +39,13 @@ public class FileId {
     @Override
     public String toString() {
         return "FileId{" + id + '}';
+    }
+
+    public String serialize() {
+        throw new NotImplementedException();
+    }
+
+    public static FileId deserialize(String data) {
+        throw new NotImplementedException();
     }
 }

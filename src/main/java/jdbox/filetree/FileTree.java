@@ -5,6 +5,7 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableList;
 import com.google.inject.Inject;
 import jdbox.content.OpenedFilesManager;
+import jdbox.datapersist.ChangeSet;
 import jdbox.driveadapter.Change;
 import jdbox.driveadapter.Changes;
 import jdbox.driveadapter.DriveAdapter;
@@ -16,11 +17,7 @@ import jdbox.localstate.knownfiles.KnownFiles;
 import jdbox.models.File;
 import jdbox.models.fileids.FileId;
 import jdbox.models.fileids.FileIdStore;
-import jdbox.datapersist.ChangeSet;
-import jdbox.uploader.DriveTask;
-import jdbox.uploader.FileEtagUpdateEvent;
-import jdbox.uploader.UploadFailureEvent;
-import jdbox.uploader.Uploader;
+import jdbox.uploader.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rx.Observable;
@@ -37,7 +34,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-public class FileTree {
+public class FileTree implements TaskDeserializer {
 
     private static final Logger logger = LoggerFactory.getLogger(FileTree.class);
 
@@ -215,8 +212,8 @@ public class FileTree {
                 new FilePropertiesLocalUpdate(path) {
                     @Override
                     public KnownFile run(
-                            KnownFile existing, KnownFile parent, KnownFiles knownFiles, Uploader uploader)
-                            throws IOException {
+                            ChangeSet changeSet, KnownFile existing, KnownFile parent,
+                            KnownFiles knownFiles, Uploader uploader) throws IOException {
 
                         if (!parent.isDirectory())
                             throw new NotDirectoryException(path.getParent());
@@ -225,14 +222,21 @@ public class FileTree {
                             throw new FileAlreadyExistsException(path);
 
                         Date now = new Date();
-                        final KnownFile newFile = knownFiles.create(
-                                fileIdStore.create(), path.getFileName().toString(), isDirectory, now);
-                        newFile.setDates(now, now);
-                        newFile.setContentProperties(0, "d41d8cd98f00b204e9800998ecf8427e"); // empty file md5
 
-                        parent.tryAddChild(newFile);
+                        File file = new File(fileIdStore.create());
+                        file.setName(path.getFileName().toString());
+                        file.setIsDirectory(isDirectory);
+                        file.setCreatedDate(now);
+                        file.setModifiedDate(now);
+                        file.setAccessedDate(now);
+                        file.setSize(0);
+                        file.setMd5Sum("d41d8cd98f00b204e9800998ecf8427e"); // empty file md5
 
-                        uploader.submit(new DriveTask(
+                        final KnownFile newFile = knownFiles.create(file);
+
+                        parent.tryAddChild(changeSet, newFile);
+
+                        uploader.submit(changeSet, new DriveTask(
                                 fileIdStore, drive,
                                 "create " + (isDirectory ? "directory" : "file"), null, newFile.toFile(),
                                 EnumSet.allOf(Field.class), parent.getId(), true) {
@@ -245,10 +249,9 @@ public class FileTree {
 
                                 localState.update(new LocalUpdateSafe() {
                                     @Override
-                                    public void run(
-                                            KnownFiles knownFiles, Uploader uploader) {
+                                    public void run(ChangeSet changeSet, KnownFiles knownFiles, Uploader uploader) {
                                         newFile.setUploaded(
-                                                createdFile.getId(), createdFile.getMimeType(),
+                                                changeSet, createdFile.getId(), createdFile.getMimeType(),
                                                 createdFile.getDownloadUrl(), createdFile.getAlternateLink());
                                     }
                                 });
@@ -274,7 +277,7 @@ public class FileTree {
         localState.update(new FilePropertiesLocalUpdate(path) {
             @Override
             public KnownFile run(
-                    KnownFile existing, KnownFile parent, KnownFiles knownFiles, Uploader uploader)
+                    ChangeSet changeSet, KnownFile existing, KnownFile parent, KnownFiles knownFiles, Uploader uploader)
                     throws IOException {
 
                 if (existing == knownFiles.getUploadFailureNotificationFile())
@@ -282,9 +285,9 @@ public class FileTree {
 
                 File original = existing.toFile();
 
-                existing.setDates(modifiedDate, accessedDate);
+                existing.setDates(changeSet, modifiedDate, accessedDate);
 
-                uploader.submit(new DriveTask(
+                uploader.submit(changeSet, new DriveTask(
                         fileIdStore, drive,
                         "set modified to " + modifiedDate.toString() + " and accessed to " + accessedDate,
                         original, existing.toFile(), EnumSet.of(Field.MODIFIED_DATE, Field.ACCESSED_DATE)) {
@@ -311,22 +314,22 @@ public class FileTree {
         localState.update(new FilePropertiesLocalUpdate(path) {
             @Override
             public KnownFile run(
-                    KnownFile existing, KnownFile parent, KnownFiles knownFiles, Uploader uploader)
+                    ChangeSet changeSet, KnownFile existing, KnownFile parent, KnownFiles knownFiles, Uploader uploader)
                     throws IOException {
 
-                if (existing.isDirectory() && getChildrenUnsafe(knownFiles, existing, null).size() != 0)
+                if (existing.isDirectory() && getChildrenUnsafe(changeSet, knownFiles, existing, null).size() != 0)
                     throw new NonEmptyDirectoryException(path);
 
                 File original = existing.toFile();
 
-                parent.tryRemoveChild(existing);
+                parent.tryRemoveChild(changeSet, existing);
 
                 if (existing == knownFiles.getUploadFailureNotificationFile()) {
 
                     if (openedFilesManager.getOpenedFilesCount() != 0)
                         throw new AccessDeniedException(path);
 
-                    knownFiles.reset();
+                    knownFiles.reset(changeSet);
 
                     openedFilesManager.reset();
 
@@ -338,7 +341,7 @@ public class FileTree {
 
                     if (file.getParentIds().size() == 0) {
 
-                        uploader.submit(new DriveTask(
+                        uploader.submit(changeSet, new DriveTask(
                                 fileIdStore, drive, "remove file/directory completely",
                                 original, file, EnumSet.noneOf(Field.class)) {
                             @Override
@@ -350,7 +353,7 @@ public class FileTree {
 
                     } else {
 
-                        uploader.submit(new DriveTask(
+                        uploader.submit(changeSet, new DriveTask(
                                 fileIdStore, drive, "remove file/directory from one directory only",
                                 original, file, EnumSet.of(Field.PARENT_IDS)) {
                             @Override
@@ -381,7 +384,7 @@ public class FileTree {
         localState.update(new FilePropertiesLocalUpdate(path) {
             @Override
             public KnownFile run(
-                    KnownFile existing, KnownFile parent, KnownFiles knownFiles, Uploader uploader)
+                    ChangeSet changeSet, KnownFile existing, KnownFile parent, KnownFiles knownFiles, Uploader uploader)
                     throws IOException {
 
                 Path parentPath = path.getParent();
@@ -399,9 +402,9 @@ public class FileTree {
                 if (newParentPath.equals(parentPath))
                     newParent = parent;
                 else
-                    newParent = getUnsafe(knownFiles, knownFiles.getRoot(), newParentPath);
+                    newParent = getUnsafe(changeSet, knownFiles, knownFiles.getRoot(), newParentPath);
 
-                if (getOrNullUnsafe(knownFiles, newParent, newFileName) != null)
+                if (getOrNullUnsafe(changeSet, knownFiles, newParent, newFileName) != null)
                     throw new FileAlreadyExistsException(newPath);
 
                 EnumSet<Field> fields = EnumSet.noneOf(Field.class);
@@ -412,18 +415,18 @@ public class FileTree {
 
                     fields.add(Field.PARENT_IDS);
 
-                    newParent.tryAddChild(existing);
-                    parent.tryRemoveChild(existing);
+                    newParent.tryAddChild(changeSet, existing);
+                    parent.tryRemoveChild(changeSet, existing);
 
                     newParentId = newParent.getId();
                 }
 
                 if (!fileName.equals(newFileName)) {
                     fields.add(Field.NAME);
-                    existing.rename(newFileName.toString());
+                    existing.rename(changeSet, newFileName.toString());
                 }
 
-                uploader.submit(new DriveTask(
+                uploader.submit(changeSet, new DriveTask(
                         fileIdStore, drive, "move/rename to " + newPath,
                         original, existing.toFile(), fields, newParentId) {
                     @Override
@@ -436,6 +439,11 @@ public class FileTree {
                 return null;
             }
         });
+    }
+
+    @Override
+    public Task deserialize(String data) {
+        return null;
     }
 
     private <T> T getOrFetch(final Path path, final String fileName, final Getter<T> getter) throws IOException {
@@ -465,8 +473,8 @@ public class FileTree {
             public T run() throws IOException {
                 return localState.update(new LocalUpdate<T>() {
                     @Override
-                    public T run(KnownFiles knownFiles, Uploader uploader) throws IOException {
-                        return getOrFetchUnsafe(knownFiles, knownFiles.getRoot(), path, fileName, getter);
+                    public T run(ChangeSet changeSet, KnownFiles knownFiles, Uploader uploader) throws IOException {
+                        return getOrFetchUnsafe(changeSet, knownFiles, knownFiles.getRoot(), path, fileName, getter);
                     }
                 });
             }
@@ -491,9 +499,9 @@ public class FileTree {
         return locateFile(child, path.subpath(1, path.getNameCount()));
     }
 
-    private KnownFile getUnsafe(KnownFiles knownFiles, KnownFile root, Path path) throws IOException {
+    private KnownFile getUnsafe(ChangeSet changeSet, KnownFiles knownFiles, KnownFile root, Path path) throws IOException {
 
-        KnownFile kf = getOrNullUnsafe(knownFiles, root, path);
+        KnownFile kf = getOrNullUnsafe(changeSet, knownFiles, root, path);
 
         if (kf == null)
             throw new NoSuchFileException(path);
@@ -501,23 +509,26 @@ public class FileTree {
         return kf;
     }
 
-    private KnownFile getOrNullUnsafe(KnownFiles knownFiles, KnownFile root, Path path) throws IOException {
+    private KnownFile getOrNullUnsafe(
+            ChangeSet changeSet, KnownFiles knownFiles, KnownFile root, Path path) throws IOException {
 
         if (isRoot(path))
             return root;
 
         return getOrFetchUnsafe(
-                knownFiles, root, path.getParent(), path.getFileName().toString(), singleKnownFileGetter);
+                changeSet, knownFiles, root, path.getParent(), path.getFileName().toString(), singleKnownFileGetter);
     }
 
-    private List<String> getChildrenUnsafe(KnownFiles knownFiles, KnownFile root, Path path) throws IOException {
-        return getOrFetchUnsafe(knownFiles, root, path, null, namesGetter);
+    private List<String> getChildrenUnsafe(
+            ChangeSet changeSet, KnownFiles knownFiles, KnownFile root, Path path) throws IOException {
+        return getOrFetchUnsafe(changeSet, knownFiles, root, path, null, namesGetter);
     }
 
     private <T> T getOrFetchUnsafe(
-            KnownFiles knownFiles, KnownFile root, Path path, String fileName, Getter<T> getter) throws IOException {
+            ChangeSet changeSet, KnownFiles knownFiles, KnownFile root,
+            Path path, String fileName, Getter<T> getter) throws IOException {
 
-        KnownFile dir = getUnsafe(knownFiles, root, path);
+        KnownFile dir = getUnsafe(changeSet, knownFiles, root, path);
 
         if (!dir.isDirectory())
             throw new NotDirectoryException(path);
@@ -528,21 +539,21 @@ public class FileTree {
 
         if (!dir.getId().isSet()) {
 
-            dir.setTracked();
+            dir.setTracked(changeSet);
 
         } else {
 
             List<jdbox.driveadapter.File> retrieved = drive.getChildren(dir.toFile().toDaFile());
 
-            dir.setTracked();
+            dir.setTracked(changeSet);
 
             for (jdbox.driveadapter.File child : retrieved) {
                 File file = new File(fileIdStore, child);
                 KnownFile existing = knownFiles.get(file.getId());
                 if (existing != null)
-                    dir.tryAddChild(existing);
+                    dir.tryAddChild(changeSet, existing);
                 else
-                    dir.tryAddChild(knownFiles.create(file));
+                    dir.tryAddChild(changeSet, knownFiles.create(file));
             }
         }
 
@@ -552,10 +563,10 @@ public class FileTree {
     private void updateFileEtag(final FileId fileId, final String etag) {
         localState.update(new LocalUpdateSafe() {
             @Override
-            public void run(KnownFiles knownFiles, Uploader uploader) {
+            public void run(ChangeSet changeSet, KnownFiles knownFiles, Uploader uploader) {
                 KnownFile file = knownFiles.get(fileId);
                 if (file != null)
-                    file.setEtag(etag);
+                    file.setEtag(changeSet, etag);
             }
         });
     }
@@ -563,8 +574,8 @@ public class FileTree {
     private void createOrUpdateUploadFailureNotificationFile(final Uploader.UploadStatus uploadStatus) {
         localState.update(new LocalUpdateSafe() {
             @Override
-            public void run(KnownFiles knownFiles, Uploader uploader) {
-                knownFiles.createOrUpdateUploadFailureNotificationFile(uploadStatus.date);
+            public void run(ChangeSet changeSet, KnownFiles knownFiles, Uploader uploader) {
+                knownFiles.createOrUpdateUploadFailureNotificationFile(changeSet, uploadStatus.date);
             }
         });
     }
@@ -586,12 +597,12 @@ public class FileTree {
 
                     localState.update(new LocalUpdateSafe() {
                         @Override
-                        public void run(KnownFiles knownFiles, Uploader uploader) {
+                        public void run(ChangeSet changeSet, KnownFiles knownFiles, Uploader uploader) {
 
-                            knownFiles.setLargestChangeId(changes.largestChangeId);
+                            knownFiles.setLargestChangeId(changeSet, changes.largestChangeId);
 
                             for (Change change : changes.items)
-                                tryApplyChange(knownFiles, uploader, change);
+                                tryApplyChange(changeSet, knownFiles, uploader, change);
                         }
                     });
                 }
@@ -602,7 +613,8 @@ public class FileTree {
         }
     }
 
-    private void tryApplyChange(KnownFiles knownFiles, Uploader uploader, Change change) {
+    private void tryApplyChange(
+            ChangeSet changeSet, KnownFiles knownFiles, Uploader uploader, Change change) {
 
         FileId changedFileId = fileIdStore.get(change.fileId);
 
@@ -622,7 +634,7 @@ public class FileTree {
             for (FileId parentId : changedFile.getParentIds()) {
                 KnownFile parent = knownFiles.get(parentId);
                 if (parent != null)
-                    parent.tryAddChild(file);
+                    parent.tryAddChild(changeSet, file);
             }
 
         } else if (currentFile != null && knownFiles.getRoot() != currentFile) {
@@ -632,26 +644,26 @@ public class FileTree {
                 logger.debug("removing {} from tree", currentFile);
 
                 for (KnownFile parent : currentFile.getParents())
-                    parent.tryRemoveChild(currentFile);
+                    parent.tryRemoveChild(changeSet, currentFile);
 
             } else {
 
                 logger.debug("updating existing file with {}", changedFile);
 
-                currentFile.rename(changedFile.getName());
-                currentFile.update(changedFile);
+                currentFile.rename(changeSet, changedFile.getName());
+                currentFile.update(changeSet, changedFile);
 
                 logger.debug("ensuring that {} is correctly placed in tree", changedFile);
 
                 for (FileId parentId : changedFile.getParentIds()) {
                     KnownFile parent = knownFiles.get(parentId);
                     if (parent != null)
-                        parent.tryAddChild(currentFile);
+                        parent.tryAddChild(changeSet, currentFile);
                 }
 
                 for (KnownFile parent : new HashSet<>(currentFile.getParents())) {
                     if (!changedFile.getParentIds().contains(parent.getId()))
-                        parent.tryRemoveChild(currentFile);
+                        parent.tryRemoveChild(changeSet, currentFile);
                 }
             }
         }
@@ -704,20 +716,21 @@ public class FileTree {
         }
 
         @Override
-        public File run(KnownFiles knownFiles, Uploader uploader) throws IOException {
+        public File run(ChangeSet changeSet, KnownFiles knownFiles, Uploader uploader) throws IOException {
 
             Path parentPath = path.getParent();
             Path fileName = path.getFileName();
-            KnownFile parent = getUnsafe(knownFiles, knownFiles.getRoot(), parentPath);
+            KnownFile parent = getUnsafe(changeSet, knownFiles, knownFiles.getRoot(), parentPath);
 
-            KnownFile existing = getOrNullUnsafe(knownFiles, parent, fileName);
+            KnownFile existing = getOrNullUnsafe(changeSet, knownFiles, parent, fileName);
 
-            KnownFile updated = run(existing, parent, knownFiles, uploader);
+            KnownFile updated = run(changeSet, existing, parent, knownFiles, uploader);
 
             return updated != null ? updated.toFile() : null;
         }
 
         public abstract KnownFile run(
-                KnownFile existing, KnownFile parent, KnownFiles knownFiles, Uploader uploader) throws IOException;
+                ChangeSet changeSet, KnownFile existing, KnownFile parent,
+                KnownFiles knownFiles, Uploader uploader) throws IOException;
     }
 }
