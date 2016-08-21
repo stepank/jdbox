@@ -18,18 +18,13 @@ public class FileIdStore {
     }
 
     public FileId get(String id) {
-        if (id == null)
-            throw new IllegalArgumentException("id");
-        FileId newId = new FileId(id);
+        FileId newId = new FileId(this, id);
         FileId existingId = entries.putIfAbsent(id, newId);
         return existingId != null ? existingId : newId;
     }
 
-    void put(String id, FileId fileId) {
-        if (id == null)
-            throw new IllegalArgumentException("id");
-        FileId existingId = entries.putIfAbsent(id, fileId);
-        if (existingId != null)
+    void put(FileId fileId) {
+        if (entries.putIfAbsent(fileId.get(), fileId) != null)
             throw new ConcurrentModificationException("trying to create two FileIds with equal values");
     }
 }
