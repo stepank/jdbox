@@ -1,10 +1,9 @@
 package jdbox.localstate.interfaces;
 
 import jdbox.localstate.knownfiles.KnownFiles;
-import jdbox.uploader.Uploader;
 
 import java.io.IOException;
 
 public interface LocalUpdate<T> {
-    T run(KnownFiles knownFiles, Uploader uploader) throws IOException;
+    UpdateResult<T> run(KnownFiles knownFiles) throws IOException;
 }

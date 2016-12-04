@@ -569,7 +569,7 @@ public class FileTree {
 
             localState.tryUpdate(new RemoteReadVoid() {
                 @Override
-                public void run() throws IOException {
+                public void run(final Uploader uploader) throws IOException {
 
                     final Changes changes = drive.getChanges(localState.getLargestChangeId() + 1);
 
@@ -580,7 +580,7 @@ public class FileTree {
 
                     localState.update(new LocalUpdateSafe() {
                         @Override
-                        public void run(KnownFiles knownFiles, Uploader uploader) {
+                        public void run(KnownFiles knownFiles) {
 
                             knownFiles.setLargestChangeId(changes.largestChangeId);
 
@@ -698,7 +698,7 @@ public class FileTree {
         }
 
         @Override
-        public File run(KnownFiles knownFiles, Uploader uploader) throws IOException {
+        public File run(KnownFiles knownFiles) throws IOException {
 
             Path parentPath = path.getParent();
             Path fileName = path.getFileName();
@@ -706,12 +706,11 @@ public class FileTree {
 
             KnownFile existing = getOrNullUnsafe(knownFiles, parent, fileName);
 
-            KnownFile updated = run(existing, parent, knownFiles, uploader);
+            KnownFile updated = run(existing, parent, knownFiles);
 
             return updated != null ? updated.toFile() : null;
         }
 
-        public abstract KnownFile run(
-                KnownFile existing, KnownFile parent, KnownFiles knownFiles, Uploader uploader) throws IOException;
+        public abstract KnownFile run(KnownFile existing, KnownFile parent, KnownFiles knownFiles) throws IOException;
     }
 }

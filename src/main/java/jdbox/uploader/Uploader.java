@@ -2,6 +2,7 @@ package jdbox.uploader;
 
 import com.google.inject.Inject;
 import jdbox.OperationContext;
+import jdbox.localstate.interfaces.LocalUpdate;
 import jdbox.models.File;
 import jdbox.models.fileids.FileId;
 import org.slf4j.Logger;
@@ -75,7 +76,7 @@ public class Uploader {
      * related to files in this directory. However, since deletion just moves files/directories to trash, this will
      * work. Still, I should find a way to fix this.
      */
-    public synchronized void submit(Task task) {
+    public synchronized <T> void submit(LocalUpdate<T> localUpdate, Task task) {
 
         logger.debug("submitting {}", task);
 

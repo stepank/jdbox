@@ -5,7 +5,6 @@ import jdbox.driveadapter.BasicInfo;
 import jdbox.driveadapter.BasicInfoProvider;
 import jdbox.localstate.interfaces.*;
 import jdbox.localstate.knownfiles.KnownFiles;
-import jdbox.models.fileids.FileIdStore;
 import jdbox.uploader.Uploader;
 
 import java.io.IOException;
@@ -17,13 +16,14 @@ public class LocalState {
 
     private final BasicInfoProvider basicInfoProvider;
     private final Uploader uploader;
-    private final KnownFiles knownFiles;
+    private final KnownFiles localFiles;
+    private final KnownFiles remoteFiles;
 
-    // Read lock is acquired for reading from knownFiles to prevent modification of its state
+    // Read lock is acquired for reading from localFiles to prevent modification of its state
     // while read operations are in progress.
     // Write lock is acquired on:
-    // 1. knownFiles modifications. This ensures consistent modification of its state.
-    // 1. FileTree public write operations. This ensures consistent modification of knownFiles and
+    // 1. localFiles modifications. This ensures consistent modification of its state.
+    // 1. FileTree public write operations. This ensures consistent modification of localFiles and
     //    correct order of operations submitted to the Uploader.
     // 2. Retrieval of the list of files in a directory. The primary goal is to prevent concurrent retrieval of
     //    the list of files in one directory. Although this also prevents any other write & read operations
@@ -33,10 +33,11 @@ public class LocalState {
     private final ReadWriteLock localStateLock = new ReentrantReadWriteLock();
 
     @Inject
-    public LocalState(FileIdStore fileIdStore, BasicInfoProvider basicInfoProvider, Uploader uploader) {
+    public LocalState(BasicInfoProvider basicInfoProvider, Uploader uploader) {
         this.basicInfoProvider = basicInfoProvider;
         this.uploader = uploader;
-        knownFiles = new KnownFiles(fileIdStore);
+        localFiles = new KnownFiles();
+        remoteFiles = new KnownFiles();
     }
 
     public void init() throws IOException {
@@ -45,7 +46,7 @@ public class LocalState {
 
         update(new LocalUpdateSafe() {
             @Override
-            public void run(KnownFiles knownFiles, Uploader uploader) {
+            public void run(KnownFiles knownFiles) {
                 knownFiles.setRoot(basicInfo.rootFolderId);
                 knownFiles.setLargestChangeId(basicInfo.largestChangeId);
             }
@@ -64,7 +65,7 @@ public class LocalState {
     public void reset() {
         update(new LocalUpdateSafe() {
             @Override
-            public void run(KnownFiles knownFiles, Uploader uploader) {
+            public void run(KnownFiles knownFiles) {
                 knownFiles.reset();
             }
         });
@@ -73,7 +74,9 @@ public class LocalState {
     public <T> T update(LocalUpdate<T> localUpdate) throws IOException {
         localStateLock.writeLock().lock();
         try {
-            return localUpdate.run(knownFiles, uploader);
+            UpdateResult<T> updateResult = localUpdate.run(localFiles);
+            uploader.submit(localUpdate, updateResult.task);
+            return updateResult.result;
         } finally {
             localStateLock.writeLock().unlock();
         }
@@ -82,7 +85,8 @@ public class LocalState {
     public void update(LocalUpdateSafe localUpdate) {
         localStateLock.writeLock().lock();
         try {
-            localUpdate.run(knownFiles, uploader);
+            localUpdate.run(localFiles);
+            localUpdate.run(remoteFiles);
         } finally {
             localStateLock.writeLock().unlock();
         }
@@ -112,7 +116,7 @@ public class LocalState {
             return;
 
         try {
-            remoteRead.run();
+            remoteRead.run(uploader);
         } finally {
             uploader.resume();
         }
@@ -121,7 +125,7 @@ public class LocalState {
     public <T> T read(LocalRead<T> localRead) throws IOException {
         localStateLock.readLock().lock();
         try {
-            return localRead.run(knownFiles);
+            return localRead.run(localFiles);
         } finally {
             localStateLock.readLock().unlock();
         }
@@ -130,7 +134,7 @@ public class LocalState {
     public <T> T read(LocalReadSafe<T> localRead) {
         localStateLock.readLock().lock();
         try {
-            return localRead.run(knownFiles);
+            return localRead.run(localFiles);
         } finally {
             localStateLock.readLock().unlock();
         }

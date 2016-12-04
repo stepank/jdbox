@@ -16,16 +16,10 @@ public class KnownFiles {
 
     public static final String uploadFailureNotificationFileName = "READ ME - UPLOAD IS BROKEN.txt";
 
-    private final FileIdStore fileIdStore;
-
     private KnownFile root;
-    private final Map<FileId, KnownFile> entries = new HashMap<>();
+    private final Map<String, KnownFile> entries = new HashMap<>();
     private long largestChangeId = 0;
     private KnownFile uploadFailureNotificationFile;
-
-    public KnownFiles(FileIdStore fileIdStore) {
-        this.fileIdStore = fileIdStore;
-    }
 
     public KnownFile getRoot() {
         return root;
